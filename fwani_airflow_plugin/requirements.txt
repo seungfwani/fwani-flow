@@ -1,0 +1,3 @@
+flask-swagger==0.2.14
+pika==1.3.2
+pydevd-pycharm==251.20015.54
