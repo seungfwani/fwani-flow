@@ -1,7 +1,6 @@
 import base64
 import os
 import uuid
-from textwrap import dedent
 
 from airflow.configuration import conf
 from airflow.www.app import csrf
@@ -112,6 +111,7 @@ def create_dag():
       400:
         description: Invalid request
     """
+    plugin_directory = os.path.dirname(os.path.abspath(__file__))
     UDF_FOLDER = conf.get("core", "udf_folder")
     DAG_FOLDER = conf.get("core", "dags_folder")
     data = request.json
@@ -130,6 +130,7 @@ def create_dag():
     # Generate DAG content
     tasks = []
     current_task_id_param = "first"
+    # create tasks
     for i, udf in enumerate(udf_sequence):
         before_task_variable_name = f"task_{i}"
         before_task_id = f"{before_task_variable_name}_{current_task_id_param}"
@@ -139,102 +140,52 @@ def create_dag():
         udf_function = udf.get("function")
         current_task_id_param = f"{udf_filename}_{udf_function}"
         current_task_id = f"{task_variable_name}_{current_task_id_param}"
+
         if i == 0:
-            python_operator_options = f"""
-                python_callable=airflow_udf_decorator({udf_function}),
-                op_kwargs={initial_kwargs},
-            """
+            python_callable = f"xcom_decorator({udf_function})"
+            options = f"op_kwargs={initial_kwargs}"
         else:
-            python_operator_options = f"""
-                python_callable=lambda **kwargs: airflow_udf_decorator({udf_function})(
-                before_task_id="{before_task_id}"),
-            """
+            python_callable = f"""lambda **kwargs: xcom_decorator({udf_function})(
+                before_task_id="{before_task_id}")"""
+            options = ""
+
+        with open(os.path.join(plugin_directory, "task_template.tpl"), "r") as f:
+            template_str = f.read()
+        task_template = Template(template_str)
+
         tasks.append({
             "name": task_variable_name,
             "function": udf_function,
             "filename": udf_filename,
-            "code": dedent(f"""\
-            {task_variable_name} = PythonOperator(
-                task_id='{current_task_id}',
-                dag=dag,
-                """ + python_operator_options + ")"),
+            "code": task_template.render(
+                task_variable_name=task_variable_name,
+                current_task_id=current_task_id,
+                python_callable=python_callable,
+                options=options,
+            ),
         })
 
-    # Create dependencies
-    # dependencies = ""
-    # for i in range(len(tasks) - 1):
-    #     dependencies += f"task_{i + 1}.set_downstream(task_{i + 2})\n"
-
+    # add task rule
     import_udf = "\n".join(
-        [f"from {task.get("filename")} import {task.get("function")}" for i, task in enumerate(tasks)])
+        [f"from {task.get('filename')} import {task.get('function')}" for i, task in enumerate(tasks)])
     task_definitions = "\n".join([task.get("code") for task in tasks])
     task_sequence = " >> ".join([task.get("name") for task in tasks])
-    # dag_content = (
-    #     dedent("""
-    #     import sys
-    #     from datetime import datetime
-    #     from functools import wraps
-    #
-    #     from airflow import DAG
-    #     from airflow.operators.python import PythonOperator, get_current_context
-    # """),
-    #     f'sys.path.append("{os.path.abspath(UDF_FOLDER)}")',
-    #     f'{import_udf}',
-    #     dedent("""
-    #
-    # def airflow_udf_decorator(f):
-    #     @wraps(f)
-    #     def wrapper(*args, **kwargs):
-    #         print("🔍 Received args:", args)  # 디버깅용 출력
-    #         print("🔍 Received kwargs:", kwargs)  # 디버깅용 출력
-    #         # TaskInstance 가져오기
-    #         context = get_current_context()
-    #         ti = context["ti"]
-    #         before_task_id = kwargs.get("before_task_id", None)
-    #         if before_task_id is None:
-    #             print("⚠️ Warning: `before_task_id` is missing in kwargs!")
-    #             result = f(*args, **kwargs)
-    #         else:
-    #             # 이전 태스크 출력값 가져오기 (XCom)
-    #             in_data = ti.xcom_pull(task_ids=before_task_id, key='return_value')
-    #             result = f(in_data)
-    #         # 결과값 XCom에 저장
-    #         ti.xcom_push(key='return_value', value=result)
-    #         return result
-    #     return wrapper
-    #
-    #
-    # default_args = {
-    #     'owner': 'airflow',
-    #     'start_date': datetime(2023, 1, 1),
-    #     'retries': 1,
-    # }
-    # """),
-    #     dedent(f"""
-    # dag = DAG(
-    #     dag_id='{dag_id}',
-    #     default_args=default_args,
-    #     schedule_interval=None,
-    #     catchup=False,
-    # )
-    # """),
-    #     f'{task_definitions}',
-    #     f'{task_sequence}',
-    # )
-    # {dependencies}
 
-    with open("dag_template.tpl", "r") as f:
+    # create dag
+    with open(os.path.join(plugin_directory, "dag_template.tpl"), "r") as f:
         template_str = f.read()
     dag_template = Template(template_str)
+    decorator_import = "from fwani_airflow_plugin.decorator import xcom_decorator"
 
     filled_code = dag_template.render(
-        udf_folder_abspath=os.path.abspath(UDF_FOLDER),
         import_udfs=import_udf,
+        decorator_import=decorator_import,
         dag_id=dag_id,
         task_definitions=task_definitions,
         task_rule=task_sequence,
     )
 
+    # write dag
     dag_file_path = os.path.join(DAG_FOLDER, f"{dag_id}.py")
     with open(dag_file_path, 'w') as dag_file:
         dag_file.write(filled_code)

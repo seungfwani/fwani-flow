@@ -15,6 +15,7 @@ def xcom_decorator(func):
 
         is_first_task = len(list(upstream_tasks)) == 0
         if is_first_task:
+            print(f"‼️ 처음 태스크임.")
             before_task_outputs = []
             for t_id, o_key in kwargs.get("before_task_ids", []):
                 before_task_outputs.append(ti.xcom_pull(task_ids=t_id, key="output"))
@@ -26,7 +27,7 @@ def xcom_decorator(func):
 
         is_last_task = len(list(downstream_tasks)) == 0
         if is_last_task:
-            print(f"마지막 태스크임. output = {result}")
+            print(f"‼️ 마지막 태스크임. output = {result}")
         else:
             ti.xcom_push(key="output", value=result)
         return result

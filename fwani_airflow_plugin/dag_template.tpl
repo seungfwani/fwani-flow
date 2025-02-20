@@ -1,15 +1,13 @@
 """
 template 을 통해 만들어진 DAG 입니다.
 """
-import sys
 from datetime import datetime
-from functools import wraps
 
 from airflow import DAG
 from airflow.operators.python import PythonOperator, get_current_context
 
-sys.path.append({{ udf_folder_abspath }})
 {{ import_udfs }}
+{{ decorator_import }}
 
 
 default_args = {

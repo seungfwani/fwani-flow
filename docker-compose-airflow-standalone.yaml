@@ -12,29 +12,46 @@ services:
       POSTGRES_DB: airflow
     networks:
       - airflow_network
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-U", "airflow", "-d", "airflow" ]
+      interval: 5s
+      retries: 5
+      timeout: 3s
+#  redis:
+#    image: redis:latest
+#    container_name: airflow-redis
+#    ports:
+#      - "6379:6379"
+#    networks:
+#      - airflow_network
   airflow:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: airflow-standalone
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
     environment:
+      - PYTHONUNBUFFERED=1
+      - PYCHARM_DEBUG_ENABLED=True
       - LOAD_EXAMPLES=False
       - AIRFLOW__CORE__EXECUTOR=LocalExecutor  # Standalone 모드
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
+      - PYTHONPATH=/opt/airflow/udfs:/opt/airflow/plugins:$PYTHONPATH
     volumes:
+      - ./app:/opt/airflow/app  # 🛠️ 컨테이너 내부 경로 맞추기
       - ./entrypoint.sh:/entrypoint.sh
       - ./airflow/dags:/opt/airflow/dags
-#      - ./airflow/udfs:/opt/airflow/udfs
-      - ./airflow/udfs/utils:/opt/airflow/udfs/utils
+      - ./airflow/udfs:/opt/airflow/udfs
+#      - ./airflow/udfs/utils:/opt/airflow/udfs/utils
       - ./airflow/logs:/opt/airflow/logs
       - ./airflow.cfg:/opt/airflow/airflow.cfg
       - ./fwani_airflow_plugin:/opt/airflow/plugins/fwani_airflow_plugin
     ports:
       - "8082:8080"  # Airflow 웹 UI 포트
-      - "5678:5678"  # PyCharm Debug 포트 추가
-    entrypoint: ["/entrypoint.sh"]
+#      - "5678:5678"  # PyCharm Debug 포트 추가
+    entrypoint: [ "/entrypoint.sh" ]
     networks:
       - airflow_network
 networks:
