@@ -6,9 +6,11 @@ from datetime import datetime
 from airflow import DAG
 from airflow.operators.python import PythonOperator, get_current_context
 
-{{ import_udfs }}
-{{ decorator_import }}
+from fwani_airflow_plugin.decorator import xcom_decorator
 
+{% for task in tasks -%}
+from {{ task.filename }} import {{ task.function }}
+{% endfor %}
 
 default_args = {
     'owner': 'code_generator',
@@ -22,6 +24,15 @@ dag = DAG(
     schedule_interval=None,
     catchup=False,
 )
+{% for task in tasks %}
+{{ task.task_variable_name }} = PythonOperator(
+    task_id='{{ task.current_task_id }}',
+    dag=dag,
+    python_callable={{ task.python_callable }},
+    {{ task.options }}
+)
+{% endfor %}
 
-{{ task_definitions }}
-{{ task_rule }}
+{% for rule in task_rules -%}
+{{ rule }}
+{% endfor %}

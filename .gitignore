@@ -174,4 +174,4 @@ cython_debug/
 .pypirc
 
 .idea
-airflow/logs
+airflow

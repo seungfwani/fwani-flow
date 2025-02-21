@@ -88,23 +88,55 @@ def create_dag():
     - in: body
       name: body
       required: true
-      description: JSON data for DAG
+      description: JSON data for DAG (Node-Edge Graph 형태)
       schema:
         type: object
         properties:
-          udf_sequence:
+          nodes:
             type: array
+            description: UDF 노드 목록
             items:
               type: object
               properties:
+                id:
+                  type: string
+                  description: 노드의 고유 ID (task_id 역할)
                 filename:
                   type: string
+                  description: 실행할 UDF 파일 이름
                 function:
                   type: string
+                  description: 실행할 함수 이름
+          edges:
+            type: array
+            description: 노드 간 연결 관계 (의존성)
+            items:
+              type: object
+              properties:
+                from:
+                  type: string
+                  description: 부모 노드 ID
+                to:
+                  type: string
+                  description: 자식 노드 ID
         example:
-          udf_sequence:
-          - filename: "string"
-            function: "string"
+          nodes:
+          - id: "task_A"
+            filename: "udf_1"
+            function: "fetch_data"
+          - id: "task_B"
+            filename: "udf_2"
+            function: "process_data"
+          - id: "task_C"
+            filename: "udf_3"
+            function: "store_data"
+          edges:
+          - from: "task_A"
+            to: "task_B"
+          - from: "task_A"
+            to: "task_C"
+          - from: "task_B"
+            to: "task_C"
     responses:
       201:
         description: created dag successfully
@@ -116,73 +148,59 @@ def create_dag():
     DAG_FOLDER = conf.get("core", "dags_folder")
     data = request.json
     dag_id = "dag_" + base64.urlsafe_b64encode(uuid.uuid4().bytes).rstrip(b'=').decode('ascii')
-    udf_sequence = data.get("udf_sequence")  # List of UDFs in order
+    nodes = data.get('nodes', [])  # list of node definition
+    edges = data.get('edges', [])  # list of edges
     initial_kwargs = data.get("initial_kwargs", {})
 
-    if not udf_sequence:
-        return jsonify({"error": "udf_sequence are required"}), 400
-
-    missing_udfs = [udf for udf in udf_sequence if
-                    not os.path.exists(os.path.join(UDF_FOLDER, udf.get('filename') + ".py"))]
+    missing_udfs = [node for node in nodes if
+                    not os.path.exists(os.path.join(UDF_FOLDER, node.get('filename') + ".py"))]
     if missing_udfs:
         return jsonify({"error": f"UDFs not found: {missing_udfs}"}), 400
 
     # Generate DAG content
     tasks = []
-    current_task_id_param = "first"
     # create tasks
-    for i, udf in enumerate(udf_sequence):
-        before_task_variable_name = f"task_{i}"
-        before_task_id = f"{before_task_variable_name}_{current_task_id_param}"
+    for i, node in enumerate(nodes):
+        current_task_id = node.get("id")
+        udf_filename = node.get("filename")
+        udf_function = node.get("function")
 
-        task_variable_name = f"task_{i + 1}"
-        udf_filename = udf.get("filename")
-        udf_function = udf.get("function")
-        current_task_id_param = f"{udf_filename}_{udf_function}"
-        current_task_id = f"{task_variable_name}_{current_task_id_param}"
+        # ✅ 첫 번째 노드인지 확인
+        is_first_task = all(edge["to"] != current_task_id for edge in edges)
 
-        if i == 0:
+        if is_first_task:
             python_callable = f"xcom_decorator({udf_function})"
             options = f"op_kwargs={initial_kwargs}"
         else:
+            # ✅ 부모 노드를 찾아서 before_task_id 설정
+            parent_tasks = [edge["from"] for edge in edges if edge["to"] == current_task_id]
             python_callable = f"""lambda **kwargs: xcom_decorator({udf_function})(
-                before_task_id="{before_task_id}")"""
+                before_task_ids={parent_tasks})"""
             options = ""
 
-        with open(os.path.join(plugin_directory, "task_template.tpl"), "r") as f:
-            template_str = f.read()
-        task_template = Template(template_str)
-
         tasks.append({
-            "name": task_variable_name,
             "function": udf_function,
             "filename": udf_filename,
-            "code": task_template.render(
-                task_variable_name=task_variable_name,
-                current_task_id=current_task_id,
-                python_callable=python_callable,
-                options=options,
-            ),
+            "task_variable_name": current_task_id,
+            "current_task_id": current_task_id,
+            "python_callable": python_callable,
+            "options": options,
         })
-
-    # add task rule
-    import_udf = "\n".join(
-        [f"from {task.get('filename')} import {task.get('function')}" for i, task in enumerate(tasks)])
-    task_definitions = "\n".join([task.get("code") for task in tasks])
-    task_sequence = " >> ".join([task.get("name") for task in tasks])
+    task_rules = []
+    for edge in edges:
+        from_task = edge['from']
+        to_task = edge['to']
+        task_rules.append(f"{from_task} >> {to_task}")
 
     # create dag
     with open(os.path.join(plugin_directory, "dag_template.tpl"), "r") as f:
         template_str = f.read()
     dag_template = Template(template_str)
-    decorator_import = "from fwani_airflow_plugin.decorator import xcom_decorator"
 
     filled_code = dag_template.render(
-        import_udfs=import_udf,
-        decorator_import=decorator_import,
         dag_id=dag_id,
-        task_definitions=task_definitions,
-        task_rule=task_sequence,
+        task_rules=task_rules,
+        tasks=tasks,
     )
 
     # write dag
