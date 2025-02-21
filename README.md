@@ -65,12 +65,11 @@
 
 1. Docker Compose 실행
    ```bash
-   docker-compose up --build -d
+   docker-compose -f docker-compose-airflow-standalone.yaml up
    ```
 2. Airflow 웹 UI 접속
-
-- 브라우저에서 http://localhost:8082 접속
-- 기본 계정: admin / admin
+   - 브라우저에서 http://localhost:8082 접속
+   - 기본 계정: admin / admin
 
 ---
 
@@ -79,14 +78,14 @@
 1. UDF 관리
 
    | 메서드  | 엔드포인트             | 설명             |
-            |------|-------------------|----------------|
+   |------|-------------------|----------------|
    | POST | /api/v1/fwani/udf | UDF 업로드        |
    | GET  | /api/v1/fwani/udf | 업로드된 UDF 목록 조회 |
 
 2. DAG 관리
 
    | 메서드    | 엔드포인트                      | 설명        |
-            |--------|----------------------------|-----------|
+   |--------|----------------------------|-----------|
    | POST   | /api/v1/fwani/dag          | DAG 생성    |
    | GET    | /api/v1/fwani/dag          | DAG 목록 조회 |
    | DELETE | /api/v1/fwani/dag/{dag_id} | 특정 DAG 삭제 |
