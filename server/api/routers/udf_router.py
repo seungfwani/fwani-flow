@@ -1,9 +1,13 @@
 import os.path
 import shutil
 
-from fastapi import APIRouter, UploadFile, HTTPException
+from fastapi import APIRouter, UploadFile, HTTPException, File, Depends
+from sqlalchemy.orm import Session
 
 from config import Config
+from core.database import get_db
+from core.log import logger
+from models.udf import UDF
 
 # 워크플로우 블루프린트 생성
 router = APIRouter(
@@ -19,42 +23,73 @@ def allowed_file(filename):
 
 
 @router.post("/udf")
-async def upload_udf(file: UploadFile):
+async def upload_udf(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
     Upload a python UDF file
     :param file:
+    :param db: SqlAlchemy session
     :return:
     """
     if not allowed_file(file.filename):
         raise HTTPException(status_code=400,
                             detail=f"Only {', '.join(map(lambda x: f'.{x}', ALLOWED_EXTENSIONS))} files are allowed")
 
-    file_path = os.path.join(Config.UDF_DIR, file.filename)
-    with open(file_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
-    return {"message": f"{file.filename} UDF file uploaded successfully"}
+    file_path = os.path.join(os.path.abspath(Config.UDF_DIR), file.filename)
+    try:
+        with open(file_path, "wb") as f:
+            shutil.copyfileobj(file.file, f)
+            logger.info(f"✅ 파일 저장 완료: {file_path}")
+
+        udf_data = UDF(name=file.filename, filename=file.filename, path=file_path, function="run")
+        db.add(udf_data)
+        db.commit()
+        db.refresh(udf_data)
+        logger.info(f"✅ 메타데이터 저장 완료: {udf_data}")
+
+        return {"message": f"{file.filename} UDF file uploaded successfully"}
+
+    except Exception as e:
+        logger.error(f"❌ 오류 발생: {e}")
+        db.rollback()
+        logger.info(f"🔄 메타데이터 롤백")
+
+        # ✅ 파일 저장 후 DB 실패 시 파일 삭제
+        if os.path.exists(file_path):
+            os.remove(file_path)
+            logger.info(f"🗑️ 저장된 파일 삭제: {file_path}")
+
+        raise
 
 
-@router.delete("/udf/{filename}")
-async def delete_udf(filename: str):
+@router.delete("/udf/{udf_id}")
+async def delete_udf(udf_id: str, db: Session = Depends(get_db)):
     """
     Delete a python UDF file
-    :param filename:
+    :param udf_id:
     :return:
     """
-    file_path = os.path.join(Config.UDF_DIR, filename)
-    if not os.path.exists(file_path):
+
+    if not (udf_data := db.query(UDF).filter(UDF.id == udf_id).first()):
+        return {"message": f"UDF {udf_id} not found"}
+
+    if not os.path.exists(udf_data.path):
         raise HTTPException(status_code=404, detail="UDF file not found")
 
-    os.remove(file_path)
-    return {"message": f"{filename} UDF file deleted successfully"}
+    os.remove(udf_data.path)
+    logger.info(f"🗑️ 저장된 파일 삭제: {udf_data.path}")
+    db.delete(udf_data)
+    db.commit()
+    logger.info(f"🗑️ 메타데이터 삭제: {udf_data}")
+
+    return {"message": f"{udf_id} UDF file deleted successfully"}
 
 
 @router.get("/udf")
-async def get_udf_list():
+async def get_udf_list(db: Session = Depends(get_db)):
     """
     Get all available UDF files
     :return:
     """
-    files = [f for f in os.listdir(Config.UDF_DIR) if f.endswith(".py")]
-    return {"files": files}
+    logger.info(f"▶️ udf 리스트 조회")
+    print(f"📌 현재 logger 핸들러 목록: {logger.handlers}")  # ✅ 로깅 핸들러 체크
+    return {"udfs": db.query(UDF).all()}

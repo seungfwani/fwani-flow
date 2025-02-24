@@ -1,10 +1,19 @@
 import os
 
 import uvicorn
+from alembic.config import Config as AlembicConfig
 from fastapi import FastAPI
 
+from alembic import command
 from api.routers import routers
 from config import Config
+from core.log import logger
+
+
+def run_migrations():
+    """앱 실행 전 Alembic 마이그레이션 적용"""
+    alembic_cfg = AlembicConfig("alembic.ini")
+    command.upgrade(alembic_cfg, "head")
 
 
 # Flask 애플리케이션 생성
@@ -19,6 +28,8 @@ def create_app():
     for router in routers:
         app.include_router(router, prefix="/api/v1")
 
+    run_migrations()
+
     # udf 폴더 생성
     os.makedirs(Config.UDF_DIR, exist_ok=True)
 
@@ -26,7 +37,12 @@ def create_app():
 
 
 def start_server():
-    uvicorn.run("server.main:create_app", host="0.0.0.0", port=5050, reload=True)
+    logger.info("Starting server ...")
+    uvicorn.run("server.main:create_app",
+                host="0.0.0.0",
+                port=5050,
+                reload=True,
+                )
 
 
 if __name__ == "__main__":
