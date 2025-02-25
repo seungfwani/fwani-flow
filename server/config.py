@@ -18,6 +18,7 @@ class Config:
 
     # 로그 경로
     LOG_DIR = os.getenv("LOG_DIR", "./data/logs")
+    LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG")
 
     WORKFLOW_DIR = os.getenv("WORKFLOW_DIR", "./data/workflows")
     UDF_DIR = os.getenv("UDF_DIR", "./data/udf")

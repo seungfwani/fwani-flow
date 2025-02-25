@@ -1,3 +1,4 @@
+import logging
 import os.path
 import shutil
 
@@ -6,8 +7,9 @@ from sqlalchemy.orm import Session
 
 from config import Config
 from core.database import get_db
-from core.log import logger
-from models.udf import UDF
+from models.function_library import FunctionLibrary
+
+logger = logging.getLogger()
 
 # 워크플로우 블루프린트 생성
 router = APIRouter(
@@ -22,7 +24,7 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-@router.post("/udf")
+@router.post("/")
 async def upload_udf(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
     Upload a python UDF file
@@ -40,7 +42,7 @@ async def upload_udf(file: UploadFile = File(...), db: Session = Depends(get_db)
             shutil.copyfileobj(file.file, f)
             logger.info(f"✅ 파일 저장 완료: {file_path}")
 
-        udf_data = UDF(name=file.filename, filename=file.filename, path=file_path, function="run")
+        udf_data = FunctionLibrary(name=file.filename.replace(".py", ""), filename=file.filename, path=file_path, function="run")
         db.add(udf_data)
         db.commit()
         db.refresh(udf_data)
@@ -61,7 +63,7 @@ async def upload_udf(file: UploadFile = File(...), db: Session = Depends(get_db)
         raise
 
 
-@router.delete("/udf/{udf_id}")
+@router.delete("/{udf_id}")
 async def delete_udf(udf_id: str, db: Session = Depends(get_db)):
     """
     Delete a python UDF file
@@ -69,7 +71,7 @@ async def delete_udf(udf_id: str, db: Session = Depends(get_db)):
     :return:
     """
 
-    if not (udf_data := db.query(UDF).filter(UDF.id == udf_id).first()):
+    if not (udf_data := db.query(FunctionLibrary).filter(FunctionLibrary.id == udf_id).first()):
         return {"message": f"UDF {udf_id} not found"}
 
     if not os.path.exists(udf_data.path):
@@ -84,7 +86,7 @@ async def delete_udf(udf_id: str, db: Session = Depends(get_db)):
     return {"message": f"{udf_id} UDF file deleted successfully"}
 
 
-@router.get("/udf")
+@router.get("/")
 async def get_udf_list(db: Session = Depends(get_db)):
     """
     Get all available UDF files
@@ -92,4 +94,4 @@ async def get_udf_list(db: Session = Depends(get_db)):
     """
     logger.info(f"▶️ udf 리스트 조회")
     print(f"📌 현재 logger 핸들러 목록: {logger.handlers}")  # ✅ 로깅 핸들러 체크
-    return {"udfs": db.query(UDF).all()}
+    return {"udfs": db.query(FunctionLibrary).all()}

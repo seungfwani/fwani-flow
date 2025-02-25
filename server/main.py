@@ -1,13 +1,16 @@
+import logging
 import os
 
 import uvicorn
+from alembic import command
 from alembic.config import Config as AlembicConfig
 from fastapi import FastAPI
 
-from alembic import command
 from api.routers import routers
 from config import Config
-from core.log import logger
+from core.log import LOG_CONFIG
+
+logger = logging.getLogger()
 
 
 def run_migrations():
@@ -32,6 +35,7 @@ def create_app():
 
     # udf 폴더 생성
     os.makedirs(Config.UDF_DIR, exist_ok=True)
+    os.makedirs(Config.DAG_DIR, exist_ok=True)
 
     return app
 
@@ -42,6 +46,7 @@ def start_server():
                 host="0.0.0.0",
                 port=5050,
                 reload=True,
+                log_config=LOG_CONFIG,
                 )
 
 
