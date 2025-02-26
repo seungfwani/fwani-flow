@@ -46,6 +46,7 @@ async def create_dag(dag: DAGRequest, db: Session = Depends(get_db)):
 
             # UDF가 누락되었다면 에러 반환
             if missing_udfs:
+                print(f"UDFs not found: {missing_udfs}")
                 return {"message": f"UDFs not found: {missing_udfs}"}
 
             flow = Flow(id=dag_id, name=dag.name, description=dag.description)
@@ -108,31 +109,43 @@ async def create_dag(dag: DAGRequest, db: Session = Depends(get_db)):
             "dag_file": dag_file_path
         }
     except Exception as e:
-        logger.error(f"❌ 오류 발생: {e}")
+        print(f"❌ 오류 발생: {e}")
         db.rollback()
-        logger.info(f"🔄 메타데이터 롤백")
+        print(f"🔄 메타데이터 롤백")
 
         # ✅ 파일 저장 후 DB 실패 시 파일 삭제
         if os.path.exists(dag_file_path):
             os.remove(dag_file_path)
-            logger.info(f"🗑️ 저장된 파일 삭제: {dag_file_path}")
+            print(f"🗑️ 저장된 파일 삭제: {dag_file_path}")
         raise HTTPException(status_code=500, detail=f"DAG creation failed {e}")
 
-# @router.delete("/udf/{filename}")
-# async def delete_udf(filename: str):
-#     """
-#     Delete a python UDF file
-#     :param filename:
-#     :return:
-#     """
-#     file_path = os.path.join(Config.UDF_DIR, filename)
-#     if not os.path.exists(file_path):
-#         raise HTTPException(status_code=404, detail="UDF file not found")
-#
-#     os.remove(file_path)
-#     return {"message": f"{filename} UDF file deleted successfully"}
-#
-#
+
+@router.delete("/{dag_id}")
+async def delete_udf(dag_id: str, db: Session = Depends(get_db)):
+    """
+    Delete a python UDF file
+    :param dag_id:
+    :return:
+    """
+
+    if not (dag_data := db.query(Flow).filter(Flow.id == dag_id).first()):
+        return {"message": f"UDF {dag_id} not found"}
+    dag_file_path = os.path.join(Config.DAG_DIR, f"{dag_id}.py")
+
+    if not os.path.exists(dag_file_path):
+        print(f"Warning: No file to delete {dag_file_path}")
+    else:
+        os.remove(dag_file_path)
+        print(f"🗑️ 저장된 DAG 파일 삭제: {dag_file_path}")
+
+    db.query(Edge).filter(Edge.flow_id == dag_data.id).delete()
+    db.query(Task).filter(Task.flow_id == dag_data.id).delete()
+    db.delete(dag_data)
+    db.commit()
+    print(f"🗑️ DAG 메타데이터 삭제: {dag_data}")
+
+    return {"message": f"{dag_data} DAG fil e deleted successfully"}
+
 # @router.get("/udf")
 # async def get_udf_list():
 #     """

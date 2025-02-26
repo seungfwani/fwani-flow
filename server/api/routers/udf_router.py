@@ -8,8 +8,10 @@ from sqlalchemy.orm import Session
 from config import Config
 from core.database import get_db
 from models.function_library import FunctionLibrary
+from utils.functions import generate_udf_filename
+from utils.udf_validator import validate_udf
 
-logger = logging.getLogger()
+logger = logging.getLogger("fwani-flow")
 
 # 워크플로우 블루프린트 생성
 router = APIRouter(
@@ -36,13 +38,20 @@ async def upload_udf(file: UploadFile = File(...), db: Session = Depends(get_db)
         raise HTTPException(status_code=400,
                             detail=f"Only {', '.join(map(lambda x: f'.{x}', ALLOWED_EXTENSIONS))} files are allowed")
 
-    file_path = os.path.join(os.path.abspath(Config.UDF_DIR), file.filename)
+    file_name = generate_udf_filename(file.filename)
+    file_path = os.path.join(os.path.abspath(Config.UDF_DIR), file_name)
     try:
         with open(file_path, "wb") as f:
             shutil.copyfileobj(file.file, f)
             logger.info(f"✅ 파일 저장 완료: {file_path}")
 
-        udf_data = FunctionLibrary(name=file.filename.replace(".py", ""), filename=file.filename, path=file_path, function="run")
+        if not validate_udf(file_path):
+            raise HTTPException(status_code=400, detail="UDF is not valid")
+
+        udf_data = FunctionLibrary(name=file_name.replace(".py", ""),
+                                   filename=file_name,
+                                   path=file_path,
+                                   function="run")
         db.add(udf_data)
         db.commit()
         db.refresh(udf_data)

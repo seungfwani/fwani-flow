@@ -2,10 +2,10 @@ import logging
 import os
 
 import uvicorn
-from alembic import command
 from alembic.config import Config as AlembicConfig
 from fastapi import FastAPI
 
+from alembic import command
 from api.routers import routers
 from config import Config
 from core.log import LOG_CONFIG
@@ -47,6 +47,7 @@ def start_server():
                 port=5050,
                 reload=True,
                 log_config=LOG_CONFIG,
+                log_level="info",
                 )
 
 

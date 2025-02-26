@@ -1,4 +1,5 @@
 import importlib
+import logging
 import os
 import pkgutil
 
@@ -8,6 +9,8 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
 from config import Config
+
+logger = logging.getLogger(__name__)
 
 schema = Config.DB_URI.split("://", 1)[0]
 if schema == "postgresql":
@@ -35,6 +38,7 @@ import_models()
 
 
 def get_db():
+    logger.info("Connecting to database")
     db = SessionLocal()
     try:
         yield db

@@ -16,5 +16,5 @@ class Flow(Base):
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
-    tasks = relationship("Task", back_populates="flow")
-    edges = relationship("Edge", back_populates="flow")
+    tasks = relationship("Task", back_populates="flow", cascade="all, delete-orphan", passive_deletes=True)
+    edges = relationship("Edge", back_populates="flow", cascade="all, delete-orphan", passive_deletes=True)
