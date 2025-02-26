@@ -23,9 +23,10 @@ router = APIRouter(
 )
 
 
-@router.post("/")
+@router.post("")
 async def create_dag(dag: DAGRequest, db: Session = Depends(get_db)):
     """DAG 생성 및 DB 에 저장"""
+    print(f"Request Data: {dag}")
     plugin_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../..")
     dag_id = "dag_" + base64.urlsafe_b64encode(dag.name.encode()).rstrip(b'=').decode('ascii')
     dag_file_path = os.path.join(Config.DAG_DIR, f"{dag_id}.py")
@@ -125,6 +126,7 @@ async def delete_udf(dag_id: str, db: Session = Depends(get_db)):
     """
     Delete a python UDF file
     :param dag_id:
+    :param db:
     :return:
     """
 
@@ -146,11 +148,11 @@ async def delete_udf(dag_id: str, db: Session = Depends(get_db)):
 
     return {"message": f"{dag_data} DAG fil e deleted successfully"}
 
-# @router.get("/udf")
-# async def get_udf_list():
-#     """
-#     Get all available UDF files
-#     :return:
-#     """
-#     files = [f for f in os.listdir(Config.UDF_DIR) if f.endswith(".py")]
-#     return {"files": files}
+
+@router.get("")
+async def get_udf_list(db: Session = Depends(get_db)):
+    """
+    Get all available UDF files
+    :return:
+    """
+    return {"dags": db.query(Flow).all()}

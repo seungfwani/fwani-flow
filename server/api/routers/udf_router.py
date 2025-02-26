@@ -11,7 +11,7 @@ from models.function_library import FunctionLibrary
 from utils.functions import generate_udf_filename
 from utils.udf_validator import validate_udf
 
-logger = logging.getLogger("fwani-flow")
+logger = logging.getLogger()
 
 # 워크플로우 블루프린트 생성
 router = APIRouter(
@@ -26,7 +26,7 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-@router.post("/")
+@router.post("")
 async def upload_udf(file: UploadFile = File(...), db: Session = Depends(get_db)):
     """
     Upload a python UDF file
@@ -95,7 +95,7 @@ async def delete_udf(udf_id: str, db: Session = Depends(get_db)):
     return {"message": f"{udf_id} UDF file deleted successfully"}
 
 
-@router.get("/")
+@router.get("")
 async def get_udf_list(db: Session = Depends(get_db)):
     """
     Get all available UDF files

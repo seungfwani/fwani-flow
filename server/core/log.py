@@ -20,12 +20,12 @@ LOG_CONFIG = {
     "disable_existing_loggers": False,
     "formatters": {
         "default": {
-            # "()": "uvicorn.logging.DefaultFormatter",
+            "()": "uvicorn.logging.DefaultFormatter",
             "fmt": LOG_FORMAT,
             "use_colors": None,
         },
         "access": {
-            # "()": "uvicorn.logging.DefaultFormatter",
+            "()": "uvicorn.logging.DefaultFormatter",
             "fmt": "[%(asctime)s] %(levelname)s, %(process)s-%(thread)d, %(message)s",
             "use_colors": None,
         },
@@ -68,21 +68,23 @@ LOG_CONFIG = {
 
 
 def setup_logging():
+    logger = logging.getLogger()  # ✅ 통일된 로거 사용
+    logger.setLevel(logging.getLevelName(Config.LOG_LEVEL))
+
+    formatter = logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT)
     # 콘솔 핸들러 (터미널 출력용)
     console_handler = logging.StreamHandler()
-    console_handler.setFormatter(logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT))
+    console_handler.setFormatter(formatter)
 
     # 파일 핸들러 (로그 파일 저장용)
     file_handler = RotatingFileHandler(LOG_FILE, maxBytes=5 * 1024 * 1024, backupCount=5)  # 최대 5MB, 5개 유지
-    file_handler.setFormatter(logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT))
+    file_handler.setFormatter(formatter)
 
     # 로깅 설정 적용
     # dictConfig(LOG_CONFIG)
-    logger = logging.getLogger()  # ✅ 통일된 로거 사용
-    logger.propagate = False
+    # logger.propagate = False
 
     logger.handlers.clear()
-    logger.setLevel(Config.LOG_LEVEL)
     logger.addHandler(console_handler)
     logger.addHandler(file_handler)
 

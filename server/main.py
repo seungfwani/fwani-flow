@@ -4,6 +4,7 @@ import os
 import uvicorn
 from alembic.config import Config as AlembicConfig
 from fastapi import FastAPI
+from starlette.middleware.cors import CORSMiddleware
 
 from alembic import command
 from api.routers import routers
@@ -25,6 +26,12 @@ def create_app():
     app = FastAPI(
         title="Workflow Management API",
         debug=Config.DEBUG,
+    )
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["*"],
     )
 
     # API 라우트 등록
