@@ -2,7 +2,6 @@
   <div id="app">
     <h1>Workflow Manager</h1>
     <DAGList/>
-    <UDFList/>
     <UDFUpload/>
     <DAGEditor/>
   </div>
@@ -10,7 +9,6 @@
 
 <script>
 import DAGList from "@/components/DAGList.vue";
-import UDFList from "@/components/UDFList.vue";
 import UDFUpload from "@/components/UDFUpload.vue";
 import DAGEditor from "@/components/DAGEditor.vue";
 
@@ -19,7 +17,6 @@ export default {
     DAGEditor,
     UDFUpload,
     DAGList,
-    UDFList,
   },
 };
 </script>

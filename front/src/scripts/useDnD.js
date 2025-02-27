@@ -21,10 +21,11 @@ const state = {
   draggedType: ref(null),
   isDragOver: ref(false),
   isDragging: ref(false),
+  udfData: ref(null)
 }
 
 export default function useDragAndDrop() {
-  const { draggedType, isDragOver, isDragging } = state
+  const { draggedType, isDragOver, isDragging, udfData } = state
 
   const { addNodes, screenToFlowCoordinate, onNodesInitialized, updateNode } = useVueFlow()
 
@@ -32,7 +33,7 @@ export default function useDragAndDrop() {
     document.body.style.userSelect = dragging ? 'none' : ''
   })
 
-  function onDragStart(event, type) {
+  function onDragStart(event, type, udf) {
     if (event.dataTransfer) {
       event.dataTransfer.setData('application/vueflow', type)
       event.dataTransfer.effectAllowed = 'move'
@@ -40,6 +41,7 @@ export default function useDragAndDrop() {
 
     draggedType.value = type
     isDragging.value = true
+    udfData.value = udf
 
     document.addEventListener('drop', onDragEnd)
   }
@@ -85,11 +87,15 @@ export default function useDragAndDrop() {
 
     const nodeId = getId()
 
+    console.log(udfData)
     const newNode = {
       id: nodeId,
       type: draggedType.value,
       position,
-      data: { label: nodeId },
+      data: {
+        label: udfData.value.name,
+        function_id: udfData.value.id
+      },
     }
 
     /**
@@ -110,6 +116,7 @@ export default function useDragAndDrop() {
 
   return {
     draggedType,
+    udfData,
     isDragOver,
     isDragging,
     onDragStart,
