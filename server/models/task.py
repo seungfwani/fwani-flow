@@ -19,4 +19,5 @@ class Task(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     flow = relationship("Flow", back_populates="tasks")
+    inputs = relationship("TaskInput", back_populates="task")
     function = relationship("FunctionLibrary")

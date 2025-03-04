@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Dict, Any
 
 from pydantic import BaseModel, Field
 
@@ -7,8 +7,7 @@ from pydantic import BaseModel, Field
 class DAGNode(BaseModel):
     id: str = Field(..., description="Task Name 역할")
     function_id: str = Field(..., description="실행할 UDF ID")
-    # filename: str = Field(..., description="실행할 UDF 파일 이름")
-    # function: str = Field(..., description="실행할 함수 이름")
+    inputs: Dict[str, Any] = Field({}, description="UDF 실행시 input 값")
 
 
 class DAGEdge(BaseModel):

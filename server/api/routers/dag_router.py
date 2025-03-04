@@ -13,6 +13,7 @@ from models.edge import Edge
 from models.flow import Flow
 from models.function_library import FunctionLibrary
 from models.task import Task
+from models.task_input import TaskInput
 
 logger = logging.getLogger()
 
@@ -72,14 +73,20 @@ async def create_dag(dag: DAGRequest, db: Session = Depends(get_db)):
                     python_callable = f"""lambda **kwargs: xcom_decorator({udf_functions[node.function_id].function})(
                         before_task_ids={parent_tasks})"""
                     options = ""
-
-                tasks.append(Task(
+                task_data = Task(
                     variable_id=current_task_id,
                     flow_id=flow.id,
                     function_id=node.function_id,
                     python_callable=python_callable,
                     options=options,
-                ))
+                )
+                for k, v in node.inputs.items():
+                    task_data.inputs.append(TaskInput(
+                        task_id=current_task_id,
+                        key=k,
+                        value=v,
+                    ))
+                tasks.append(task_data)
             task_rules = []
             edges = []
             for edge in dag.edges:

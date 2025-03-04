@@ -1,13 +1,18 @@
+import json
 import logging
 import os.path
 import shutil
+import uuid
 
-from fastapi import APIRouter, UploadFile, HTTPException, File, Depends
+from fastapi import APIRouter, UploadFile, HTTPException, File, Depends, Form
 from sqlalchemy.orm import Session
 
+from api.models.udf_model import UDFUploadRequest
 from config import Config
 from core.database import get_db
+from models.function_input import FunctionInput
 from models.function_library import FunctionLibrary
+from models.function_output import FunctionOutput
 from utils.functions import generate_udf_filename
 from utils.udf_validator import validate_udf
 
@@ -26,8 +31,20 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+def convert_json_string_to_udf_upload_request(
+        udf_metadata: str = Form(...),
+):
+    try:
+        data = json.loads(udf_metadata)
+        return UDFUploadRequest(**data)
+    except json.decoder.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON format for udf_metadata")
+
+
 @router.post("")
-async def upload_udf(file: UploadFile = File(...), db: Session = Depends(get_db)):
+async def upload_udf(udf_metadata: UDFUploadRequest = Depends(convert_json_string_to_udf_upload_request),
+                     file: UploadFile = File(...),
+                     db: Session = Depends(get_db)):
     """
     Upload a python UDF file
     :param file:
@@ -47,11 +64,26 @@ async def upload_udf(file: UploadFile = File(...), db: Session = Depends(get_db)
 
         if not validate_udf(file_path):
             raise HTTPException(status_code=400, detail="UDF is not valid")
-
-        udf_data = FunctionLibrary(name=file_name.replace(".py", ""),
+        udf_id = str(uuid.uuid4())
+        udf_data = FunctionLibrary(id=udf_id,
+                                   name=file_name.replace(".py", ""),
                                    filename=file_name,
                                    path=file_path,
                                    function="run")
+        for i in udf_metadata.inputs:
+            udf_data.inputs.append(FunctionInput(
+                name=i.name,
+                type=i.type,
+                required=i.required,
+                default_value=i.default_value,
+                description=i.description,
+            ))
+
+        udf_data.output = FunctionOutput(
+            name=udf_metadata.output.name,
+            type=udf_metadata.output.type,
+            description=udf_metadata.output.description,
+        )
         db.add(udf_data)
         db.commit()
         db.refresh(udf_data)

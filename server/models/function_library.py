@@ -1,6 +1,7 @@
 import uuid
 
 from sqlalchemy import Column, String, Text, DateTime, func
+from sqlalchemy.orm import relationship
 
 from core.database import Base
 
@@ -16,3 +17,7 @@ class FunctionLibrary(Base):
     description = Column(Text)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+
+    inputs = relationship("FunctionInput", back_populates="function_", cascade="all, delete-orphan")
+    output = relationship("FunctionOutput", back_populates="function_",
+                          cascade="all, delete-orphan", uselist=False)
