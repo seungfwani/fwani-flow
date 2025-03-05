@@ -21,5 +21,5 @@ class Config:
     LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG")
 
     WORKFLOW_DIR = os.getenv("WORKFLOW_DIR", "./data/workflows")
-    UDF_DIR = os.getenv("UDF_DIR", "./data/udf")
-    DAG_DIR = os.getenv("DAG_DIR", "./data/dag")
+    UDF_DIR = os.getenv("UDF_DIR", "./data/udfs")
+    DAG_DIR = os.getenv("DAG_DIR", "./data/dags")

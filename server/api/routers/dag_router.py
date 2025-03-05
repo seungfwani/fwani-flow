@@ -1,4 +1,5 @@
 import base64
+import json
 import logging
 import os.path
 
@@ -14,6 +15,7 @@ from models.flow import Flow
 from models.function_library import FunctionLibrary
 from models.task import Task
 from models.task_input import TaskInput
+from utils.udf_validator import get_validated_inputs
 
 logger = logging.getLogger()
 
@@ -65,20 +67,18 @@ async def create_dag(dag: DAGRequest, db: Session = Depends(get_db)):
                 is_first_task = all(edge.to_ != current_task_id for edge in dag.edges)
 
                 if is_first_task:
-                    python_callable = f"xcom_decorator({udf_functions[node.function_id].function})"
-                    options = f"op_kwargs={{}}"
+                    options = get_validated_inputs(udf_functions[node.function_id].inputs, node.inputs)
                 else:
                     # 부모 노드를 찾아서 before_task_id 설정
-                    parent_tasks = [edge.from_ for edge in dag.edges if edge.to_ == current_task_id]
-                    python_callable = f"""lambda **kwargs: xcom_decorator({udf_functions[node.function_id].function})(
-                        before_task_ids={parent_tasks})"""
-                    options = ""
+                    options = {'before_task_ids': [edge.from_ for edge in dag.edges if edge.to_ == current_task_id]}
                 task_data = Task(
                     variable_id=current_task_id,
                     flow_id=flow.id,
                     function_id=node.function_id,
-                    python_callable=python_callable,
-                    options=options,
+                    decorator="xcom_decorator",
+                    decorator_parameters=json.dumps([{"name": udf_inp.name, "type": udf_inp.type} for udf_inp in
+                                                     udf_functions[node.function_id].inputs]),
+                    options=json.dumps(options),
                 )
                 for k, v in node.inputs.items():
                     task_data.inputs.append(TaskInput(

@@ -15,5 +15,5 @@ class Edge(Base):
     to_task_id = Column(String, ForeignKey("task.id", ondelete="CASCADE"))
 
     flow = relationship("Flow", back_populates="edges")
-    from_task = relationship("Task", foreign_keys=[from_task_id])
-    to_task = relationship("Task", foreign_keys=[to_task_id])
+    from_task = relationship("Task", foreign_keys=from_task_id)
+    to_task = relationship("Task", foreign_keys=to_task_id)
