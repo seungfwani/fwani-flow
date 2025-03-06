@@ -1,4 +1,8 @@
-def finish(*args, **kwargs):
-    print(f"finish function input: {kwargs}")
-    output = f"finish function output: {kwargs}"
+def finish(data):
+    output = f"finish function output: {data}"
+    print(output)
     return output
+
+
+def run(*args, **kwargs):
+    return finish(kwargs.get("data"))

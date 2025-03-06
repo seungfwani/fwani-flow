@@ -1,4 +1,8 @@
-def process1(*args, **kwargs):
-    print(f"process1 function input: {kwargs}")
-    output = f"process1 function output: {kwargs}"
+def process1(data):
+    output = f"process1 function output: {data}"
+    print(output)
     return output
+
+
+def run(*args, **kwargs):
+    return process1(kwargs.get("data"))
