@@ -1,6 +1,7 @@
-from typing import List, Optional
+import json
+from typing import List, Optional, Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 # DAG 데이터 모델 정의
@@ -21,3 +22,11 @@ class UDFOutputSchema(BaseModel):
 class UDFUploadRequest(BaseModel):
     inputs: List[UDFInputSchema]
     output: UDFOutputSchema
+
+    @model_validator(mode='before')
+    @classmethod
+    def validate_to_json(cls, value: Any) -> Any:
+        print(value)
+        if isinstance(value, str):
+            return cls(**json.loads(value))
+        return value

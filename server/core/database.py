@@ -6,7 +6,7 @@ import pkgutil
 from fastapi import HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, scoped_session
 
 from config import Config
 
@@ -14,12 +14,12 @@ logger = logging.getLogger(__name__)
 
 schema = Config.DB_URI.split("://", 1)[0]
 if schema == "postgresql":
-    engine = create_engine(Config.DB_URI)
+    engine = create_engine(Config.DB_URI, connect_args={"check_same_thread": False})
 elif schema == "sqlite":
-    engine = create_engine(Config.DB_URI)
+    engine = create_engine(Config.DB_URI, connect_args={"check_same_thread": False})
 else:
     raise HTTPException(status_code=404, detail="Invalid database URI")
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+SessionLocal = scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engine))
 
 Base = declarative_base()
 

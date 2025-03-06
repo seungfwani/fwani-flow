@@ -18,5 +18,5 @@ class DAGEdge(BaseModel):
 class DAGRequest(BaseModel):
     name: str = Field(..., description="DAG Name")
     description: str = Field(..., description="DAG Description")
-    nodes: List[DAGNode] = Field([], description="Task 정의")
-    edges: List[DAGEdge] = Field([], description="Task 실행 관계 정의")
+    nodes: List[DAGNode] = Field(..., description="Task 정의")
+    edges: List[DAGEdge] = Field(..., description="Task 실행 관계 정의")

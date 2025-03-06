@@ -1,4 +1,3 @@
-import json
 import logging
 import os.path
 import shutil
@@ -31,22 +30,13 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-def convert_json_string_to_udf_upload_request(
-        udf_metadata: str = Form(...),
-):
-    try:
-        data = json.loads(udf_metadata)
-        return UDFUploadRequest(**data)
-    except json.decoder.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="Invalid JSON format for udf_metadata")
-
-
 @router.post("")
-async def upload_udf(udf_metadata: UDFUploadRequest = Depends(convert_json_string_to_udf_upload_request),
+async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
                      file: UploadFile = File(...),
                      db: Session = Depends(get_db)):
     """
     Upload a python UDF file
+    :param udf_metadata:
     :param file:
     :param db: SqlAlchemy session
     :return:
