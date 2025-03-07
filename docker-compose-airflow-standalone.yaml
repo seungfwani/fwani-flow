@@ -40,15 +40,13 @@ services:
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       - PYTHONPATH=/opt/airflow/udfs:/opt/airflow/plugins:$PYTHONPATH
     volumes:
-      #      - ./app:/opt/airflow/app  # 🛠️ 컨테이너 내부 경로 맞추기
       - ./entrypoint.sh:/entrypoint.sh
       - ./server/data/dags:/opt/airflow/dags
       - ./server/data/udfs:/opt/airflow/udfs
       - ./server/utils/decorator.py:/opt/airflow/udfs/utils/decorator.py
-      #      - ./airflow/udfs/utils:/opt/airflow/udfs/utils
       - ./server/data/logs:/opt/airflow/logs
       - ./airflow.cfg:/opt/airflow/airflow.cfg
-    #      - ./fwani_airflow_plugin:/opt/airflow/plugins/fwani_airflow_plugin
+      - /var/run/docker.sock:/run/docker.sock  # ✅ M2 Mac 환경 적용
     ports:
       - "8082:8080"  # Airflow 웹 UI 포트
     #      - "5678:5678"  # PyCharm Debug 포트 추가
