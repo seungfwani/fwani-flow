@@ -43,6 +43,7 @@ services:
       - ./entrypoint.sh:/entrypoint.sh
       - ./server/data/dags:/opt/airflow/dags
       - ./server/data/udfs:/opt/airflow/udfs
+      - ./server/data/shared:/app/shared
       - ./server/utils/decorator.py:/opt/airflow/udfs/utils/decorator.py
       - ./server/data/logs:/opt/airflow/logs
       - ./airflow.cfg:/opt/airflow/airflow.cfg

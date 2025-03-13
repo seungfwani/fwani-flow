@@ -4,10 +4,10 @@ import logging
 import os.path
 
 from fastapi import APIRouter, HTTPException, Depends
-from jinja2 import Template
 from sqlalchemy.orm import Session
 
 from api.models.dag_model import DAGRequest
+from api.render_template import render_dag_script
 from config import Config
 from core.database import get_db
 from models.edge import Edge
@@ -30,7 +30,6 @@ router = APIRouter(
 async def create_dag(dag: DAGRequest, db: Session = Depends(get_db)):
     """DAG 생성 및 DB 에 저장"""
     print(f"Request Data: {dag}")
-    plugin_directory = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../..")
     dag_id = "dag_" + base64.urlsafe_b64encode(dag.name.encode()).rstrip(b'=').decode('ascii')
     dag_file_path = os.path.join(Config.DAG_DIR, f"{dag_id}.py")
     try:
@@ -73,7 +72,7 @@ async def create_dag(dag: DAGRequest, db: Session = Depends(get_db)):
                     variable_id=current_task_id,
                     flow_id=flow.id,
                     function_id=node.function_id,
-                    decorator="xcom_decorator",
+                    decorator="file_decorator",
                     decorator_parameters=json.dumps([{"name": udf_inp.name, "type": udf_inp.type} for udf_inp in
                                                      udf_functions[node.function_id].inputs]),
                     options=json.dumps(options),
@@ -98,20 +97,9 @@ async def create_dag(dag: DAGRequest, db: Session = Depends(get_db)):
             db.add_all(edges)
             db.flush()
 
-            # create dag file
-            with open(os.path.join(plugin_directory, "dag_template.tpl"), "r") as f:
-                template_str = f.read()
-            dag_template = Template(template_str)
-
-            filled_code = dag_template.render(
-                dag_id=dag_id,
-                task_rules=task_rules,
-                tasks=tasks,
-            )
-
             # write dag
             with open(dag_file_path, 'w') as dag_file:
-                dag_file.write(filled_code)
+                dag_file.write(render_dag_script(dag_id, task_rules, tasks))
             db.commit()
         return {
             "message": f"DAG {dag_id} created successfully",
@@ -126,7 +114,7 @@ async def create_dag(dag: DAGRequest, db: Session = Depends(get_db)):
         if os.path.exists(dag_file_path):
             os.remove(dag_file_path)
             print(f"🗑️ 저장된 파일 삭제: {dag_file_path}")
-        raise HTTPException(status_code=500, detail=f"DAG creation failed {e}")
+        raise HTTPException(status_code=500, detail=f"DAG creation failed. {e}")
 
 
 @router.delete("/{dag_id}")

@@ -12,6 +12,7 @@ from core.database import get_db
 from models.function_input import FunctionInput
 from models.function_library import FunctionLibrary
 from models.function_output import FunctionOutput
+from utils.decorator import save_executable_udf
 from utils.functions import generate_udf_filename
 from utils.udf_validator import validate_udf
 
@@ -45,21 +46,28 @@ async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
         raise HTTPException(status_code=400,
                             detail=f"Only {', '.join(map(lambda x: f'.{x}', ALLOWED_EXTENSIONS))} files are allowed")
 
-    file_name = generate_udf_filename(file.filename)
-    file_path = os.path.join(os.path.abspath(Config.UDF_DIR), file_name)
+    udf_dir = os.path.abspath(Config.UDF_DIR)
+    udf_name = generate_udf_filename(file.filename)
+    file_dir = os.path.join(os.path.abspath(Config.UDF_DIR), udf_name)
+    file_path = os.path.join(file_dir, "udf.py")
     try:
+        os.makedirs(file_dir, exist_ok=True)
         with open(file_path, "wb") as f:
             shutil.copyfileobj(file.file, f)
             logger.info(f"✅ 파일 저장 완료: {file_path}")
 
         if not validate_udf(file_path):
             raise HTTPException(status_code=400, detail="UDF is not valid")
+        save_executable_udf(udf_dir, udf_name)
+
         udf_id = str(uuid.uuid4())
         udf_data = FunctionLibrary(id=udf_id,
-                                   name=file_name.replace(".py", ""),
-                                   filename=file_name,
-                                   path=file_path,
-                                   function="run")
+                                   name=udf_name,
+                                   filename=udf_name,
+                                   path=file_dir,
+                                   function="run",
+                                   operator_type="python")
+
         for i in udf_metadata.inputs:
             udf_data.inputs.append(FunctionInput(
                 name=i.name,
@@ -87,9 +95,9 @@ async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
         logger.info(f"🔄 메타데이터 롤백")
 
         # ✅ 파일 저장 후 DB 실패 시 파일 삭제
-        if os.path.exists(file_path):
-            os.remove(file_path)
-            logger.info(f"🗑️ 저장된 파일 삭제: {file_path}")
+        if os.path.exists(file_dir):
+            shutil.rmtree(file_dir)
+            logger.info(f"🗑️ 저장된 파일 삭제: {file_dir}")
 
         raise
 
