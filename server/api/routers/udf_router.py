@@ -2,6 +2,7 @@ import logging
 import os.path
 import shutil
 import uuid
+from typing import List
 
 from fastapi import APIRouter, UploadFile, HTTPException, File, Depends, Form
 from sqlalchemy.orm import Session
@@ -12,7 +13,7 @@ from core.database import get_db
 from models.function_input import FunctionInput
 from models.function_library import FunctionLibrary
 from models.function_output import FunctionOutput
-from utils.decorator import save_executable_udf
+from utils.decorator import zip_executable_udf
 from utils.functions import generate_udf_filename
 from utils.udf_validator import validate_udf
 
@@ -24,7 +25,7 @@ router = APIRouter(
     tags=["Udf"],
 )
 
-ALLOWED_EXTENSIONS = ['py']
+ALLOWED_EXTENSIONS = ['py', 'txt']
 
 
 def allowed_file(filename):
@@ -33,40 +34,58 @@ def allowed_file(filename):
 
 @router.post("")
 async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
-                     file: UploadFile = File(...),
+                     files: List[UploadFile] = File(...),
                      db: Session = Depends(get_db)):
     """
     Upload a python UDF file
     :param udf_metadata:
-    :param file:
+    :param files:
     :param db: SqlAlchemy session
     :return:
     """
-    if not allowed_file(file.filename):
-        raise HTTPException(status_code=400,
-                            detail=f"Only {', '.join(map(lambda x: f'.{x}', ALLOWED_EXTENSIONS))} files are allowed")
+    if not files:
+        raise HTTPException(status_code=404, detail="No files uploaded")
+    python_file = None
+    requirements_file = None
+    for file in files:
+        if not allowed_file(file.filename):
+            raise HTTPException(status_code=400,
+                                detail=f"Only {', '.join(map(lambda x: f'.{x}', ALLOWED_EXTENSIONS))} files are allowed")
+        if file.filename.endswith(".py"):
+            python_file = file
+        elif file.filename.endswith(".txt"):
+            requirements_file = file
 
     udf_dir = os.path.abspath(Config.UDF_DIR)
-    udf_name = generate_udf_filename(file.filename)
+    udf_name = generate_udf_filename(python_file.filename)
     file_dir = os.path.join(os.path.abspath(Config.UDF_DIR), udf_name)
     file_path = os.path.join(file_dir, "udf.py")
     try:
         os.makedirs(file_dir, exist_ok=True)
         with open(file_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
+            shutil.copyfileobj(python_file.file, f)
             logger.info(f"✅ 파일 저장 완료: {file_path}")
 
         if not validate_udf(file_path):
             raise HTTPException(status_code=400, detail="UDF is not valid")
-        save_executable_udf(udf_dir, udf_name)
+        if requirements_file:
+            requirements_file_path = os.path.join(file_dir, "requirements.txt")
+            with open(requirements_file_path, "wb") as f:
+                shutil.copyfileobj(requirements_file.file, f)
+                logger.info(f"✅ 파일 저장 완료: {requirements_file_path}")
+        zip_executable_udf(udf_dir, udf_name)
 
         udf_id = str(uuid.uuid4())
-        udf_data = FunctionLibrary(id=udf_id,
-                                   name=udf_name,
-                                   filename=udf_name,
-                                   path=file_dir,
-                                   function="run",
-                                   operator_type="python")
+        udf_data = FunctionLibrary(
+            id=udf_id,
+            name=udf_name,
+            filename=udf_name,
+            path=file_dir,
+            function=udf_metadata.function_name,
+            operator_type=udf_metadata.operator_type,
+            docker_image_tag=udf_metadata.docker_image,
+            dependencies="requirements.txt",
+        )
 
         for i in udf_metadata.inputs:
             udf_data.inputs.append(FunctionInput(
@@ -87,7 +106,7 @@ async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
         db.refresh(udf_data)
         logger.info(f"✅ 메타데이터 저장 완료: {udf_data}")
 
-        return {"message": f"{file.filename} UDF file uploaded successfully"}
+        return {"message": f"{python_file.filename} UDF file uploaded successfully"}
 
     except Exception as e:
         logger.error(f"❌ 오류 발생: {e}")

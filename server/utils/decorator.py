@@ -141,9 +141,9 @@ def file_decorator(inputs: List[Dict[str, Any]]):
     return decorator
 
 
-def save_executable_udf(udf_dir: str, udf_name: str):
+def zip_executable_udf(udf_dir: str, udf_name: str):
     source_path = os.path.join(udf_dir, udf_name)  # 압축할 폴더
-    zip_path = os.path.join(udf_dir, f"{udf_name}.zip")  # 저장할 ZIP 파일 경로
+    zip_path = os.path.join(udf_dir, udf_name, f"{udf_name}.zip")  # 저장할 ZIP 파일 경로
 
     # 🔹 ZIP 파일 생성
     with zipfile.ZipFile(zip_path, "w") as zipf:
@@ -162,7 +162,7 @@ def execute_udf(udf_name, function_name, *args, **kwargs):
     import sys
     import zipfile
     udf_dir = "/opt/airflow/udfs"
-    zip_path = os.path.join(udf_dir, f"{udf_name}.zip")
+    zip_path = os.path.join(udf_dir, udf_name, f"{udf_name}.zip")
     extract_path = f"/tmp/{udf_name}"
 
     # 🔹 ZIP 파일 해제 (UDF 파일은 유지됨)
