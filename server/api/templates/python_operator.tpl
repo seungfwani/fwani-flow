@@ -16,6 +16,6 @@ from {{ task.function.name }}.udf import {{ task.function.function }} as {{ task
         {% for k, v in options.items() -%}
         "{{ k }}": {% if v is string %}"{{ v }}"{% else %}{{ v }}{% endif %},
         {% endfor -%}
-        "operator_type": "airflow",
+        "operator_type": "{{ task.function.operator_type }}",
     },
 )

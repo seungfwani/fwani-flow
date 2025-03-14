@@ -3,6 +3,7 @@ import os
 
 from jinja2 import Environment, FileSystemLoader
 
+from config import Config
 from utils.functions import get_udf_requirements
 
 
@@ -24,4 +25,8 @@ def render_dag_script(dag_id, task_rules, tasks):
         dag_id=dag_id,
         task_rules=task_rules,
         tasks=tasks,
+        container_mount_udf_source_path=os.path.abspath(Config.UDF_DIR),
+        container_mount_udf_target_path="/opt/airflow/udfs",
+        container_mount_shared_source_path=os.path.abspath(Config.SHARED_DIR),
+        container_mount_shared_target_path="/app/shared",
     )

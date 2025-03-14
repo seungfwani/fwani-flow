@@ -70,10 +70,10 @@ def file_decorator(inputs: List[Dict[str, Any]]):
         base_dir = "/app/shared"
         os.makedirs(base_dir, exist_ok=True)
 
-        def get_input_data(task_id, is_first_task, **kwargs):
+        def get_input_data(dag_id, task_id, is_first_task, **kwargs):
             validated_inputs = {}
             if is_first_task:
-                print(f"‼️ 처음 태스크 실행: {task_id}")
+                print(f"‼️ 처음 태스크 실행: {dag_id} - {task_id}")
                 # 정의된 inpput 정리
                 for inp in inputs:
                     key = inp["name"]
@@ -85,7 +85,7 @@ def file_decorator(inputs: List[Dict[str, Any]]):
                 before_task_outputs = []
                 for t_id in kwargs.get("before_task_ids", []):
                     print(f"📥 ({t_id}) 데이터 로드 중...")
-                    prev_file_path = os.path.join(base_dir, f"{t_id}.pkl")
+                    prev_file_path = os.path.join(base_dir, dag_id, f"{t_id}.pkl")
                     if os.path.exists(prev_file_path):
                         with open(prev_file_path, "rb") as f:
                             before_task_outputs.append(pickle.load(f))
@@ -95,10 +95,13 @@ def file_decorator(inputs: List[Dict[str, Any]]):
                     key = inp["name"]
                     if i < len(before_task_outputs):  # 데이터를 순서대로 매핑
                         validated_inputs[key] = before_task_outputs[i]
+            print(f"validated_inputs: {validated_inputs}")
             return validated_inputs
 
-        def write_output_data(task_id, is_last_task, output):
-            file_path = os.path.join(base_dir, f"{task_id}.pkl")
+        def write_output_data(dag_id, task_id, is_last_task, output):
+            dag_data_dir = os.path.join(base_dir, dag_id)
+            os.makedirs(dag_data_dir, exist_ok=True)
+            file_path = os.path.join(dag_data_dir, f"{task_id}.pkl")
             # ✅ 결과를 파일에 저장
             with open(file_path, "wb") as f:
                 pickle.dump(output, f)
@@ -110,23 +113,26 @@ def file_decorator(inputs: List[Dict[str, Any]]):
         @wraps(func)
         def wrapper(*args, **kwargs):
             print(args, kwargs)
-            if kwargs.get("operator_type") == "airflow":
+            if kwargs.get("operator_type") == "python":
                 from airflow.operators.python import get_current_context
                 context = get_current_context()
                 ti = context['ti']
 
+                dag_id = ti.dag_id
                 task_id = ti.task.task_id
                 is_first_task = len(list(ti.task.upstream_list)) == 0
                 is_last_task = len(list(ti.task.downstream_list)) == 0
             else:
+                dag_id = kwargs.pop("dag_id")
                 task_id = kwargs.pop("task_id")
-                is_first_task = kwargs.pop("is_first_task", True)
-                is_last_task = kwargs.pop("is_last_task", True)
+                is_first_task = kwargs.pop("is_first_task", "True") == "True"
+                is_last_task = kwargs.pop("is_last_task", "True") == "True"
 
-            input_data = get_input_data(task_id, is_first_task, **kwargs)
+            input_data = get_input_data(dag_id, task_id, is_first_task, **kwargs)
             # ✅ 실제 UDF 실행
-            result = func(input_data, *args, **kwargs)
-            write_output_data(task_id, is_last_task, result)
+            kwargs.update(input_data)
+            result = func(*args, **kwargs)
+            write_output_data(dag_id, task_id, is_last_task, result)
 
             return result
 
@@ -171,3 +177,11 @@ def execute_udf(udf_name, function_name, *args, **kwargs):
     module = __import__(f"{udf_name}.udf", fromlist=[function_name])
     udf_function = getattr(module, function_name, None)
     return udf_function(*args, **kwargs)
+
+
+def wrapped_callable(*args, **kwargs):
+    from utils.decorator import file_decorator, execute_udf
+    decorated_func = file_decorator(
+        inputs=[{"name": "url", "type": "string"}]
+    )(execute_udf)
+    return decorated_func(*args, **kwargs)

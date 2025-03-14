@@ -6,7 +6,21 @@
     auto_remove=True,
     docker_url="unix:///var/run/docker.sock",
     working_dir="/app",
-    environment={"PYTHONPATH": {{ container_mount_udf_source_path }}},
+    environment={
+        "PYTHONPATH": "{{ container_mount_udf_target_path }}",
+        "inputs": json.dumps([{
+            "name": "url", "type": "string"
+        }]),
+        "kwargs": json.dumps({
+            "url": "www.naver.com",
+            {% raw -%}
+            "dag_id": "{{ ti.dag_id }}",
+            "task_id": "{{ ti.task.task_id }}",
+            "is_last_task": "{% if ti.task.downstream_list | length == 0 %}True{% else %}False{% endif %}",
+            "is_first_task": "{% if ti.task.upstream_list | length == 0 %}True{% else %}False{% endif %}",
+            {% endraw -%}
+        }),
+    },
     mounts=[
         Mount(source="{{ container_mount_udf_source_path }}",
               target="{{ container_mount_udf_target_path }}",
@@ -27,7 +41,7 @@ inputs = json.loads(os.getenv("inputs"))
 kwargs = json.loads(os.getenv("kwargs"))
 print(inputs, kwargs)
 
-result = {{ task.function.function }}(**validated_inputs)
+result = file_decorator(inputs=inputs)({{ task.function.function }})(**kwargs)
 print(f"result: {result}")
 '""",
 )

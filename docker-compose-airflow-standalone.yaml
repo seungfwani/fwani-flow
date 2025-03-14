@@ -44,7 +44,6 @@ services:
       - ./server/data/dags:/opt/airflow/dags
       - ./server/data/udfs:/opt/airflow/udfs
       - ./server/data/shared:/app/shared
-      - ./server/utils/decorator.py:/opt/airflow/udfs/utils/decorator.py
       - ./server/data/logs:/opt/airflow/logs
       - ./airflow.cfg:/opt/airflow/airflow.cfg
       - /var/run/docker.sock:/run/docker.sock  # ✅ M2 Mac 환경 적용

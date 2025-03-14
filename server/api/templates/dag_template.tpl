@@ -13,11 +13,16 @@ from airflow import DAG
     {% endif -%}
 {% endfor -%}
 {% if "docker" in operator_types -%}
+import json
+
 from airflow.providers.docker.operators.docker import DockerOperator
-{% elif "python_virtual" in operator_types -%}
+from docker.types import Mount
+{% endif %}
+{% if "python_virtual" in operator_types -%}
 from airflow.operators.python import PythonVirtualenvOperator
-from utils.decorator import file_decorator, execute_udf
-{% elif "python" in operator_types -%}
+from utils.decorator import wrapped_callable
+{% endif %}
+{% if "python" in operator_types -%}
 from airflow.operators.python import PythonOperator
 from utils.decorator import file_decorator
 {% endif %}

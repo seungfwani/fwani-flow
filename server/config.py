@@ -23,3 +23,4 @@ class Config:
     WORKFLOW_DIR = os.getenv("WORKFLOW_DIR", "./data/workflows")
     UDF_DIR = os.getenv("UDF_DIR", "./data/udfs")
     DAG_DIR = os.getenv("DAG_DIR", "./data/dags")
+    SHARED_DIR = os.getenv("DAG_DIR", "./data/shared")
