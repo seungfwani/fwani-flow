@@ -7,7 +7,8 @@ from typing import List
 from fastapi import APIRouter, UploadFile, HTTPException, File, Depends, Form
 from sqlalchemy.orm import Session
 
-from api.models.udf_model import UDFUploadRequest
+from api.models.api_model import api_response_wrapper
+from api.models.udf_model import UDFUploadRequest, UDFResponse
 from config import Config
 from core.database import get_db
 from models.function_input import FunctionInput
@@ -33,6 +34,7 @@ def allowed_file(filename):
 
 
 @router.post("")
+@api_response_wrapper
 async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
                      files: List[UploadFile] = File(...),
                      db: Session = Depends(get_db)):
@@ -106,7 +108,7 @@ async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
         db.refresh(udf_data)
         logger.info(f"✅ 메타데이터 저장 완료: {udf_data}")
 
-        return {"message": f"{python_file.filename} UDF file uploaded successfully"}
+        return UDFResponse.from_function_library(udf_data)
 
     except Exception as e:
         logger.error(f"❌ 오류 발생: {e}")
@@ -122,6 +124,7 @@ async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
 
 
 @router.delete("/{udf_id}")
+@api_response_wrapper
 async def delete_udf(udf_id: str, db: Session = Depends(get_db)):
     """
     Delete a python UDF file
@@ -141,10 +144,11 @@ async def delete_udf(udf_id: str, db: Session = Depends(get_db)):
     db.commit()
     logger.info(f"🗑️ 메타데이터 삭제: {udf_data}")
 
-    return {"message": f"{udf_id} UDF file deleted successfully"}
+    return UDFResponse.from_function_library(udf_data)
 
 
 @router.get("")
+@api_response_wrapper
 async def get_udf_list(db: Session = Depends(get_db)):
     """
     Get all available UDF files
@@ -152,4 +156,5 @@ async def get_udf_list(db: Session = Depends(get_db)):
     """
     logger.info(f"▶️ udf 리스트 조회")
     print(f"📌 현재 logger 핸들러 목록: {logger.handlers}")  # ✅ 로깅 핸들러 체크
-    return {"udfs": db.query(FunctionLibrary).all()}
+    return [UDFResponse.from_function_library(udf_data)
+            for udf_data in db.query(FunctionLibrary).all()]

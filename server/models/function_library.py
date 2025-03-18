@@ -20,6 +20,7 @@ class FunctionLibrary(Base):
     description = Column(Text)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    ui_type = Column(String, default="custom")
 
     inputs = relationship("FunctionInput", back_populates="function_", cascade="all, delete-orphan")
     output = relationship("FunctionOutput", back_populates="function_",
