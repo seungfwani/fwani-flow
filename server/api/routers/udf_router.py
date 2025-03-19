@@ -47,29 +47,32 @@ async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
     """
     if not files:
         raise HTTPException(status_code=404, detail="No files uploaded")
-    python_file = None
+    python_files = []
     requirements_file = None
     for file in files:
         if not allowed_file(file.filename):
             raise HTTPException(status_code=400,
                                 detail=f"Only {', '.join(map(lambda x: f'.{x}', ALLOWED_EXTENSIONS))} files are allowed")
         if file.filename.endswith(".py"):
-            python_file = file
+            python_files.append(file)
         elif file.filename.endswith(".txt"):
             requirements_file = file
 
     udf_dir = os.path.abspath(Config.UDF_DIR)
-    udf_name = generate_udf_filename(python_file.filename)
+    udf_name = generate_udf_filename(udf_metadata.name)
     file_dir = os.path.join(os.path.abspath(Config.UDF_DIR), udf_name)
-    file_path = os.path.join(file_dir, "udf.py")
     try:
         os.makedirs(file_dir, exist_ok=True)
-        with open(file_path, "wb") as f:
-            shutil.copyfileobj(python_file.file, f)
-            logger.info(f"✅ 파일 저장 완료: {file_path}")
+        main_filename = \
+        (python_files[0].filename if udf_metadata.main_filename is None else udf_metadata.main_filename).rsplit(".")[0]
+        for python_file in python_files:
+            file_path = os.path.join(file_dir, python_file.filename)
+            with open(file_path, "wb") as f:
+                shutil.copyfileobj(python_file.file, f)
+                logger.info(f"✅ 파일 저장 완료: {file_path}")
+            if not validate_udf(file_path):
+                raise HTTPException(status_code=400, detail="UDF is not valid")
 
-        if not validate_udf(file_path):
-            raise HTTPException(status_code=400, detail="UDF is not valid")
         if requirements_file:
             requirements_file_path = os.path.join(file_dir, "requirements.txt")
             with open(requirements_file_path, "wb") as f:
@@ -81,7 +84,7 @@ async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
         udf_data = FunctionLibrary(
             id=udf_id,
             name=udf_name,
-            filename=udf_name,
+            main_filename=main_filename,
             path=file_dir,
             function=udf_metadata.function_name,
             operator_type=udf_metadata.operator_type,

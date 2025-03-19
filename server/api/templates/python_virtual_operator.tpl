@@ -6,9 +6,9 @@
     {%- if task.decorator %}
     python_callable=wrapped_callable,
     {% else %}
-    python_callable={{ task.function.name }}_{{ task.function.function }}},
+    python_callable={{ task.function.main_filename }}_{{ task.function.function }}},
     {% endif -%}
-    op_args=["{{ task.function.name }}", "{{ task.function.function }}"],
+    op_args=["{{ task.function.name }}", "{{ task.function.main_filename }}", "{{ task.function.function }}"],
     op_kwargs={
         {% set options = task.options | from_json -%}
         {% for k, v in options.items() -%}

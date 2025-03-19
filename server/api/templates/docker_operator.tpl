@@ -34,7 +34,7 @@ import os
 import json
 
 from utils.decorator import file_decorator
-from {{ task.function.name }} import {{ task.function.function }}
+from {{ task.function.name }}.{{ task.function.main_filename }} import {{ task.function.function }}
 
 
 inputs = json.loads(os.getenv("inputs"))

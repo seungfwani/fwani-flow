@@ -13,12 +13,16 @@
 </template>
 
 <script setup>
-import {onMounted, ref} from "vue";
+import {defineExpose, onMounted, ref} from "vue";
 import {fetchDAGList} from "@/api/dag.js";
 
 const dags = ref([]);
-
-onMounted(async () => {
+const loadDAGs = async () => {
   dags.value = await fetchDAGList();
-});
+};
+onMounted(loadDAGs);
+
+defineExpose({
+  loadDAGs,
+})
 </script>

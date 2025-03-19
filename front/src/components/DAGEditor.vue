@@ -5,7 +5,12 @@
       <input v-model="dagName" placeholder="Enter DAG Name"/>
       <button @click="saveDAG">DAG 저장</button>
     </div>
-    <VueFlow :nodes="nodes" :edges="edges" @dragover="onDragOver" @dragleave="onDragLeave">
+    <VueFlow :nodes="nodes"
+             :edges="edges"
+             @dragover="onDragOver"
+             @dragleave="onDragLeave"
+             @node-click="onNodeClick"
+    >
       <DropzoneBackground
           :style="{
           backgroundColor: isDragOver ? '#e7f3ff' : 'transparent',
@@ -16,14 +21,21 @@
       </DropzoneBackground>
     </VueFlow>
 
+    <TaskInputModal
+        :visible="showInputModal"
+        :node="selectedNode"
+        @close="showInputModal = false"
+        @save="saveNodeInputs"
+    />
     <FlowSideBar/>
   </div>
 </template>
 
 <script setup>
-import {defineProps, ref, watch} from 'vue'
+import {defineEmits, defineProps, ref, watch} from 'vue'
 import {useVueFlow, VueFlow} from '@vue-flow/core'
 import FlowSideBar from "@/components/FlowSideBar.vue";
+import TaskInputModal from "@/components/TaskInputModal.vue";
 import useDragAndDrop from "@/scripts/useDnD";
 import DropzoneBackground from "@/components/DropzoneBackground.vue";
 import {fetchDAGDetail, saveDAGToServer} from "@/api/dag";
@@ -31,12 +43,36 @@ import {fetchDAGDetail, saveDAGToServer} from "@/api/dag";
 const props = defineProps({
   dagId: {type: String, default: null}
 })
-
-const {nodes, edges, addNodes, addEdges, onConnect, setNodes, setEdges} = useVueFlow()
+const emit = defineEmits(['save-complete'])
+const {nodes, edges, addNodes, addEdges, onConnect, setNodes, setEdges, updateNode} = useVueFlow()
 
 const {onDragOver, onDrop, onDragLeave, isDragOver, resetId} = useDragAndDrop()
 const dagName = ref("")
 const dagDescription = ref("Generated DAG")
+
+const selectedNode = ref(null);
+const showInputModal = ref(false);
+
+const onNodeClick = (event) => {
+  console.log('클릭된 노드:', event.node)
+  selectedNode.value = event.node;
+  showInputModal.value = true;
+}
+
+const saveNodeInputs = (inputs) => {
+  console.log(nodes.value)
+  console.log(selectedNode.value)
+  if (selectedNode.value) {
+    updateNode(selectedNode.value.id, (node) => ({
+      ...node,
+      data: {
+        ...node.data,
+        inputs: inputs,
+      },
+    }))
+    showInputModal.value = false
+  }
+}
 
 const loadDag = async (id) => {
   if (!id) return
@@ -58,7 +94,6 @@ const loadDag = async (id) => {
   dagName.value = dagData.name
   addNodes(dagData.nodes.map(node => ({
     id: node.id,
-
     type: node.ui_type,
     position: node.position,
     style: node.style,
@@ -79,8 +114,12 @@ watch(() => props.dagId, (newId, oldId) => {
     loadDag(newId)
   }
 })
-onConnect(addEdges)
-
+onConnect((params) => {
+  addEdges({
+    ...params,
+    markerEnd: 'arrowclosed',
+  })
+})
 // DAG 저장
 const saveDAG = async () => {
   console.log(nodes, edges)
@@ -91,7 +130,7 @@ const saveDAG = async () => {
       id: node.id,
       function_id: node.data.function_id,
       function_name: node.data.label,
-      inputs: {},
+      inputs: node.data.inputs,
       ui_type: node.type,
       position: node.position,
       style: node.style,
@@ -107,6 +146,7 @@ const saveDAG = async () => {
   const response = await saveDAGToServer(dagData);
   if (response && response.message) {
     alert(`✅ DAG 저장 완료: ${response.message}`);
+    emit('save-complete');
   } else {
     alert("❌ DAG 저장 실패: 서버 응답이 없습니다.");
   }

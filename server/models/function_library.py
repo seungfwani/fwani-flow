@@ -11,7 +11,7 @@ class FunctionLibrary(Base):
 
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=True)
-    filename = Column(String, unique=True)
+    main_filename = Column(String, nullable=False)
     path = Column(String, unique=True)
     function = Column(String)
     operator_type = Column(String, default="python")

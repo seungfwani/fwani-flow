@@ -22,6 +22,8 @@ class UDFOutputSchema(BaseModel):
 
 
 class UDFUploadRequest(BaseModel):
+    name: str = Field(..., description="UDF Name")
+    main_filename: Optional[str] = Field(None, description="UDF main file name (default: first python file of request)")
     function_name: str = Field("run", description="main function name (default: run)")
     operator_type: str = Field("python", description="operator type [python, python_virtual, docker]")
     docker_image: Optional[str] = Field(..., description="docker image name")

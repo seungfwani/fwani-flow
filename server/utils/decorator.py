@@ -157,7 +157,7 @@ def zip_executable_udf(udf_dir: str, udf_name: str):
 
 
 # 🔹 UDF 실행 함수 (ZIP 파일 사용)
-def execute_udf(udf_name, function_name, *args, **kwargs):
+def execute_udf(udf_name, main_filename, function_name, *args, **kwargs):
     import os
     import sys
     import zipfile
@@ -174,7 +174,7 @@ def execute_udf(udf_name, function_name, *args, **kwargs):
 
     # 🔹 메타데이터 조회하여 입력값 적용
     # from example_udf_fetch_64a6ca import run
-    module = __import__(f"{udf_name}.udf", fromlist=[function_name])
+    module = __import__(f"{udf_name}.{main_filename}", fromlist=[function_name])
     udf_function = getattr(module, function_name, None)
     return udf_function(*args, **kwargs)
 
