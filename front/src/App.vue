@@ -1,22 +1,21 @@
 <template>
   <div id="app">
     <h1>Workflow Manager</h1>
-    <DAGList/>
+    <DAGList @select-dag="handleSelectDag"/>
     <UDFUpload/>
-    <DAGEditor/>
+    <DAGEditor :dag-id="selectedDagId"/>
   </div>
 </template>
 
-<script>
+<script setup>
 import DAGList from "@/components/DAGList.vue";
 import UDFUpload from "@/components/UDFUpload.vue";
 import DAGEditor from "@/components/DAGEditor.vue";
+import {ref} from "vue";
 
-export default {
-  components: {
-    DAGEditor,
-    UDFUpload,
-    DAGList,
-  },
-};
+const selectedDagId = ref(null);
+const handleSelectDag = (id) => {
+  console.log("DAG 선택됨: ", id);
+  selectedDagId.value = id;
+}
 </script>

@@ -1,5 +1,5 @@
-import { useVueFlow } from '@vue-flow/core'
-import { ref, watch } from 'vue'
+import {useVueFlow} from '@vue-flow/core'
+import {ref, watch} from 'vue'
 
 let id = 0
 
@@ -7,7 +7,11 @@ let id = 0
  * @returns {string} - A unique id.
  */
 function getId() {
-  return `dndnode_${id++}`
+    return `dndnode_${id++}`
+}
+
+function resetId(startFrom = 0) {
+    id = startFrom;
 }
 
 /**
@@ -15,113 +19,119 @@ function getId() {
  * @type {{draggedType: Ref<string|null>, isDragOver: Ref<boolean>, isDragging: Ref<boolean>}}
  */
 const state = {
-  /**
-   * The type of the node being dragged.
-   */
-  draggedType: ref(null),
-  isDragOver: ref(false),
-  isDragging: ref(false),
-  udfData: ref(null)
+    /**
+     * The type of the node being dragged.
+     */
+    draggedType: ref(null),
+    isDragOver: ref(false),
+    isDragging: ref(false),
+    udfData: ref(null)
 }
 
 export default function useDragAndDrop() {
-  const { draggedType, isDragOver, isDragging, udfData } = state
+    const {draggedType, isDragOver, isDragging, udfData} = state
 
-  const { addNodes, screenToFlowCoordinate, onNodesInitialized, updateNode } = useVueFlow()
+    const {addNodes, screenToFlowCoordinate, onNodesInitialized, updateNode} = useVueFlow()
 
-  watch(isDragging, (dragging) => {
-    document.body.style.userSelect = dragging ? 'none' : ''
-  })
-
-  function onDragStart(event, type, udf) {
-    if (event.dataTransfer) {
-      event.dataTransfer.setData('application/vueflow', type)
-      event.dataTransfer.effectAllowed = 'move'
-    }
-
-    draggedType.value = type
-    isDragging.value = true
-    udfData.value = udf
-
-    document.addEventListener('drop', onDragEnd)
-  }
-
-  /**
-   * Handles the drag over event.
-   *
-   * @param {DragEvent} event
-   */
-  function onDragOver(event) {
-    event.preventDefault()
-
-    if (draggedType.value) {
-      isDragOver.value = true
-
-      if (event.dataTransfer) {
-        event.dataTransfer.dropEffect = 'move'
-      }
-    }
-  }
-
-  function onDragLeave() {
-    isDragOver.value = false
-  }
-
-  function onDragEnd() {
-    isDragging.value = false
-    isDragOver.value = false
-    draggedType.value = null
-    document.removeEventListener('drop', onDragEnd)
-  }
-
-  /**
-   * Handles the drop event.
-   *
-   * @param {DragEvent} event
-   */
-  function onDrop(event) {
-    const position = screenToFlowCoordinate({
-      x: event.clientX,
-      y: event.clientY,
+    watch(isDragging, (dragging) => {
+        document.body.style.userSelect = dragging ? 'none' : ''
     })
 
-    const nodeId = getId()
+    function onDragStart(event, type, udf) {
+        if (event.dataTransfer) {
+            event.dataTransfer.setData('application/vueflow', type)
+            event.dataTransfer.effectAllowed = 'move'
+        }
 
-    console.log(udfData)
-    const newNode = {
-      id: nodeId,
-      type: draggedType.value,
-      position,
-      data: {
-        label: udfData.value.name,
-        function_id: udfData.value.id
-      },
+        draggedType.value = type
+        isDragging.value = true
+        udfData.value = udf
+
+        document.addEventListener('drop', onDragEnd)
     }
 
     /**
-     * Align node position after drop, so it's centered to the mouse
+     * Handles the drag over event.
      *
-     * We can hook into events even in a callback, and we can remove the event listener after it's been called.
+     * @param {DragEvent} event
      */
-    const { off } = onNodesInitialized(() => {
-      updateNode(nodeId, (node) => ({
-        position: { x: node.position.x - node.dimensions.width / 2, y: node.position.y - node.dimensions.height / 2 },
-      }))
+    function onDragOver(event) {
+        event.preventDefault()
 
-      off()
-    })
+        if (draggedType.value) {
+            isDragOver.value = true
 
-    addNodes(newNode)
-  }
+            if (event.dataTransfer) {
+                event.dataTransfer.dropEffect = 'move'
+            }
+        }
+    }
 
-  return {
-    draggedType,
-    udfData,
-    isDragOver,
-    isDragging,
-    onDragStart,
-    onDragLeave,
-    onDragOver,
-    onDrop,
-  }
+    function onDragLeave() {
+        isDragOver.value = false
+    }
+
+    function onDragEnd() {
+        isDragging.value = false
+        isDragOver.value = false
+        draggedType.value = null
+        document.removeEventListener('drop', onDragEnd)
+    }
+
+    /**
+     * Handles the drop event.
+     *
+     * @param {DragEvent} event
+     */
+    function onDrop(event) {
+        const position = screenToFlowCoordinate({
+            x: event.clientX,
+            y: event.clientY,
+        })
+
+        const nodeId = getId()
+
+        console.log(udfData)
+        const newNode = {
+            id: nodeId,
+            type: draggedType.value,
+            position,
+            data: {
+                label: udfData.value.name,
+                function_id: udfData.value.id
+            },
+            sourcePosition: 'right',
+            targetPosition: 'left',
+        }
+
+        /**
+         * Align node position after drop, so it's centered to the mouse
+         *
+         * We can hook into events even in a callback, and we can remove the event listener after it's been called.
+         */
+        const {off} = onNodesInitialized(() => {
+            updateNode(nodeId, (node) => ({
+                position: {
+                    x: node.position.x - node.dimensions.width / 2,
+                    y: node.position.y - node.dimensions.height / 2
+                },
+            }))
+
+            off()
+        })
+
+        addNodes(newNode)
+    }
+
+    return {
+        draggedType,
+        udfData,
+        isDragOver,
+        isDragging,
+        onDragStart,
+        onDragLeave,
+        onDragOver,
+        onDrop,
+        resetId,
+    }
 }

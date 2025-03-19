@@ -16,6 +16,7 @@ from models.flow import Flow
 from models.function_library import FunctionLibrary
 from models.task import Task
 from models.task_input import TaskInput
+from models.task_ui import TaskUI
 from utils.udf_validator import get_validated_inputs
 
 logger = logging.getLogger()
@@ -85,6 +86,7 @@ async def create_dag(dag: DAGRequest, db: Session = Depends(get_db)):
                         key=k,
                         value=v,
                     ))
+                task_data.task_ui = TaskUI(type=node.ui_type, position=node.position, style=node.style)
                 tasks.append(task_data)
 
             # edge 생성
@@ -153,3 +155,13 @@ async def get_dag_list(db: Session = Depends(get_db)):
     :return:
     """
     return [DAGResponse.from_dag(dag) for dag in db.query(Flow).all()]
+
+
+@router.get("/{dag_id}")
+@api_response_wrapper
+async def get_dag(dag_id: str, db: Session = Depends(get_db)):
+    """
+    Get all available DAG
+    :return:
+    """
+    return DAGResponse.from_dag(db.query(Flow).filter(Flow.id == dag_id).first())

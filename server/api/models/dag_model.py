@@ -9,9 +9,11 @@ from models.flow import Flow
 class DAGNode(BaseModel):
     id: str = Field(..., description="Task Name 역할")
     function_id: str = Field(..., description="실행할 UDF ID")
+    function_name: Optional[str] = Field(None, description="실행할 UDF Name")
     inputs: Dict[str, Any] = Field({}, description="UDF 실행시 input 값")
-    ui_type: Optional[str] = Field(..., description="UI node 타입 ")
-    position: Optional[dict[str, int]] = Field({"x": 0, "y": 0}, description="UI node 좌표")
+    ui_type: Optional[str] = Field("default", description="UI node 타입 ")
+    position: Optional[dict[str, float]] = Field({"x": 0, "y": 0}, description="UI node 좌표")
+    style: Optional[dict[str, Any]] = Field({}, description="UI style")
 
 
 class DAGEdge(BaseModel):
@@ -45,7 +47,11 @@ class DAGResponse(BaseModel):
             nodes=[DAGNode(
                 id=task.variable_id,
                 function_id=task.function_id,
-                inputs={inp.key: inp.value for inp in task.inputs}
+                function_name=task.function.name,
+                inputs={inp.key: inp.value for inp in task.inputs},
+                ui_type=task.task_ui.type if task.task_ui else "default",
+                position=task.task_ui.position if task.task_ui else {"x": 0, "y": 0},
+                style=task.task_ui.style if task.task_ui else {},
             ) for task in dag.tasks],
             edges=[DAGEdge(source=edge.from_task_id, target=edge.to_task_id) for edge in dag.edges],
         )

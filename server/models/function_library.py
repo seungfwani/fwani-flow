@@ -10,7 +10,7 @@ class FunctionLibrary(Base):
     __tablename__ = "function_library"
 
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
-    name = Column(String, unique=True, index=True)
+    name = Column(String, nullable=True)
     filename = Column(String, unique=True)
     path = Column(String, unique=True)
     function = Column(String)
