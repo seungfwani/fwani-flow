@@ -2,8 +2,8 @@
   <div id="app">
     <h1>Workflow Manager</h1>
     <DAGList ref="dagList" @select-dag="handleSelectDag"/>
-    <UDFUpload/>
     <DAGEditor :dag-id="selectedDagId" @save-complete="handleSaveComplete"/>
+    <UDFUpload/>
   </div>
 </template>
 

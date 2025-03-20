@@ -17,3 +17,5 @@ class Edge(Base):
     flow = relationship("Flow", back_populates="edges")
     from_task = relationship("Task", foreign_keys=from_task_id)
     to_task = relationship("Task", foreign_keys=to_task_id)
+
+    edge_ui = relationship("EdgeUI", back_populates="edge", uselist=False, cascade="all, delete-orphan")

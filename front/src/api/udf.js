@@ -13,10 +13,10 @@ export async function fetchUDFList() {
     }
 }
 
-export async function uploadUDFFile(file) {
+export async function uploadUDFFile(files) {
     try {
         const formData = new FormData();
-        formData.append("file", file);
+        formData.append("files", files);
 
         const response = await axios.post("http://localhost:5050/api/v1/udf", formData, {
             headers: {
@@ -24,7 +24,11 @@ export async function uploadUDFFile(file) {
             },
         });
 
-        console.log("✅ UDF 업로드 성공:", response.data);
+        if (response.data.success) {
+            console.log("✅ UDF 업로드 성공: ", response.data.data);
+        } else {
+            console.log("❌ UDF 업로드 실패: ", response.data.message);
+        }
         return true;
     } catch (error) {
         console.error("❌ UDF 업로드 실패:", error);

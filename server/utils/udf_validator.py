@@ -1,9 +1,12 @@
 import ast
+import logging
 from typing import List
 
 from fastapi import HTTPException
 
 from models.function_input import FunctionInput
+
+logger = logging.getLogger()
 
 
 def validate_udf(file_path: str) -> bool:
@@ -26,7 +29,7 @@ def validate_udf(file_path: str) -> bool:
             None
         )
         if run_function_node is None:
-            print(f"❌ UDF 파일에 'run' 함수가 없음: {file_path}")
+            logger.warning(f"❌ UDF 파일에 'run' 함수가 없음: {file_path}")
             return False
 
         # 3. 'return' 키워드 포함 여부 확인
@@ -34,18 +37,18 @@ def validate_udf(file_path: str) -> bool:
             isinstance(n, ast.Return) for n in ast.walk(run_function_node)
         )
         if not has_return_statement:
-            print(f"❌ UDF 파일의 'run' 함수에서 반환값이 없음: {file_path}")
+            logger.warning(f"❌ UDF 파일의 'run' 함수에서 반환값이 없음: {file_path}")
             return False
 
-        print(f"✅ UDF 검증 통과: {file_path}")
+        logger.info(f"✅ UDF 검증 통과: {file_path}")
         return True
 
     except SyntaxError:
-        print(f"❌ UDF 파일의 문법 오류: {file_path}")
+        logger.error(f"❌ UDF 파일의 문법 오류: {file_path}")
         return False
 
     except Exception as e:
-        print(f"❌ UDF 검증 중 예외 발생: {e}")
+        logger.error(f"❌ UDF 검증 중 예외 발생: {e}")
         return False
 
 

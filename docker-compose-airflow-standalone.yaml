@@ -10,24 +10,19 @@ services:
       POSTGRES_USER: airflow
       POSTGRES_PASSWORD: airflow
       POSTGRES_DB: airflow
+    volumes:
+      - ./docker/db/init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
-      - airflow_network
+      - workflow_network
     healthcheck:
       test: [ "CMD", "pg_isready", "-U", "airflow", "-d", "airflow" ]
       interval: 5s
       retries: 5
       timeout: 3s
-  #  redis:
-  #    image: redis:latest
-  #    container_name: airflow-redis
-  #    ports:
-  #      - "6379:6379"
-  #    networks:
-  #      - airflow_network
   airflow:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: docker/airflow.Dockerfile
     container_name: airflow-standalone
     depends_on:
       postgres:
@@ -40,7 +35,7 @@ services:
       - AIRFLOW__DATABASE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/airflow
       - PYTHONPATH=/opt/airflow/udfs:/opt/airflow/plugins:$PYTHONPATH
     volumes:
-      - ./entrypoint.sh:/entrypoint.sh
+      - ./docker/airflow.entrypoint.sh:/entrypoint.sh
       - ./server/data/dags:/opt/airflow/dags
       - ./server/data/udfs:/opt/airflow/udfs
       - ./server/data/shared:/app/shared
@@ -49,10 +44,35 @@ services:
       - /var/run/docker.sock:/run/docker.sock  # ✅ M2 Mac 환경 적용
     ports:
       - "8082:8080"  # Airflow 웹 UI 포트
-    #      - "5678:5678"  # PyCharm Debug 포트 추가
     entrypoint: [ "/entrypoint.sh" ]
     networks:
-      - airflow_network
+      - workflow_network
+  workflow:
+    build:
+      context: .
+      dockerfile: docker/fwani-flow.Dockerfile
+    container_name: workflow
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DEBUG=True
+      - DB_URI=postgresql://airflow:airflow@postgres:5432/workflow
+      - LOG_DIR=/app/logs
+      - DAG_DIR=/app/dags
+      - UDF_DIR=/app/udfs
+      - SHARED_DIR=/app/shared
+    volumes:
+      - ./docker/workflow.entrypoint.sh:/entrypoint.sh
+      - ./server/data/dags:/app/dags
+      - ./server/data/udfs:/app/udfs
+      - ./server/data/shared:/app/shared
+      - ./server/data/logs:/app/logs
+    ports:
+      - "5052:5050"  # FastAPI port
+    entrypoint: [ "/entrypoint.sh" ]
+    networks:
+      - workflow_network
 networks:
-  airflow_network:
+  workflow_network:
     driver: bridge

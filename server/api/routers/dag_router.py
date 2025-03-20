@@ -2,6 +2,7 @@ import base64
 import json
 import logging
 import os.path
+import traceback
 
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
@@ -32,7 +33,7 @@ router = APIRouter(
 @api_response_wrapper
 async def create_dag(dag: DAGRequest, db: Session = Depends(get_db)):
     """DAG 생성 및 DB 에 저장"""
-    print(f"Request Data: {dag}")
+    logger.info(f"Request Data: {dag}")
     dag_id = "dag_" + base64.urlsafe_b64encode(dag.name.encode()).rstrip(b'=').decode('ascii')
     dag_file_path = os.path.join(Config.DAG_DIR, f"{dag_id}.py")
     try:
@@ -51,7 +52,7 @@ async def create_dag(dag: DAGRequest, db: Session = Depends(get_db)):
 
             # UDF가 누락되었다면 에러 반환
             if missing_udfs:
-                print(f"UDFs not found: {missing_udfs}")
+                logger.info(f"UDFs not found: {missing_udfs}")
                 return {"message": f"UDFs not found: {missing_udfs}"}
 
             # Flow 생성
@@ -60,7 +61,7 @@ async def create_dag(dag: DAGRequest, db: Session = Depends(get_db)):
             db.flush()
 
             # tasks 생성
-            tasks = []
+            tasks = {}
             for i, node in enumerate(dag.nodes):
                 current_task_id = node.id
 
@@ -87,34 +88,38 @@ async def create_dag(dag: DAGRequest, db: Session = Depends(get_db)):
                         value=v,
                     ))
                 task_data.task_ui = TaskUI(type=node.ui_type, position=node.position, style=node.style)
-                tasks.append(task_data)
+                tasks[node.id] = task_data
 
             # edge 생성
             task_rules = []
             edges = []
             for edge in dag.edges:
                 task_rules.append(f"{edge.source} >> {edge.target}")
-                edges.append(Edge(flow_id=flow.id, from_task_id=edge.source, to_task_id=edge.target))
+                edges.append(Edge(flow_id=flow.id,
+                                  from_task=tasks[edge.source],
+                                  to_task=tasks[edge.target]
+                                  ))
 
             # save dag metadata to DB
-            db.add_all(tasks)
+            db.add_all(tasks.values())
             db.add_all(edges)
             db.flush()
 
             # write dag
             with open(dag_file_path, 'w') as dag_file:
-                dag_file.write(render_dag_script(dag_id, task_rules, tasks))
+                dag_file.write(render_dag_script(dag_id, task_rules, tasks.values()))
             db.commit()
         return DAGResponse.from_dag(flow)
     except Exception as e:
-        print(f"❌ 오류 발생: {e}")
+        logger.error(f"❌ 오류 발생: {e}")
+        logger.error(traceback.format_exc())
         db.rollback()
-        print(f"🔄 메타데이터 롤백")
+        logger.warning(f"🔄 메타데이터 롤백")
 
         # ✅ 파일 저장 후 DB 실패 시 파일 삭제
         if os.path.exists(dag_file_path):
             os.remove(dag_file_path)
-            print(f"🗑️ 저장된 파일 삭제: {dag_file_path}")
+            logger.warning(f"🗑️ 저장된 파일 삭제: {dag_file_path}")
         raise HTTPException(status_code=500, detail=f"DAG creation failed. {e}")
 
 
@@ -133,16 +138,16 @@ async def delete_dag(dag_id: str, db: Session = Depends(get_db)):
     dag_file_path = os.path.join(Config.DAG_DIR, f"{dag_id}.py")
 
     if not os.path.exists(dag_file_path):
-        print(f"Warning: No file to delete {dag_file_path}")
+        logger.warning(f"Warning: No file to delete {dag_file_path}")
     else:
         os.remove(dag_file_path)
-        print(f"🗑️ 저장된 DAG 파일 삭제: {dag_file_path}")
+        logger.warning(f"🗑️ 저장된 DAG 파일 삭제: {dag_file_path}")
 
     db.query(Edge).filter(Edge.flow_id == dag_data.id).delete()
     db.query(Task).filter(Task.flow_id == dag_data.id).delete()
     db.delete(dag_data)
     db.commit()
-    print(f"🗑️ DAG 메타데이터 삭제: {dag_data}")
+    logger.warning(f"🗑️ DAG 메타데이터 삭제: {dag_data}")
 
     return DAGResponse.from_dag(dag_data)
 
@@ -154,6 +159,7 @@ async def get_dag_list(db: Session = Depends(get_db)):
     Get all available DAG
     :return:
     """
+    logger.info(f"▶️ DAG 리스트 조회")
     return [DAGResponse.from_dag(dag) for dag in db.query(Flow).all()]
 
 
@@ -161,7 +167,8 @@ async def get_dag_list(db: Session = Depends(get_db)):
 @api_response_wrapper
 async def get_dag(dag_id: str, db: Session = Depends(get_db)):
     """
-    Get all available DAG
+    Get DAG
     :return:
     """
+    logger.info(f"Get DAG {dag_id}")
     return DAGResponse.from_dag(db.query(Flow).filter(Flow.id == dag_id).first())

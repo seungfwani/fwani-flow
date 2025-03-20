@@ -7,7 +7,3 @@ RUN apt-get update && apt-get upgrade -y \
 
 USER airflow
 WORKDIR app
-
-COPY ./fwani_airflow_plugin/requirements.txt /app/requirements.txt
-
-RUN pip install -r /app/requirements.txt

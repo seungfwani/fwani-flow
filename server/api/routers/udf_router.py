@@ -64,7 +64,8 @@ async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
     try:
         os.makedirs(file_dir, exist_ok=True)
         main_filename = \
-        (python_files[0].filename if udf_metadata.main_filename is None else udf_metadata.main_filename).rsplit(".")[0]
+            (python_files[0].filename if udf_metadata.main_filename is None else udf_metadata.main_filename).rsplit(
+                ".")[0]
         for python_file in python_files:
             file_path = os.path.join(file_dir, python_file.filename)
             with open(file_path, "wb") as f:
@@ -158,6 +159,5 @@ async def get_udf_list(db: Session = Depends(get_db)):
     :return:
     """
     logger.info(f"▶️ udf 리스트 조회")
-    print(f"📌 현재 logger 핸들러 목록: {logger.handlers}")  # ✅ 로깅 핸들러 체크
     return [UDFResponse.from_function_library(udf_data)
             for udf_data in db.query(FunctionLibrary).all()]

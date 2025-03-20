@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 schema = Config.DB_URI.split("://", 1)[0]
 if schema == "postgresql":
-    engine = create_engine(Config.DB_URI, connect_args={"check_same_thread": False})
+    engine = create_engine(Config.DB_URI)
 elif schema == "sqlite":
     engine = create_engine(Config.DB_URI, connect_args={"check_same_thread": False})
 else:

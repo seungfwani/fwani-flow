@@ -19,9 +19,9 @@ class DAGNode(BaseModel):
 class DAGEdge(BaseModel):
     source: str = Field(..., description="이전 노드")
     target: str = Field(..., description="다음 노드")
-
-    class Config:
-        populate_by_alias = True
+    ui_type: Optional[str] = Field("default", description="UI edge 타입 ")
+    label: Optional[str] = Field(None, description="Edge 의 라벨")
+    style: Optional[dict[str, Any]] = Field({}, description="UI edge style")
 
 
 class DAGRequest(BaseModel):
@@ -45,7 +45,7 @@ class DAGResponse(BaseModel):
             name=dag.name,
             description=dag.description,
             nodes=[DAGNode(
-                id=task.variable_id,
+                id=task.id,
                 function_id=task.function_id,
                 function_name=task.function.name,
                 inputs={inp.key: inp.value for inp in task.inputs},
@@ -53,5 +53,11 @@ class DAGResponse(BaseModel):
                 position=task.task_ui.position if task.task_ui else {"x": 0, "y": 0},
                 style=task.task_ui.style if task.task_ui else {},
             ) for task in dag.tasks],
-            edges=[DAGEdge(source=edge.from_task_id, target=edge.to_task_id) for edge in dag.edges],
+            edges=[DAGEdge(
+                source=edge.from_task_id,
+                target=edge.to_task_id,
+                ui_type=edge.edge_ui.type,
+                label=edge.edge_ui.label,
+                style=edge.edge_ui.style,
+            ) for edge in dag.edges],
         )
