@@ -8,25 +8,25 @@ from models.function_library import FunctionLibrary
 
 # DAG 데이터 모델 정의
 class UDFInputSchema(BaseModel):
-    name: str = Field(..., description="input Name")
-    type: str = Field(..., description="input Type")
-    required: bool = Field(..., description="필수/옵션")
-    default_value: Optional[str] = Field(..., description="input default value")
-    description: Optional[str] = Field(..., description="input 설명")
+    name: str = Field(..., description="input Name", examples=["data"])
+    type: str = Field(..., description="input Type", examples=["string"])
+    required: bool = Field(..., description="필수/옵션", examples=[True, False])
+    default_value: Optional[str] = Field(..., description="input default value", examples=[""])
+    description: Optional[str] = Field(..., description="input 설명", examples=["input description"])
 
 
 class UDFOutputSchema(BaseModel):
-    name: str = Field(..., description="output Name")
-    type: str = Field(..., description="output Type")
-    description: Optional[str] = Field(..., description="output 설명")
+    name: str = Field(..., description="output Name", examples=["result"])
+    type: str = Field(..., description="output Type", examples=["string"])
+    description: Optional[str] = Field(..., description="output 설명", examples=["output description"])
 
 
 class UDFUploadRequest(BaseModel):
-    name: str = Field(..., description="UDF Name")
-    main_filename: Optional[str] = Field(None, description="UDF main file name (default: first python file of request)")
-    function_name: str = Field("run", description="main function name (default: run)")
-    operator_type: str = Field("python", description="operator type [python, python_virtual, docker]")
-    docker_image: Optional[str] = Field(..., description="docker image name")
+    name: str = Field(..., description="UDF Name", examples=["UDF Name"])
+    main_filename: Optional[str] = Field(None, description="UDF main file name (default: first python file of request)", examples=["main_python_file_name"])
+    function_name: str = Field("run", description="main function name (default: run)", examples=["run"])
+    operator_type: str = Field("python", description="operator type [python, python_virtual, docker]", examples=["python", "python_virtual", "docker"])
+    docker_image: Optional[str] = Field(..., description="docker image name", examples=["python:latest"])
 
     inputs: List[UDFInputSchema]
     output: UDFOutputSchema
@@ -49,10 +49,9 @@ class UDFUploadRequest(BaseModel):
 
 
 class UDFResponse(BaseModel):
-    id: str = Field(..., description="Generated UDF id")
-    name: str = Field(..., description="UDF name")
-    type: str = Field(..., description="UDF UI type")
-    description: Optional[str] = Field(..., description="UDF description")
+    id: str = Field(..., description="Generated UDF id", examples=["00000000-0000-4000-9000-000000000000"])
+    name: str = Field(..., description="UDF name", examples=["UDF name"])
+    description: Optional[str] = Field(..., description="UDF description", examples=["UDF description"])
     inputs: List[UDFInputSchema]
     output: UDFOutputSchema
 
@@ -61,7 +60,6 @@ class UDFResponse(BaseModel):
         return cls(
             id=function_library.id,
             name=function_library.name,
-            type=function_library.ui_type,
             description=function_library.description,
             inputs=[UDFInputSchema(
                 name=inp.name,

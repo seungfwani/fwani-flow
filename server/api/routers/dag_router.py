@@ -3,11 +3,12 @@ import json
 import logging
 import os.path
 import traceback
+from typing import List
 
 from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 
-from api.models.api_model import api_response_wrapper
+from api.models.api_model import api_response_wrapper, APIResponse
 from api.models.dag_model import DAGRequest, DAGResponse
 from api.render_template import render_dag_script
 from config import Config
@@ -29,7 +30,9 @@ router = APIRouter(
 )
 
 
-@router.post("")
+@router.post("",
+             response_model=APIResponse[DAGResponse],
+             )
 @api_response_wrapper
 async def create_dag(dag: DAGRequest, db: Session = Depends(get_db)):
     """DAG 생성 및 DB 에 저장"""
@@ -86,21 +89,18 @@ async def create_dag(dag: DAGRequest, db: Session = Depends(get_db)):
                 )
                 for k, v in node.data.inputs.items():
                     task_data.inputs.append(TaskInput(
-                        task_id=node.id,
+                        task=task_data,
                         key=k,
                         value=v,
                     ))
                 task_data.task_ui = TaskUI(type=node.type,
                                            position=node.position,
-                                           style=node.style,
-                                           label=node.label, )
+                                           style=node.style, )
                 tasks[node.id] = task_data
 
             # edge 생성
-            task_rules = []
             edges = []
             for edge in dag.edges:
-                task_rules.append(f"{edge.source} >> {edge.target}")
                 edges.append(Edge(flow_id=flow.id,
                                   from_task=tasks[edge.source],
                                   to_task=tasks[edge.target]
@@ -113,7 +113,7 @@ async def create_dag(dag: DAGRequest, db: Session = Depends(get_db)):
 
             # write dag
             with open(dag_file_path, 'w') as dag_file:
-                dag_file.write(render_dag_script(dag_id, task_rules, tasks.values()))
+                dag_file.write(render_dag_script(dag_id, tasks.values(), edges))
             db.commit()
         return DAGResponse.from_dag(flow)
     except Exception as e:
@@ -129,7 +129,9 @@ async def create_dag(dag: DAGRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"DAG creation failed. {e}")
 
 
-@router.delete("/{dag_id}")
+@router.delete("/{dag_id}",
+               response_model=APIResponse[DAGResponse],
+               )
 @api_response_wrapper
 async def delete_dag(dag_id: str, db: Session = Depends(get_db)):
     """
@@ -158,7 +160,9 @@ async def delete_dag(dag_id: str, db: Session = Depends(get_db)):
     return DAGResponse.from_dag(dag_data)
 
 
-@router.get("")
+@router.get("",
+            response_model=APIResponse[List[DAGResponse]],
+            )
 @api_response_wrapper
 async def get_dag_list(db: Session = Depends(get_db)):
     """
@@ -169,7 +173,9 @@ async def get_dag_list(db: Session = Depends(get_db)):
     return [DAGResponse.from_dag(dag) for dag in db.query(Flow).all()]
 
 
-@router.get("/{dag_id}")
+@router.get("/{dag_id}",
+            response_model=APIResponse[DAGResponse],
+            )
 @api_response_wrapper
 async def get_dag(dag_id: str, db: Session = Depends(get_db)):
     """

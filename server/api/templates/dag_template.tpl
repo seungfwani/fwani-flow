@@ -49,6 +49,6 @@ dag = DAG(
 {% endif %}
 {% endfor %}
 
-{% for rule in task_rules -%}
-{{ rule }}
+{% for edge in edges -%}
+{{ edge.from_task.variable_id }} >> {{ edge.to_task.variable_id }}
 {% endfor %}

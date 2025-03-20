@@ -1,16 +1,18 @@
 import traceback
 from functools import wraps
-from typing import Optional, Any
+from typing import Optional, TypeVar, Generic
 
 from fastapi import HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
+
+T = TypeVar("T")
 
 
-class APIResponse(BaseModel):
-    success: bool = True
-    message: str
-    data: Optional[Any] = None
-    error: Optional[dict] = None
+class APIResponse(BaseModel, Generic[T]):
+    success: bool = Field(True, description="Success flag", examples=[True, False])
+    message: str = Field(None, description="Error message", examples=["Error: ..."])
+    data: Optional[T] = Field(None, description="response data")
+    error: Optional[dict] = Field(default_factory=dict, description="error data")
 
 
 def api_response_wrapper(func):

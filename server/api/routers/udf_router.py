@@ -7,7 +7,7 @@ from typing import List
 from fastapi import APIRouter, UploadFile, HTTPException, File, Depends, Form
 from sqlalchemy.orm import Session
 
-from api.models.api_model import api_response_wrapper
+from api.models.api_model import api_response_wrapper, APIResponse
 from api.models.udf_model import UDFUploadRequest, UDFResponse
 from config import Config
 from core.database import get_db
@@ -33,7 +33,9 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
-@router.post("")
+@router.post("",
+             response_model=APIResponse[UDFResponse],
+             )
 @api_response_wrapper
 async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
                      files: List[UploadFile] = File(...),
@@ -127,7 +129,9 @@ async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
         raise
 
 
-@router.delete("/{udf_id}")
+@router.delete("/{udf_id}",
+               response_model=APIResponse[UDFResponse],
+               )
 @api_response_wrapper
 async def delete_udf(udf_id: str, db: Session = Depends(get_db)):
     """
@@ -151,7 +155,9 @@ async def delete_udf(udf_id: str, db: Session = Depends(get_db)):
     return UDFResponse.from_function_library(udf_data)
 
 
-@router.get("")
+@router.get("",
+            response_model=APIResponse[List[UDFResponse]],
+            )
 @api_response_wrapper
 async def get_udf_list(db: Session = Depends(get_db)):
     """
