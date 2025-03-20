@@ -42,13 +42,13 @@ async def create_dag(dag: DAGRequest, db: Session = Depends(get_db)):
             udf_functions: {str, FunctionLibrary} = {
                 udf.id: udf
                 for udf in db.query(FunctionLibrary)
-                .filter(FunctionLibrary.id.in_([node.function_id for node in dag.nodes]))
+                .filter(FunctionLibrary.id.in_([node.data.function_id for node in dag.nodes]))
                 .all()
             }
 
             # 없는 UDF 찾기
             missing_udfs = [node for node in dag.nodes
-                            if node.function_id not in udf_functions.keys()]
+                            if node.data.function_id not in udf_functions.keys()]
 
             # UDF가 누락되었다면 에러 반환
             if missing_udfs:
@@ -61,33 +61,39 @@ async def create_dag(dag: DAGRequest, db: Session = Depends(get_db)):
             db.flush()
 
             # tasks 생성
+            id_to_variable_id = {}
+            for i, node in enumerate(dag.nodes):
+                variable_id = f"task_{i}"
+                id_to_variable_id[node.id] = variable_id
             tasks = {}
             for i, node in enumerate(dag.nodes):
-                current_task_id = node.id
-
                 # 첫 번째 노드인지 확인
-                is_first_task = all(edge.target != current_task_id for edge in dag.edges)
+                is_first_task = all(edge.target != node.id for edge in dag.edges)
 
-                options = get_validated_inputs(udf_functions[node.function_id].inputs, node.inputs)
+                options = get_validated_inputs(udf_functions[node.data.function_id].inputs, node.data.inputs)
                 if not is_first_task:
                     # 부모 노드를 찾아서 before_task_id 설정
-                    options['before_task_ids'] = [edge.source for edge in dag.edges if edge.target == current_task_id]
+                    options['before_task_ids'] = [id_to_variable_id[edge.source] for edge in dag.edges if
+                                                  edge.target == node.id]
                 task_data = Task(
-                    variable_id=current_task_id,
+                    variable_id=id_to_variable_id[node.id],
                     flow_id=flow.id,
-                    function_id=node.function_id,
+                    function_id=node.data.function_id,
                     decorator="file_decorator",
                     decorator_parameters=json.dumps([{"name": udf_inp.name, "type": udf_inp.type} for udf_inp in
-                                                     udf_functions[node.function_id].inputs]),
+                                                     udf_functions[node.data.function_id].inputs]),
                     options=json.dumps(options),
                 )
-                for k, v in node.inputs.items():
+                for k, v in node.data.inputs.items():
                     task_data.inputs.append(TaskInput(
-                        task_id=current_task_id,
+                        task_id=node.id,
                         key=k,
                         value=v,
                     ))
-                task_data.task_ui = TaskUI(type=node.ui_type, position=node.position, style=node.style)
+                task_data.task_ui = TaskUI(type=node.type,
+                                           position=node.position,
+                                           style=node.style,
+                                           label=node.label, )
                 tasks[node.id] = task_data
 
             # edge 생성

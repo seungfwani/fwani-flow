@@ -93,18 +93,12 @@ const loadDag = async (id) => {
 
   dagName.value = dagData.name
   addNodes(dagData.nodes.map(node => ({
-    id: node.id,
-    type: node.ui_type,
-    position: node.position,
-    style: node.style,
-    data: {label: node.function_name, function_id: node.function_id},
+    ...node,
     sourcePosition: 'right',
     targetPosition: 'left',
   })));
   addEdges(dagData.edges.map(edge => ({
-    id: `${edge.source}-${edge.target}`,
-    source: edge.source,
-    target: edge.target,
+    ...edge,
     markerEnd: 'arrowclosed',
   })))
 }
@@ -127,17 +121,10 @@ const saveDAG = async () => {
     name: dagName.value,
     description: dagDescription.value,
     nodes: nodes.value.map((node) => ({
-      id: node.id,
-      function_id: node.data.function_id,
-      function_name: node.data.label,
-      inputs: node.data.inputs,
-      ui_type: node.type,
-      position: node.position,
-      style: node.style,
+      ...node
     })),
     edges: edges.value.map((edge) => ({
-      source: edge.source,
-      target: edge.target
+      ...edge
     })),
   };
 

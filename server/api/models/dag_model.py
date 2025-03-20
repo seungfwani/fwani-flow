@@ -1,27 +1,44 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from models.flow import Flow
 
 
 # DAG 데이터 모델 정의
-class DAGNode(BaseModel):
-    id: str = Field(..., description="Task Name 역할")
+class DAGNodeData(BaseModel):
     function_id: str = Field(..., description="실행할 UDF ID")
-    function_name: Optional[str] = Field(None, description="실행할 UDF Name")
-    inputs: Dict[str, Any] = Field({}, description="UDF 실행시 input 값")
-    ui_type: Optional[str] = Field("default", description="UI node 타입 ")
-    position: Optional[dict[str, float]] = Field({"x": 0, "y": 0}, description="UI node 좌표")
-    style: Optional[dict[str, Any]] = Field({}, description="UI style")
+    inputs: dict[str, Any] = Field({}, description="UDF 실행시 input 값")
+
+
+class DAGNode(BaseModel):
+    id: str
+    type: str = Field("custom", description="UI node 타입 ")
+    label: str
+    position: dict[str, float] = Field(default_factory=lambda: {"x": 0, "y": 0}, description="UI node 좌표")
+    data: DAGNodeData
+    style: Optional[dict[str, Any]] = Field({})
+
+    @model_validator(mode="before")
+    @classmethod
+    def fill_defaults(cls, values):
+        # ✅ type 이 None 이거나 빈 문자열이면 "custom" 으로 세팅
+        if not values.get("label"):
+            values["label"] = ""
+        return values
 
 
 class DAGEdge(BaseModel):
-    source: str = Field(..., description="이전 노드")
-    target: str = Field(..., description="다음 노드")
-    ui_type: Optional[str] = Field("default", description="UI edge 타입 ")
-    label: Optional[str] = Field(None, description="Edge 의 라벨")
-    style: Optional[dict[str, Any]] = Field({}, description="UI edge style")
+    id: str
+    type: str = Field("custom", description="UI edge 타입 ")
+    source: str = Field(..., description="Source Node ID")
+    target: str = Field(..., description="Target Node ID")
+    label: Optional[str] = Field("", description="edge label")
+    labelStyle: Optional[dict[str, Any]] = Field(default_factory=dict)
+    labelBgStyle: Optional[dict[str, Any]] = Field(default_factory=dict)
+    labelBgPadding: Optional[float] = Field(default_factory=float)
+    labelBgBorderRadius: Optional[float] = Field(default_factory=float)
+    style: Optional[dict[str, Any]] = Field({})
 
 
 class DAGRequest(BaseModel):
@@ -46,18 +63,21 @@ class DAGResponse(BaseModel):
             description=dag.description,
             nodes=[DAGNode(
                 id=task.id,
-                function_id=task.function_id,
-                function_name=task.function.name,
-                inputs={inp.key: inp.value for inp in task.inputs},
-                ui_type=task.task_ui.type if task.task_ui else "default",
+                type=task.task_ui.type if task.task_ui else "custom",
                 position=task.task_ui.position if task.task_ui else {"x": 0, "y": 0},
                 style=task.task_ui.style if task.task_ui else {},
+                label=task.task_ui.label if task.task_ui else "",
+                data=DAGNodeData(
+                    function_id=task.function_id,
+                    inputs={inp.key: inp.value for inp in task.inputs},
+                )
             ) for task in dag.tasks],
             edges=[DAGEdge(
+                id=edge.id,
+                type=edge.edge_ui.type if edge.edge_ui else "custom",
                 source=edge.from_task_id,
                 target=edge.to_task_id,
-                ui_type=edge.edge_ui.type,
-                label=edge.edge_ui.label,
-                style=edge.edge_ui.style,
+                label=edge.edge_ui.label if edge.edge_ui else "",
+                style=edge.edge_ui.style if edge.edge_ui else {},
             ) for edge in dag.edges],
         )
