@@ -22,3 +22,4 @@ class Task(Base):
     flow = relationship("Flow", back_populates="tasks")
     inputs = relationship("TaskInput", back_populates="task")
     function = relationship("FunctionLibrary", uselist=False)
+    task_ui = relationship("TaskUI", back_populates="task", uselist=False, cascade="all, delete-orphan")

@@ -6,9 +6,20 @@ export async function fetchDAGList() {
     try {
         const response = await axios.get(`${API_BASE_URL}/dag`);
         console.log(response.data)
-        return response.data.dags;
+        return response.data.data;
     } catch (error) {
         console.error("Failed to fetch DAG list:", error);
+        return [];
+    }
+}
+
+export async function fetchDAGDetail(id) {
+    try {
+        const response = await axios.get(`${API_BASE_URL}/dag/${id}`);
+        console.log(response.data)
+        return response.data.data;
+    } catch (error) {
+        console.error(`Failed to fetch DAG ${id}:`, error);
         return [];
     }
 }

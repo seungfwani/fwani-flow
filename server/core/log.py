@@ -44,26 +44,9 @@ LOG_CONFIG = {
         }
     },
     "root": {
-        "level": "INFO",
+        "level": Config.LOG_LEVEL,
         "handlers": ["console", "file"]
     },
-    "loggers": {
-        "uvicorn": {
-            "handlers": ["console", "file"],
-            "level": Config.LOG_LEVEL,
-            "propagate": False,
-        },
-        "uvicorn.error": {
-            "handlers": ["console", "file"],
-            "level": Config.LOG_LEVEL,
-            "propagate": False,
-        },
-        "uvicorn.access": {
-            "handlers": ["console"],
-            "level": Config.LOG_LEVEL,
-            "propagate": False,
-        },
-    }
 }
 
 
@@ -99,7 +82,3 @@ def setup_logging():
     # )
 
     logging.info("✅ 로깅 시스템 초기화 완료")
-
-
-# 실행 시 자동 설정 적용
-setup_logging()

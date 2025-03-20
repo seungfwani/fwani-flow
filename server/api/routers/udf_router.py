@@ -2,16 +2,19 @@ import logging
 import os.path
 import shutil
 import uuid
+from typing import List
 
 from fastapi import APIRouter, UploadFile, HTTPException, File, Depends, Form
 from sqlalchemy.orm import Session
 
-from api.models.udf_model import UDFUploadRequest
+from api.models.api_model import api_response_wrapper
+from api.models.udf_model import UDFUploadRequest, UDFResponse
 from config import Config
 from core.database import get_db
 from models.function_input import FunctionInput
 from models.function_library import FunctionLibrary
 from models.function_output import FunctionOutput
+from utils.decorator import zip_executable_udf
 from utils.functions import generate_udf_filename
 from utils.udf_validator import validate_udf
 
@@ -23,7 +26,7 @@ router = APIRouter(
     tags=["Udf"],
 )
 
-ALLOWED_EXTENSIONS = ['py']
+ALLOWED_EXTENSIONS = ['py', 'txt']
 
 
 def allowed_file(filename):
@@ -31,35 +34,65 @@ def allowed_file(filename):
 
 
 @router.post("")
+@api_response_wrapper
 async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
-                     file: UploadFile = File(...),
+                     files: List[UploadFile] = File(...),
                      db: Session = Depends(get_db)):
     """
     Upload a python UDF file
     :param udf_metadata:
-    :param file:
+    :param files:
     :param db: SqlAlchemy session
     :return:
     """
-    if not allowed_file(file.filename):
-        raise HTTPException(status_code=400,
-                            detail=f"Only {', '.join(map(lambda x: f'.{x}', ALLOWED_EXTENSIONS))} files are allowed")
+    if not files:
+        raise HTTPException(status_code=404, detail="No files uploaded")
+    python_files = []
+    requirements_file = None
+    for file in files:
+        if not allowed_file(file.filename):
+            raise HTTPException(status_code=400,
+                                detail=f"Only {', '.join(map(lambda x: f'.{x}', ALLOWED_EXTENSIONS))} files are allowed")
+        if file.filename.endswith(".py"):
+            python_files.append(file)
+        elif file.filename.endswith(".txt"):
+            requirements_file = file
 
-    file_name = generate_udf_filename(file.filename)
-    file_path = os.path.join(os.path.abspath(Config.UDF_DIR), file_name)
+    udf_dir = os.path.abspath(Config.UDF_DIR)
+    udf_name = generate_udf_filename(udf_metadata.name)
+    file_dir = os.path.join(os.path.abspath(Config.UDF_DIR), udf_name)
     try:
-        with open(file_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
-            logger.info(f"✅ 파일 저장 완료: {file_path}")
+        os.makedirs(file_dir, exist_ok=True)
+        main_filename = \
+            (python_files[0].filename if udf_metadata.main_filename is None else udf_metadata.main_filename).rsplit(
+                ".")[0]
+        for python_file in python_files:
+            file_path = os.path.join(file_dir, python_file.filename)
+            with open(file_path, "wb") as f:
+                shutil.copyfileobj(python_file.file, f)
+                logger.info(f"✅ 파일 저장 완료: {file_path}")
+            if not validate_udf(file_path):
+                raise HTTPException(status_code=400, detail="UDF is not valid")
 
-        if not validate_udf(file_path):
-            raise HTTPException(status_code=400, detail="UDF is not valid")
+        if requirements_file:
+            requirements_file_path = os.path.join(file_dir, "requirements.txt")
+            with open(requirements_file_path, "wb") as f:
+                shutil.copyfileobj(requirements_file.file, f)
+                logger.info(f"✅ 파일 저장 완료: {requirements_file_path}")
+        zip_executable_udf(udf_dir, udf_name)
+
         udf_id = str(uuid.uuid4())
-        udf_data = FunctionLibrary(id=udf_id,
-                                   name=file_name.replace(".py", ""),
-                                   filename=file_name,
-                                   path=file_path,
-                                   function="run")
+        udf_data = FunctionLibrary(
+            id=udf_id,
+            name=udf_name,
+            main_filename=main_filename,
+            path=file_dir,
+            function=udf_metadata.function_name,
+            operator_type=udf_metadata.operator_type,
+            docker_image_tag=udf_metadata.docker_image,
+            dependencies="requirements.txt",
+        )
+
         for i in udf_metadata.inputs:
             udf_data.inputs.append(FunctionInput(
                 name=i.name,
@@ -79,7 +112,7 @@ async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
         db.refresh(udf_data)
         logger.info(f"✅ 메타데이터 저장 완료: {udf_data}")
 
-        return {"message": f"{file.filename} UDF file uploaded successfully"}
+        return UDFResponse.from_function_library(udf_data)
 
     except Exception as e:
         logger.error(f"❌ 오류 발생: {e}")
@@ -87,14 +120,15 @@ async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
         logger.info(f"🔄 메타데이터 롤백")
 
         # ✅ 파일 저장 후 DB 실패 시 파일 삭제
-        if os.path.exists(file_path):
-            os.remove(file_path)
-            logger.info(f"🗑️ 저장된 파일 삭제: {file_path}")
+        if os.path.exists(file_dir):
+            shutil.rmtree(file_dir)
+            logger.info(f"🗑️ 저장된 파일 삭제: {file_dir}")
 
         raise
 
 
 @router.delete("/{udf_id}")
+@api_response_wrapper
 async def delete_udf(udf_id: str, db: Session = Depends(get_db)):
     """
     Delete a python UDF file
@@ -114,15 +148,16 @@ async def delete_udf(udf_id: str, db: Session = Depends(get_db)):
     db.commit()
     logger.info(f"🗑️ 메타데이터 삭제: {udf_data}")
 
-    return {"message": f"{udf_id} UDF file deleted successfully"}
+    return UDFResponse.from_function_library(udf_data)
 
 
 @router.get("")
+@api_response_wrapper
 async def get_udf_list(db: Session = Depends(get_db)):
     """
     Get all available UDF files
     :return:
     """
     logger.info(f"▶️ udf 리스트 조회")
-    print(f"📌 현재 logger 핸들러 목록: {logger.handlers}")  # ✅ 로깅 핸들러 체크
-    return {"udfs": db.query(FunctionLibrary).all()}
+    return [UDFResponse.from_function_library(udf_data)
+            for udf_data in db.query(FunctionLibrary).all()]
