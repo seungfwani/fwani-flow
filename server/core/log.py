@@ -5,7 +5,7 @@ from logging.handlers import RotatingFileHandler
 from config import Config
 
 # 로그 디렉토리 생성 (없으면 생성)
-os.makedirs(Config.LOG_DIR, exist_ok=True)
+os.makedirs(Config.LOG_DIR, exist_ok=True, mode=0o777)
 
 # 로그 파일 경로
 LOG_FILE = os.path.join(Config.LOG_DIR, "app.log")

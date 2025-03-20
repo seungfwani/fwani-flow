@@ -62,7 +62,7 @@ async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
     udf_name = generate_udf_filename(udf_metadata.name)
     file_dir = os.path.join(os.path.abspath(Config.UDF_DIR), udf_name)
     try:
-        os.makedirs(file_dir, exist_ok=True)
+        os.makedirs(file_dir, exist_ok=True, mode=0o777)
         main_filename = \
             (python_files[0].filename if udf_metadata.main_filename is None else udf_metadata.main_filename).rsplit(
                 ".")[0]

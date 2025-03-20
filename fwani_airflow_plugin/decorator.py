@@ -68,7 +68,7 @@ def file_decorator(func):
     """파일 기반 데이터 전달 (대용량 지원)"""
     # ✅ 파일 저장 경로 설정 (Airflow 컨테이너 내부 공유 가능하도록 설정)
     base_dir = "/tmp/airflow_data"
-    os.makedirs(base_dir, exist_ok=True)
+    os.makedirs(base_dir, exist_ok=True, mode=0o777)
 
     @wraps(func)
     def wrapper(*args, **kwargs):

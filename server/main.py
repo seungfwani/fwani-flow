@@ -39,8 +39,8 @@ def init_app():
     run_migrations()
 
     # udf 폴더 생성
-    os.makedirs(Config.UDF_DIR, exist_ok=True)
-    os.makedirs(Config.DAG_DIR, exist_ok=True)
+    os.makedirs(Config.UDF_DIR, exist_ok=True, mode=0o777)
+    os.makedirs(Config.DAG_DIR, exist_ok=True, mode=0o777)
 
     # 실행 시 자동 설정 적용
     setup_logging()

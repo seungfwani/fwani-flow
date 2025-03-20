@@ -68,7 +68,7 @@ def file_decorator(inputs: List[Dict[str, Any]]):
         """파일 기반 데이터 전달 (대용량 지원)"""
         # ✅ 파일 저장 경로 설정 (Airflow 컨테이너 내부 공유 가능하도록 설정)
         base_dir = "/app/shared"
-        os.makedirs(base_dir, exist_ok=True)
+        os.makedirs(base_dir, exist_ok=True, mode=0o777)
 
         def get_input_data(dag_id, task_id, is_first_task, **kwargs):
             validated_inputs = {}
@@ -100,7 +100,7 @@ def file_decorator(inputs: List[Dict[str, Any]]):
 
         def write_output_data(dag_id, task_id, is_last_task, output):
             dag_data_dir = os.path.join(base_dir, dag_id)
-            os.makedirs(dag_data_dir, exist_ok=True)
+            os.makedirs(dag_data_dir, exist_ok=True, mode=0o777)
             file_path = os.path.join(dag_data_dir, f"{task_id}.pkl")
             # ✅ 결과를 파일에 저장
             with open(file_path, "wb") as f:
