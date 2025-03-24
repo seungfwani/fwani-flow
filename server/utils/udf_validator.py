@@ -9,11 +9,12 @@ from models.function_input import FunctionInput
 logger = logging.getLogger()
 
 
-def validate_udf(file_path: str) -> bool:
+def validate_udf(file_path: str, function_name: str) -> bool:
     """
     UDF 파일의 유효성을 검사하는 함수
 
     :param file_path: 검사할 UDF 파일 경로
+    :param function_name:
     :return: 유효한 경우 True, 그렇지 않으면 False
     """
     try:
@@ -25,11 +26,11 @@ def validate_udf(file_path: str) -> bool:
 
         # 2. 'run' 함수 존재 여부 확인
         run_function_node: ast.FunctionDef = next(
-            (node for node in parsed_tree.body if isinstance(node, ast.FunctionDef) and node.name == 'run'),
+            (node for node in parsed_tree.body if isinstance(node, ast.FunctionDef) and node.name == function_name),
             None
         )
         if run_function_node is None:
-            logger.warning(f"❌ UDF 파일에 'run' 함수가 없음: {file_path}")
+            logger.warning(f"❌ UDF 파일에 '{function_name}' 함수가 없음: {file_path}")
             return False
 
         # 3. 'return' 키워드 포함 여부 확인

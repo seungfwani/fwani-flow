@@ -68,13 +68,16 @@ async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
         main_filename = \
             (python_files[0].filename if udf_metadata.main_filename is None else udf_metadata.main_filename).rsplit(
                 ".")[0]
+        is_validate_udf = False
         for python_file in python_files:
             file_path = os.path.join(file_dir, python_file.filename)
             with open(file_path, "wb") as f:
                 shutil.copyfileobj(python_file.file, f)
                 logger.info(f"✅ 파일 저장 완료: {file_path}")
-            if not validate_udf(file_path):
-                raise HTTPException(status_code=400, detail="UDF is not valid")
+            if not is_validate_udf and validate_udf(file_path, udf_metadata.function_name):
+                is_validate_udf = True
+        if not is_validate_udf:
+            raise HTTPException(status_code=400, detail="UDF is not valid")
 
         if requirements_file:
             requirements_file_path = os.path.join(file_dir, "requirements.txt")
