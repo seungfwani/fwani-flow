@@ -10,11 +10,15 @@
     {% endif -%}
     op_args=["{{ task.function.name }}", "{{ task.function.main_filename }}", "{{ task.function.function }}"],
     op_kwargs={
-        {% set options = task.options | from_json -%}
-        {% for k, v in options.items() -%}
-        "{{ k }}": {% if v is string %}"{{ v }}"{% else %}{{ v }}{% endif %},
+        {% for inp in task.inputs -%}
+        "{{ inp.key }}": {% if inp.type == "string" %}"{{ inp.value }}"{% else %}{{ inp.value }}{% endif %},
         {% endfor -%}
         "operator_type": "{{ task.function.operator_type }}",
+        "input_schema": [
+        {% for inp in task.function.inputs -%}
+            {"name": "{{ inp.name }}", "type": "{{ inp.type }}"},
+        {% endfor -%}
+        ],
         {% raw -%}
         "dag_id": "{{ ti.dag_id }}",
         "task_id": "{{ ti.task.task_id }}",

@@ -130,8 +130,7 @@ def file_decorator(inputs: List[Dict[str, Any]]):
 
             input_data = get_input_data(dag_id, task_id, is_first_task, **kwargs)
             # ✅ 실제 UDF 실행
-            kwargs.update(input_data)
-            result = func(*args, **kwargs)
+            result = func(*args, **input_data)
             write_output_data(dag_id, task_id, is_last_task, result)
 
             return result
@@ -149,9 +148,10 @@ def zip_executable_udf(udf_dir: str, udf_name: str):
     with zipfile.ZipFile(zip_path, "w") as zipf:
         for root, _, files in os.walk(source_path):
             for file in files:
-                file_path = os.path.join(root, file)
-                arcname = os.path.relpath(file_path, source_path)  # ZIP 내부 경로 유지
-                zipf.write(file_path, arcname)
+                if file.endswith(".py") or file.endswith(".txt"):
+                    file_path = os.path.join(root, file)
+                    arcname = os.path.relpath(file_path, source_path)  # ZIP 내부 경로 유지
+                    zipf.write(file_path, arcname)
 
     print(f"✅ ZIP 파일 생성 완료: {zip_path}")
 
@@ -182,6 +182,6 @@ def execute_udf(udf_name, main_filename, function_name, *args, **kwargs):
 def wrapped_callable(*args, **kwargs):
     from utils.decorator import file_decorator, execute_udf
     decorated_func = file_decorator(
-        inputs=[{"name": "url", "type": "string"}]
+        inputs=kwargs.get("input_schema", []),
     )(execute_udf)
     return decorated_func(*args, **kwargs)

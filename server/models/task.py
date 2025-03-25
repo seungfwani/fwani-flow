@@ -14,8 +14,6 @@ class Task(Base):
     function_id = Column(String, ForeignKey("function_library.id", ondelete="SET NULL"), nullable=True)
     variable_id = Column(String, nullable=False)
     decorator = Column(String, nullable=True)
-    decorator_parameters = Column(String, nullable=True)
-    options = Column(Text, nullable=True)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 

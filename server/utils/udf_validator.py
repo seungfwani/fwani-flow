@@ -54,23 +54,21 @@ def validate_udf(file_path: str, function_name: str) -> bool:
 
 
 def get_validated_inputs(udf_input_list: List[FunctionInput], user_input: dict):
-    validated_inputs = {}
-    udf_input_dict = {i.name: i for i in udf_input_list}
-    for key, value in user_input.items():
-        if key not in udf_input_dict:
-            raise HTTPException(status_code=400, detail=f"Invalid input: {key} for UDF")
-        expected_type = udf_input_dict[key].type
-        validated_inputs[key] = validate_input_type(expected_type, key, value)
-
-    # 필수 input 이 누락 되었는지 확인
+    validated_inputs = []
     for udf_input in udf_input_list:
-        if udf_input.name not in validated_inputs:
-            if udf_input.required and udf_input.default_value is None:
-                raise HTTPException(status_code=400, detail=f"Missing required inputs: {udf_input.name}")
-            # 기본값이 있으면 자동 할당
-            validated_inputs[udf_input.name] = validate_input_type(udf_input.type, udf_input.name,
-                                                                   udf_input.default_value)
-
+        if udf_input.name in user_input:
+            validated_inputs.append({
+                "key": udf_input.name,
+                "value": user_input[udf_input.name],
+                "type": udf_input.type
+            })
+        else:
+            validated_inputs.append({
+                "key": udf_input.name,
+                "value": udf_input.default_value,
+                "type": udf_input.type
+            })
+    logger.info("validated inputs: " + str(validated_inputs))
     return validated_inputs
 
 

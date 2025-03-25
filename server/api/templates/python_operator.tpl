@@ -6,15 +6,18 @@ from {{ task.function.name }}.{{ task.function.main_filename }} import {{ task.f
     dag=dag,
     {%- if task.decorator %}
     python_callable={{ task.decorator }}(
-        inputs={{ task.decorator_parameters }}
+        inputs=[
+        {% for inp in task.function.inputs -%}
+            {"name": "{{ inp.name }}", "type": "{{ inp.type }}"},
+        {% endfor -%}
+        ]
     )({{ task.function.name }}_{{ task.function.main_filename }}_{{ task.function.function }}),
     {% else %}
     python_callable={{ task.function.name }}_{{ task.function.main_filename }}_{{ task.function.function }},
     {% endif -%}
     op_kwargs={
-        {% set options = task.options | from_json -%}
-        {% for k, v in options.items() -%}
-        "{{ k }}": {% if v is string %}"{{ v }}"{% else %}{{ v }}{% endif %},
+        {% for inp in task.inputs -%}
+        "{{ inp.key }}": {% if inp.type == "string" %}"{{ inp.value }}"{% else %}{{ inp.value }}{% endif %},
         {% endfor -%}
         "operator_type": "{{ task.function.operator_type }}",
     },

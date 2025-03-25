@@ -1,5 +1,4 @@
 import base64
-import json
 import logging
 import os.path
 import traceback
@@ -73,26 +72,27 @@ async def create_dag(dag: DAGRequest, db: Session = Depends(get_db)):
                 # 첫 번째 노드인지 확인
                 is_first_task = all(edge.target != node.id for edge in dag.edges)
 
-                options = get_validated_inputs(udf_functions[node.data.function_id].inputs, node.data.inputs)
+                task_inputs = get_validated_inputs(udf_functions[node.data.function_id].inputs, node.data.inputs)
                 if not is_first_task:
                     # 부모 노드를 찾아서 before_task_id 설정
-                    options['before_task_ids'] = [id_to_variable_id[edge.source] for edge in dag.edges if
-                                                  edge.target == node.id]
+                    task_inputs.append({
+                        "key": "before_task_ids",
+                        "value": [id_to_variable_id[edge.source] for edge in dag.edges if edge.target == node.id],
+                        "type": "string"
+                    })
                 task_data = Task(
                     variable_id=id_to_variable_id[node.id],
                     flow_id=flow.id,
                     function_id=node.data.function_id,
                     decorator="file_decorator",
-                    decorator_parameters=json.dumps([{"name": udf_inp.name, "type": udf_inp.type} for udf_inp in
-                                                     udf_functions[node.data.function_id].inputs]),
-                    options=json.dumps(options),
                 )
-                for k, v in node.data.inputs.items():
+                for inp in task_inputs:
                     task_data.inputs.append(TaskInput(
-                        task=task_data,
-                        key=k,
-                        value=v,
+                        key=inp.get("key"),
+                        type=inp.get("type"),
+                        value=inp.get("value"),
                     ))
+                logger.info(f"Task Data: {task_data}")
                 task_data.task_ui = TaskUI(type=node.type,
                                            position=node.position,
                                            style=node.style, )
