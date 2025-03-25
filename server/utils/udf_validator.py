@@ -38,7 +38,7 @@ def validate_udf(file_path: str, function_name: str) -> bool:
             isinstance(n, ast.Return) for n in ast.walk(run_function_node)
         )
         if not has_return_statement:
-            logger.warning(f"❌ UDF 파일의 'run' 함수에서 반환값이 없음: {file_path}")
+            logger.warning(f"❌ UDF 파일의 '{function_name}' 함수에서 반환값이 없음: {file_path}")
             return False
 
         logger.info(f"✅ UDF 검증 통과: {file_path}")

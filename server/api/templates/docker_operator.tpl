@@ -8,11 +8,16 @@
     working_dir="/app",
     environment={
         "PYTHONPATH": "{{ container_mount_udf_target_path }}",
-        "inputs": json.dumps([{
-            "name": "url", "type": "string"
-        }]),
+        "input_schema": json.dumps([
+        {% for inp in task.function.inputs -%}
+            {"name": "{{ inp.name }}", "type": "{{ inp.type }}"},
+        {% endfor -%}
+        ]),
         "kwargs": json.dumps({
-            "url": "www.naver.com",
+            {% for inp in task.inputs -%}
+            "{{ inp.key }}": {% if inp.type == "string" %}"{{ inp.value }}"{% else %}{{ inp.value }}{% endif %},
+            {% endfor -%}
+            "operator_type": "{{ task.function.operator_type }}",
             {% raw -%}
             "dag_id": "{{ ti.dag_id }}",
             "task_id": "{{ ti.task.task_id }}",
@@ -37,7 +42,7 @@ from utils.decorator import file_decorator
 from {{ task.function.name }}.{{ task.function.main_filename }} import {{ task.function.function }}
 
 
-inputs = json.loads(os.getenv("inputs"))
+inputs = json.loads(os.getenv("input_schema"))
 kwargs = json.loads(os.getenv("kwargs"))
 print(inputs, kwargs)
 

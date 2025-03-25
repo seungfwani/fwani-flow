@@ -151,6 +151,7 @@ async def update_dag(dag_id: str, dag: DAGRequest, db: Session = Depends(get_db)
         logger.info(f"Delete DAG metadata {dag_data}")
         created_dag = create_dag_by_id(dag_id, dag, db)
         db.commit()
+        logger.info(f"✅ Success to update DAG : {created_dag}")
         return created_dag
     except Exception as e:
         db.rollback()
