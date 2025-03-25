@@ -109,6 +109,7 @@ def file_decorator(inputs: List[Dict[str, Any]]):
 
             if is_last_task:
                 print(f"‼️ 마지막 태스크 완료: {task_id} → output = {output}")
+            return file_path
 
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -131,9 +132,9 @@ def file_decorator(inputs: List[Dict[str, Any]]):
             input_data = get_input_data(dag_id, task_id, is_first_task, **kwargs)
             # ✅ 실제 UDF 실행
             result = func(*args, **input_data)
-            write_output_data(dag_id, task_id, is_last_task, result)
+            file_path = write_output_data(dag_id, task_id, is_last_task, result)
 
-            return result
+            return file_path
 
         return wrapper
 

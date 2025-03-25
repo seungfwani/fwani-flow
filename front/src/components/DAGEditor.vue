@@ -4,6 +4,7 @@
       <h2>Dag Editor</h2>
       <input v-model="dagName" placeholder="Enter DAG Name"/>
       <button @click="saveDAG">DAG 저장</button>
+      <button @click="updateDAG">DAG 수정</button>
     </div>
     <VueFlow :nodes="nodes"
              :edges="edges"
@@ -38,7 +39,7 @@ import FlowSideBar from "@/components/FlowSideBar.vue";
 import TaskInputModal from "@/components/TaskInputModal.vue";
 import useDragAndDrop from "@/scripts/useDnD";
 import DropzoneBackground from "@/components/DropzoneBackground.vue";
-import {fetchDAGDetail, saveDAGToServer} from "@/api/dag";
+import {fetchDAGDetail, saveDAGToServer, updateDAGToServer} from "@/api/dag";
 
 const props = defineProps({
   dagId: {type: String, default: null}
@@ -132,12 +133,34 @@ const saveDAG = async () => {
 
   const response = await saveDAGToServer(dagData);
   if (response && response.message) {
-    alert(`✅ DAG 저장 완료: ${response.message}`);
     emit('save-complete');
   } else {
     alert("❌ DAG 저장 실패: 서버 응답이 없습니다.");
   }
 };
+
+const updateDAG = async () => {
+  console.log(nodes, edges)
+  const dagData = {
+    name: dagName.value,
+    description: dagDescription.value,
+    nodes: nodes.value.map((node) => ({
+      ...node
+    })),
+    edges: edges.value.map((edge) => ({
+      ...edge
+    })),
+  };
+
+  console.log("🔄 DAG 저장 요청 데이터:", JSON.stringify(dagData, null, 2));
+
+  const response = await updateDAGToServer(props.dagId, dagData);
+  if (response && response.message) {
+    emit('save-complete');
+  } else {
+    alert("❌ DAG 저장 실패: 서버 응답이 없습니다.");
+  }
+}
 
 </script>
 

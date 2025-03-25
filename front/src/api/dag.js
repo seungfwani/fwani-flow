@@ -41,3 +41,21 @@ export const saveDAGToServer = async (dagData) => {
         throw new Error(`DAG 저장 중 오류 발생: ${error.message}`);  // 강제 예외 발생
     }
 };
+
+export const updateDAGToServer = async (id, dagData) => {
+    try {
+        console.log("🔄 DAG 업데이트 요청 데이터:", id, dagData);
+
+        const response = await axios.patch(`${API_BASE_URL}/dag/${id}`, dagData);
+
+        if (!response || !response.data) {
+            throw new Error("❌ 서버 응답 없음");
+        }
+
+        console.log("✅ DAG 업데이트 성공:", response.data);
+        return response.data;  // 정상적인 응답 반환
+    } catch (error) {
+        console.error("❌ DAG 업데이트 실패:", error);
+        throw new Error(`DAG 업데이트 중 오류 발생: ${error.message}`);  // 강제 예외 발생
+    }
+}

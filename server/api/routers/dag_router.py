@@ -1,4 +1,5 @@
 import base64
+import json
 import logging
 import os.path
 import traceback
@@ -29,92 +30,81 @@ router = APIRouter(
 )
 
 
-@router.post("",
-             response_model=APIResponse[DAGResponse],
-             )
-@api_response_wrapper
-async def create_dag(dag: DAGRequest, db: Session = Depends(get_db)):
-    """DAG 생성 및 DB 에 저장"""
-    logger.info(f"Request Data: {dag}")
-    dag_id = "dag_" + base64.urlsafe_b64encode(dag.name.encode()).rstrip(b'=').decode('ascii')
+def make_flow(dag: DAGRequest, dag_id: str, udf_functions: {str, FunctionLibrary}):
+    # Flow 생성
+    flow = Flow(id=dag_id, name=dag.name, description=dag.description)
+
+    # tasks 생성
+    id_to_variable_id = {}
+    for i, node in enumerate(dag.nodes):
+        variable_id = f"task_{i}"
+        id_to_variable_id[node.id] = variable_id
+    tasks = {}
+    for i, node in enumerate(dag.nodes):
+        # 첫 번째 노드인지 확인
+        is_first_task = all(edge.target != node.id for edge in dag.edges)
+
+        task_inputs = get_validated_inputs(udf_functions[node.data.function_id].inputs, node.data.inputs)
+        if not is_first_task:
+            # 부모 노드를 찾아서 before_task_id 설정
+            task_inputs.append({
+                "key": "before_task_ids",
+                "value": json.dumps([id_to_variable_id[edge.source] for edge in dag.edges if edge.target == node.id]),
+                "type": "list"
+            })
+        task_data = Task(
+            variable_id=id_to_variable_id[node.id],
+            function_id=node.data.function_id,
+            decorator="file_decorator",
+        )
+        for inp in task_inputs:
+            task_data.inputs.append(TaskInput(
+                key=inp.get("key"),
+                type=inp.get("type"),
+                value=inp.get("value"),
+            ))
+        logger.info(f"Task Data: {task_data}")
+        task_data.task_ui = TaskUI(type=node.type,
+                                   position=node.position,
+                                   style=node.style, )
+        flow.add_task(task_data)
+        tasks[node.id] = task_data
+
+    # edge 생성
+    for edge in dag.edges:
+        edge_data = Edge(
+            from_task=tasks[edge.source],
+            to_task=tasks[edge.target]
+        )
+        flow.add_edge(edge_data)
+    return flow
+
+
+def create_dag_by_id(dag_id: str, dag: DAGRequest, db: Session = Depends(get_db)):
     dag_file_path = os.path.join(Config.DAG_DIR, f"{dag_id}.py")
     try:
-        with db.begin():
-            # 한 번의 쿼리로 조회
-            udf_functions: {str, FunctionLibrary} = {
-                udf.id: udf
-                for udf in db.query(FunctionLibrary)
-                .filter(FunctionLibrary.id.in_([node.data.function_id for node in dag.nodes]))
-                .all()
-            }
+        udf_functions: {str, FunctionLibrary} = {
+            udf.id: udf
+            for udf in db.query(FunctionLibrary)
+            .filter(FunctionLibrary.id.in_([node.data.function_id for node in dag.nodes]))
+            .all()
+        }
+        # find missing udf
+        missing_udfs = [node for node in dag.nodes
+                        if node.data.function_id not in udf_functions.keys()]
+        if missing_udfs:
+            logger.error(f"UDFs not found: {missing_udfs}")
+            return {"message": f"UDFs not found: {missing_udfs}"}
 
-            # 없는 UDF 찾기
-            missing_udfs = [node for node in dag.nodes
-                            if node.data.function_id not in udf_functions.keys()]
+        # make/save dag metadata to DB
+        flow = make_flow(dag, dag_id, udf_functions)
+        db.add(flow)
+        db.flush()
 
-            # UDF가 누락되었다면 에러 반환
-            if missing_udfs:
-                logger.info(f"UDFs not found: {missing_udfs}")
-                return {"message": f"UDFs not found: {missing_udfs}"}
-
-            # Flow 생성
-            flow = Flow(id=dag_id, name=dag.name, description=dag.description)
-            db.add(flow)
-            db.flush()
-
-            # tasks 생성
-            id_to_variable_id = {}
-            for i, node in enumerate(dag.nodes):
-                variable_id = f"task_{i}"
-                id_to_variable_id[node.id] = variable_id
-            tasks = {}
-            for i, node in enumerate(dag.nodes):
-                # 첫 번째 노드인지 확인
-                is_first_task = all(edge.target != node.id for edge in dag.edges)
-
-                task_inputs = get_validated_inputs(udf_functions[node.data.function_id].inputs, node.data.inputs)
-                if not is_first_task:
-                    # 부모 노드를 찾아서 before_task_id 설정
-                    task_inputs.append({
-                        "key": "before_task_ids",
-                        "value": [id_to_variable_id[edge.source] for edge in dag.edges if edge.target == node.id],
-                        "type": "string"
-                    })
-                task_data = Task(
-                    variable_id=id_to_variable_id[node.id],
-                    flow_id=flow.id,
-                    function_id=node.data.function_id,
-                    decorator="file_decorator",
-                )
-                for inp in task_inputs:
-                    task_data.inputs.append(TaskInput(
-                        key=inp.get("key"),
-                        type=inp.get("type"),
-                        value=inp.get("value"),
-                    ))
-                logger.info(f"Task Data: {task_data}")
-                task_data.task_ui = TaskUI(type=node.type,
-                                           position=node.position,
-                                           style=node.style, )
-                tasks[node.id] = task_data
-
-            # edge 생성
-            edges = []
-            for edge in dag.edges:
-                edges.append(Edge(flow_id=flow.id,
-                                  from_task=tasks[edge.source],
-                                  to_task=tasks[edge.target]
-                                  ))
-
-            # save dag metadata to DB
-            db.add_all(tasks.values())
-            db.add_all(edges)
-            db.flush()
-
-            # write dag
-            with open(dag_file_path, 'w') as dag_file:
-                dag_file.write(render_dag_script(dag_id, tasks.values(), edges))
-            db.commit()
+        # write dag
+        with open(dag_file_path, 'w') as dag_file:
+            dag_file.write(render_dag_script(dag_id, flow.tasks, flow.edges))
+        db.commit()
         return DAGResponse.from_dag(flow)
     except Exception as e:
         logger.error(f"❌ 오류 발생: {e}")
@@ -129,6 +119,45 @@ async def create_dag(dag: DAGRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"DAG creation failed. {e}")
 
 
+def delete_dag_metadata(dag_id: str, db: Session):
+    flow = db.query(Flow).filter(Flow.id == dag_id).first()
+    if not flow:
+        raise ValueError(f"DAG {dag_id} not found")
+
+    db.query(Edge).filter(Edge.flow_id == flow.id).delete()
+    db.query(Task).filter(Task.flow_id == flow.id).delete()
+    db.delete(flow)
+    return flow
+
+
+@router.post("",
+             response_model=APIResponse[DAGResponse],
+             )
+@api_response_wrapper
+async def create_dag(dag: DAGRequest, db: Session = Depends(get_db)):
+    """DAG 생성 및 DB 에 저장"""
+    logger.info(f"Request Data: {dag}")
+    dag_id = "dag_" + base64.urlsafe_b64encode(dag.name.encode()).rstrip(b'=').decode('ascii')
+    return create_dag_by_id(dag_id, dag, db)
+
+
+@router.patch("/{dag_id}",
+              response_model=APIResponse[DAGResponse],
+              )
+@api_response_wrapper
+async def update_dag(dag_id: str, dag: DAGRequest, db: Session = Depends(get_db)):
+    try:
+        dag_data = delete_dag_metadata(dag_id, db)
+        logger.info(f"Delete DAG metadata {dag_data}")
+        created_dag = create_dag_by_id(dag_id, dag, db)
+        db.commit()
+        return created_dag
+    except Exception as e:
+        db.rollback()
+        logger.error(f"DAG 업데이트 실패: {e}")
+        raise
+
+
 @router.delete("/{dag_id}",
                response_model=APIResponse[DAGResponse],
                )
@@ -140,23 +169,17 @@ async def delete_dag(dag_id: str, db: Session = Depends(get_db)):
     :param db:
     :return:
     """
-
-    if not (dag_data := db.query(Flow).filter(Flow.id == dag_id).first()):
-        return {"message": f"DAG {dag_id} not found"}
-    dag_file_path = os.path.join(Config.DAG_DIR, f"{dag_id}.py")
-
-    if not os.path.exists(dag_file_path):
-        logger.warning(f"Warning: No file to delete {dag_file_path}")
-    else:
-        os.remove(dag_file_path)
-        logger.warning(f"🗑️ 저장된 DAG 파일 삭제: {dag_file_path}")
-
-    db.query(Edge).filter(Edge.flow_id == dag_data.id).delete()
-    db.query(Task).filter(Task.flow_id == dag_data.id).delete()
-    db.delete(dag_data)
+    dag_data = delete_dag_metadata(dag_id, db)
     db.commit()
-    logger.warning(f"🗑️ DAG 메타데이터 삭제: {dag_data}")
 
+    dag_file_path = os.path.join(Config.DAG_DIR, f"{dag_id}.py")
+    if os.path.exists(dag_file_path):
+        try:
+            os.remove(dag_file_path)
+            logger.warning(f"🗑️ 저장된 DAG 파일 삭제: {dag_file_path}")
+        except Exception as e:
+            logger.error(f"파일 삭제 실패: {e}")
+            # 파일 삭제 실패는 치명적이지 않으니 경고만 로그 남기고 넘어갈 수 있음
     return DAGResponse.from_dag(dag_data)
 
 

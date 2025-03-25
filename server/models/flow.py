@@ -18,3 +18,17 @@ class Flow(Base):
 
     tasks = relationship("Task", back_populates="flow", cascade="all, delete-orphan", passive_deletes=True)
     edges = relationship("Edge", back_populates="flow", cascade="all, delete-orphan", passive_deletes=True)
+
+    def add_task(self, task_data):
+        self.tasks.append(task_data)
+
+    def add_edge(self, edge_data):
+        self.edges.append(edge_data)
+
+    def __repr__(self):
+        return (f"<Flow ("
+                f"  id={self.id}"
+                f"  name={self.name}"
+                f"  description={self.description}"
+                f"  version={self.version}"
+                f")>")
