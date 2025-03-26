@@ -24,3 +24,9 @@ class Config:
     UDF_DIR = os.getenv("UDF_DIR", "./data/udfs")
     DAG_DIR = os.getenv("DAG_DIR", "./data/dags")
     SHARED_DIR = os.getenv("SHARED_DIR", "./data/shared")
+
+    # airflow
+    AIRFLOW_HOST = os.getenv("AIRFLOW_HOST", "localhost")
+    AIRFLOW_PORT = os.getenv("AIRFLOW_PORT", "8080")
+    AIRFLOW_USER = os.getenv("AIRFLOW_USER", "admin")
+    AIRFLOW_PASSWORD = os.getenv("AIRFLOW_PASSWORD", "<PASSWORD>")

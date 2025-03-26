@@ -19,6 +19,7 @@ from models.function_library import FunctionLibrary
 from models.task import Task
 from models.task_input import TaskInput
 from models.task_ui import TaskUI
+from utils.airflow_client import get_airflow_client, AirflowClient
 from utils.udf_validator import get_validated_inputs
 
 logger = logging.getLogger()
@@ -203,8 +204,85 @@ async def get_dag_list(db: Session = Depends(get_db)):
 @api_response_wrapper
 async def get_dag(dag_id: str, db: Session = Depends(get_db)):
     """
-    Get DAG
+    Get DAG list
     :return:
     """
     logger.info(f"Get DAG {dag_id}")
     return DAGResponse.from_dag(db.query(Flow).filter(Flow.id == dag_id).first())
+
+
+@router.post("/{dag_id}/trigger")
+@api_response_wrapper
+async def get_dag_runs(dag_id: str, airflow_client: AirflowClient = Depends(get_airflow_client)):
+    """
+    Run DAG
+    :param dag_id:
+    :param airflow_client:
+    :return:
+    """
+    response = airflow_client.post(f"dags/{dag_id}/dagRuns", json_data=json.dumps({}))
+    logger.info(response)
+    return response
+
+
+@router.patch("/{dag_id}/kill/{dag_run_id}")
+@api_response_wrapper
+async def kill_dag_run(dag_id: str, dag_run_id: str, airflow_client: AirflowClient = Depends(get_airflow_client)):
+    """
+    kill job in DAG
+    :param dag_id:
+    :param dag_run_id:
+    :param airflow_client:
+    :return:
+    """
+    response = airflow_client.patch(f"dags/{dag_id}/dagRuns/{dag_run_id}", json_data=json.dumps({
+        "state": "failed",
+    }))
+    logger.info(response)
+    return response
+
+
+@router.get("/{dag_id}/dagRuns/{dag_run_id}")
+@api_response_wrapper
+async def get_dag_run(dag_id: str, dag_run_id: str, airflow_client: AirflowClient = Depends(get_airflow_client)):
+    """
+    get job in DAG
+    :param dag_id:
+    :param dag_run_id:
+    :param airflow_client:
+    :return:
+    """
+    response = airflow_client.get(f"dags/{dag_id}/dagRuns/{dag_run_id}")
+    logger.info(response)
+    return response
+
+
+@router.get("/{dag_id}/history")
+@api_response_wrapper
+async def get_history_of_dag(dag_id: str, airflow_client: AirflowClient = Depends(get_airflow_client)):
+    """
+    get job history of DAG
+    :param dag_id:
+    :param airflow_client:
+    :return:
+    """
+    response = airflow_client.get(f"dags/{dag_id}/dagRuns")
+    logger.info(response)
+    return response
+
+
+@router.get("/{dag_id}/dagRuns/{dag_run_id}/tasks/{task_id}")
+@api_response_wrapper
+async def get_task_of_dag_run(dag_id: str, dag_run_id: str, task_id: str,
+                              airflow_client: AirflowClient = Depends(get_airflow_client)):
+    """
+    get job history of DAG
+    :param task_id:
+    :param dag_run_id:
+    :param dag_id:
+    :param airflow_client:
+    :return:
+    """
+    response = airflow_client.get(f"dags/{dag_id}/dagRuns/{dag_run_id}/taskInstances/{task_id}")
+    logger.info(response)
+    return response

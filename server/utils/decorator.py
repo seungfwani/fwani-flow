@@ -95,6 +95,8 @@ def file_decorator(inputs: List[Dict[str, Any]]):
                     key = inp["name"]
                     if i < len(before_task_outputs):  # 데이터를 순서대로 매핑
                         validated_inputs[key] = before_task_outputs[i]
+                    else:
+                        validated_inputs[key] = None
             print(f"validated_inputs: {validated_inputs}")
             return validated_inputs
 

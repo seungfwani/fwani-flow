@@ -16,5 +16,6 @@ class FunctionInput(Base):
     required = Column(Boolean, default=True)
     default_value = Column(String, nullable=True)
     description = Column(Text, nullable=True)
+    sensitive = Column(Boolean, default=False, server_default="false")
 
     function_ = relationship("FunctionLibrary", back_populates="inputs")
