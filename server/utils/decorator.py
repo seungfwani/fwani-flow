@@ -96,7 +96,7 @@ def file_decorator(inputs: List[Dict[str, Any]]):
                     if i < len(before_task_outputs):  # 데이터를 순서대로 매핑
                         validated_inputs[key] = before_task_outputs[i]
                     else:
-                        validated_inputs[key] = None
+                        validated_inputs[key] = kwargs.get(key)
             print(f"validated_inputs: {validated_inputs}")
             return validated_inputs
 
@@ -213,3 +213,9 @@ def wrapped_callable(*args, **kwargs):
         inputs=kwargs.get("input_schema", []),
     )(execute_udf)
     return decorated_func(*args, **kwargs)
+
+
+if __name__ == "__main__":
+    from config import Config
+
+    zip_executable_udf(os.path.abspath(Config.UDF_DIR), "판다스_데이터_컬럼_선택_60c462")
