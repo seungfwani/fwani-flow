@@ -1,3 +1,4 @@
+import logging
 import traceback
 from functools import wraps
 from typing import Optional, TypeVar, Generic
@@ -5,6 +6,7 @@ from typing import Optional, TypeVar, Generic
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
+logger = logging.getLogger()
 T = TypeVar("T")
 
 
@@ -26,6 +28,7 @@ def api_response_wrapper(func):
                 data=result,
             )
         except HTTPException as e:
+            logger.error(traceback.format_exc())
             return APIResponse(
                 success=False,
                 message=e.detail,
@@ -35,6 +38,7 @@ def api_response_wrapper(func):
                 }
             )
         except Exception as e:
+            logger.error(traceback.format_exc())
             # handle Unexpected Error
             return APIResponse(
                 success=False,

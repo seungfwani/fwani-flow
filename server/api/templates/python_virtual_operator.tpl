@@ -21,6 +21,7 @@
         ],
         {% raw -%}
         "dag_id": "{{ ti.dag_id }}",
+        "run_id": "{{ ti.run_id }}",
         "task_id": "{{ ti.task.task_id }}",
         "is_last_task": "{% if ti.task.downstream_list | length == 0 %}True{% else %}False{% endif %}",
         "is_first_task": "{% if ti.task.upstream_list | length == 0 %}True{% else %}False{% endif %}",

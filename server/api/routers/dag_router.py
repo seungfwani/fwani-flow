@@ -6,7 +6,8 @@ import traceback
 from typing import List
 
 from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy.orm import Session
+from sqlalchemy import inspect
+from sqlalchemy.orm import Session, joinedload
 
 from api.models.api_model import api_response_wrapper, APIResponse
 from api.models.dag_model import DAGRequest, DAGResponse
@@ -14,6 +15,7 @@ from api.render_template import render_dag_script
 from config import Config
 from core.database import get_db
 from models.edge import Edge
+from models.edge_ui import EdgeUI
 from models.flow import Flow
 from models.function_library import FunctionLibrary
 from models.task import Task
@@ -77,6 +79,15 @@ def make_flow(dag: DAGRequest, dag_id: str, udf_functions: {str, FunctionLibrary
             from_task=tasks[edge.source],
             to_task=tasks[edge.target]
         )
+        edge_data.edge_ui = EdgeUI(
+            type=edge.type,
+            label=edge.label,
+            labelStyle=edge.labelStyle,
+            labelBgStyle=edge.labelBgStyle,
+            labelBgPadding=edge.labelBgPadding,
+            labelBgBorderRadius=edge.labelBgBorderRadius,
+            style=edge.style,
+        )
         flow.add_edge(edge_data)
     return flow
 
@@ -121,6 +132,7 @@ def create_dag_by_id(dag_id: str, dag: DAGRequest, db: Session = Depends(get_db)
 
 
 def delete_dag_metadata(dag_id: str, db: Session):
+    logger.info("Get DAG {dag_id} metadata for deleting")
     flow = db.query(Flow).filter(Flow.id == dag_id).first()
     if not flow:
         raise ValueError(f"DAG {dag_id} not found")
@@ -128,6 +140,7 @@ def delete_dag_metadata(dag_id: str, db: Session):
     db.query(Edge).filter(Edge.flow_id == flow.id).delete()
     db.query(Task).filter(Task.flow_id == flow.id).delete()
     db.delete(flow)
+    logger.info("Delete DAG {dag_id} metadata")
     return flow
 
 
