@@ -101,17 +101,39 @@ def file_decorator(inputs: List[Dict[str, Any]]):
             return validated_inputs
 
         def write_output_data(dag_id, run_id, task_id, is_last_task, output):
+            import json
             dag_data_dir = os.path.join(base_dir, f"dag_id={dag_id}", f"run_id={run_id}")
             os.makedirs(dag_data_dir, exist_ok=True, mode=0o777)
-            file_path = os.path.join(dag_data_dir, f"{task_id}.pkl")
-            print(f"📥 {task_id} → 결과 저장 경로 설정: {file_path}")
-            # ✅ 결과를 파일에 저장
-            with open(file_path, "wb") as f:
-                pickle.dump(output, f)
-            print(f"📥 {task_id} → 결과 저장 완료: {file_path}")
-
-            if is_last_task:
+            if not is_last_task:
+                file_path = os.path.join(dag_data_dir, f"{task_id}.pkl")
+                print(f"📥 {task_id} → 결과 저장 경로 설정: {file_path}")
+                # ✅ 결과를 파일에 저장
+                with open(file_path, "wb") as f:
+                    pickle.dump(output, f)
+                print(f"📥 {task_id} → 결과 저장 완료: {file_path}")
+            else:
                 print(f"‼️ 마지막 태스크 완료: {task_id} → output = {output}")
+                json_path = os.path.join(dag_data_dir, f"final_result.json")
+                pkl_path = os.path.join(dag_data_dir, f"final_result.pkl")
+
+                # ✅ JSON 저장 시도
+                try:
+                    with open(json_path, "w", encoding="utf-8") as f:
+                        json.dump(output, f, ensure_ascii=False, indent=2)
+                    print(f"✅ JSON 저장 완료: {json_path}")
+                    return json_path
+                except (TypeError, OverflowError) as e:
+                    print(f"⚠️ JSON 저장 실패: {e}")
+
+                    # ✅ fallback to pickle
+                    try:
+                        with open(pkl_path, "wb") as f:
+                            pickle.dump(output, f)
+                        print(f"✅ Pickle fallback 저장 완료: {pkl_path}")
+                        return pkl_path
+                    except Exception as pe:
+                        print(f"❌ Pickle 저장도 실패: {pe}")
+                        return None
             return file_path
 
         @wraps(func)

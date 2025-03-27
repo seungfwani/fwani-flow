@@ -2,12 +2,12 @@ import base64
 import json
 import logging
 import os.path
+import pickle
 import traceback
 from typing import List
 
 from fastapi import APIRouter, HTTPException, Depends
-from sqlalchemy import inspect
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from api.models.api_model import api_response_wrapper, APIResponse
 from api.models.dag_model import DAGRequest, DAGResponse
@@ -299,3 +299,37 @@ async def get_task_of_dag_run(dag_id: str, dag_run_id: str, task_id: str,
     response = airflow_client.get(f"dags/{dag_id}/dagRuns/{dag_run_id}/taskInstances/{task_id}")
     logger.info(response)
     return response
+
+
+@router.get("/{dag_id}/dagRuns/{dag_run_id}/result")
+@api_response_wrapper
+async def get_task_of_dag_run(dag_id: str, dag_run_id: str):
+    """
+    get job history of DAG
+    :param dag_run_id:
+    :param dag_id:
+    :return:
+    """
+    return get_dag_result(dag_id, dag_run_id)
+
+
+def get_dag_result(dag_id, run_id):
+    shared_dir = os.path.abspath(Config.SHARED_DIR)
+    result_dir = os.path.join(shared_dir, f"dag_id={dag_id}/run_id={run_id}")
+    json_path = os.path.join(result_dir, "final_result.json")
+    pkl_path = os.path.join(result_dir, "final_result.pkl")
+    if os.path.exists(json_path):
+        logger.info(f"load json file: {json_path}")
+        with open(json_path, "r") as f:
+            return json.load(f)
+    elif os.path.exists(pkl_path):
+        try:
+            logger.info(f"load pickle file: {pkl_path}")
+            with open(pkl_path, "rb") as f:
+                result = pickle.load(f)
+            return {"result": str(result), "type": "pickle"}
+        except Exception as e:
+            logger.error("⚠️ Failed to load pickle result", e)
+            raise
+    else:
+        raise HTTPException(status_code=404, detail="결과 파일이 존재하지 않습니다.")
