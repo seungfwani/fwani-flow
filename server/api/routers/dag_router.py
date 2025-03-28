@@ -33,25 +33,6 @@ router = APIRouter(
 )
 
 
-def get_value(type_: str, value: str):
-    if type_ == "list":
-        if value:
-            return json.loads(value)
-        return []
-    elif type_ == "dict":
-        if value:
-            return json.loads(value)
-        return {}
-    elif type_ == "int":
-        return int(value)
-    elif type_ == "float":
-        return float(value)
-    elif type_ == "bool":
-        return bool(value)
-    else:
-        return value
-
-
 def make_flow(dag: DAGRequest, dag_id: str, udf_functions: {str, FunctionLibrary}):
     # Flow 생성
     flow = Flow(id=dag_id, name=dag.name, description=dag.description)
@@ -83,7 +64,7 @@ def make_flow(dag: DAGRequest, dag_id: str, udf_functions: {str, FunctionLibrary
             task_data.inputs.append(TaskInput(
                 key=inp.get("key"),
                 type=inp.get("type"),
-                value=get_value(inp.get("type"), inp.get("value")),
+                value=inp.get("value"),
             ))
         logger.info(f"Task Data: {task_data}")
         task_data.task_ui = TaskUI(type=node.type,

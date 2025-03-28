@@ -57,17 +57,20 @@ def get_validated_inputs(udf_input_list: List[FunctionInput], user_input: dict):
     validated_inputs = []
     for udf_input in udf_input_list:
         if udf_input.name in user_input:
-            validated_inputs.append({
-                "key": udf_input.name,
-                "value": user_input[udf_input.name],
-                "type": udf_input.type
-            })
+            value = user_input[udf_input.name]
         else:
-            validated_inputs.append({
-                "key": udf_input.name,
-                "value": udf_input.default_value,
-                "type": udf_input.type
-            })
+            value = udf_input.default_value
+        if udf_input.type == "list":
+            if not value:
+                value = "[]"
+        elif udf_input.type == "dict":
+            if not value:
+                value = "{}"
+        validated_inputs.append({
+            "key": udf_input.name,
+            "value": value,
+            "type": udf_input.type
+        })
     logger.info("validated inputs: " + str(validated_inputs))
     return validated_inputs
 

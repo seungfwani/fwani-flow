@@ -28,6 +28,7 @@ def write_model(data: dict, model_name: str):
         content_type="text/csv"
     )
 
+    # openmeta noti
     return df.to_dict(orient="tight")
 
 

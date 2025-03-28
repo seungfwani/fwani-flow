@@ -136,7 +136,6 @@ def file_decorator(inputs: List[Dict[str, Any]]):
                         return None
             return file_path
 
-        @wraps(func)
         def wrapper(*args, **kwargs):
             print(args, kwargs)
             if kwargs.get("operator_type") == "python":
@@ -145,17 +144,16 @@ def file_decorator(inputs: List[Dict[str, Any]]):
                 ti = context['ti']
 
                 dag_id = ti.dag_id
-                run_id = ti.run_id
                 task_id = ti.task.task_id
                 is_first_task = len(list(ti.task.upstream_list)) == 0
                 is_last_task = len(list(ti.task.downstream_list)) == 0
             else:
                 dag_id = kwargs.pop("dag_id")
-                run_id = kwargs.pop("run_id")
                 task_id = kwargs.pop("task_id")
                 is_first_task = kwargs.pop("is_first_task", "True") == "True"
                 is_last_task = kwargs.pop("is_last_task", "True") == "True"
 
+            run_id = kwargs.pop("run_id")
             input_data = get_input_data(dag_id, run_id, task_id, is_first_task, **kwargs)
             # ✅ 실제 UDF 실행
             result = func(*args, **input_data)
