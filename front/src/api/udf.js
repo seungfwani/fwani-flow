@@ -13,11 +13,16 @@ export async function fetchUDFList() {
     }
 }
 
-export async function uploadUDFFile(files) {
+export async function uploadUDFFile(info, files) {
     try {
         const formData = new FormData();
-        formData.append("files", files);
+        files.forEach((file) => {
+            // webkitRelativePath를 key 로 사용해 상대경로 정보 유지
+            formData.append(`files`, file, file.name);
+        });
+        formData.append('udf_metadata', JSON.stringify(info));
 
+        // // 폴더/파일 구조 유지하여 업로드
         const response = await axios.post("http://localhost:5050/api/v1/udf", formData, {
             headers: {
                 "Content-Type": "multipart/form-data",
@@ -26,10 +31,11 @@ export async function uploadUDFFile(files) {
 
         if (response.data.success) {
             console.log("✅ UDF 업로드 성공: ", response.data.data);
+            return true;
         } else {
             console.log("❌ UDF 업로드 실패: ", response.data.message);
+            return false;
         }
-        return true;
     } catch (error) {
         console.error("❌ UDF 업로드 실패:", error);
         return false;

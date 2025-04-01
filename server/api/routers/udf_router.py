@@ -49,6 +49,7 @@ async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
     """
     if not files:
         raise HTTPException(status_code=404, detail="No files uploaded")
+    logger.info(f"Request to upload UDF; {udf_metadata}")
     python_files = []
     requirements_file = None
     for file in files:

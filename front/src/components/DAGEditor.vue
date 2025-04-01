@@ -12,6 +12,8 @@
              @dragleave="onDragLeave"
              @node-click="onNodeClick"
     >
+      <!-- CSS로 격자 배경 -->
+      <div class="grid-pattern"></div>
       <DropzoneBackground
           :style="{
           backgroundColor: isDragOver ? '#e7f3ff' : 'transparent',

@@ -3,13 +3,11 @@
     <h1>Workflow Manager</h1>
     <DAGList ref="dagList" @select-dag="handleSelectDag"/>
     <DAGEditor :dag-id="selectedDagId" @save-complete="handleSaveComplete"/>
-    <UDFUpload/>
   </div>
 </template>
 
 <script setup>
 import DAGList from "@/components/DAGList.vue";
-import UDFUpload from "@/components/UDFUpload.vue";
 import DAGEditor from "@/components/DAGEditor.vue";
 import {ref} from "vue";
 

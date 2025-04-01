@@ -20,6 +20,10 @@ body,
     color: #2c3e50;
 }
 
+.vue-flow {
+    position: relative;
+}
+
 .vue-flow__minimap {
     transform: scale(75%);
     transform-origin: bottom right;
@@ -82,9 +86,19 @@ body,
 }
 
 .dropzone-background {
-    position: relative;
-    height: 100%;
-    width: 100%
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.grid-pattern {
+    position: absolute;
+    inset: 0;
+    background-image: linear-gradient(0deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.05) 1px, transparent 1px);
+    background-size: 20px 20px;
+    will-change: transform;
 }
 
 .dropzone-background .overlay {
