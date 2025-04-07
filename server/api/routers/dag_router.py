@@ -306,7 +306,7 @@ async def get_task_of_dag_run(dag_id: str, dag_run_id: str, task_id: str,
     """
     task_variable_id = None
     for task in flow.tasks:
-        if task.task_id == task_id:
+        if task.id == task_id:
             task_variable_id = task.variable_id
             break
     if task_variable_id is None:
