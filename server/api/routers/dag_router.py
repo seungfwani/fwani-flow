@@ -144,6 +144,13 @@ def delete_dag_metadata(dag_id: str, db: Session):
     return flow
 
 
+def get_flow(dag_id: str, db: Session = Depends(get_db)):
+    flow = db.query(Flow).filter(Flow.id == dag_id).first()
+    if not flow:
+        raise ValueError(f"DAG {dag_id} not found")
+    return flow
+
+
 @router.post("",
              response_model=APIResponse[DAGResponse],
              )
@@ -287,7 +294,8 @@ async def get_history_of_dag(dag_id: str, airflow_client: AirflowClient = Depend
 @router.get("/{dag_id}/dagRuns/{dag_run_id}/tasks/{task_id}")
 @api_response_wrapper
 async def get_task_of_dag_run(dag_id: str, dag_run_id: str, task_id: str,
-                              airflow_client: AirflowClient = Depends(get_airflow_client)):
+                              airflow_client: AirflowClient = Depends(get_airflow_client),
+                              flow: Flow = Depends(get_flow)):
     """
     get job history of DAG
     :param task_id:
@@ -296,7 +304,14 @@ async def get_task_of_dag_run(dag_id: str, dag_run_id: str, task_id: str,
     :param airflow_client:
     :return:
     """
-    response = airflow_client.get(f"dags/{dag_id}/dagRuns/{dag_run_id}/taskInstances/{task_id}")
+    task_variable_id = None
+    for task in flow.tasks:
+        if task.task_id == task_id:
+            task_variable_id = task.variable_id
+            break
+    if task_variable_id is None:
+        raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
+    response = airflow_client.get(f"dags/{dag_id}/dagRuns/{dag_run_id}/taskInstances/{task_variable_id}")
     logger.info(response)
     return response
 
