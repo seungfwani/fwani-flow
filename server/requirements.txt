@@ -6,6 +6,7 @@ docker==7.1.0
 requests==2.32.3
 PyJWT==2.10.1
 pydantic==2.10.6
+pydantic[email]
 python-multipart==0.0.20
 SQLAlchemy==2.0.38
 alembic==1.14.1
