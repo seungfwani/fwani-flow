@@ -291,6 +291,22 @@ async def get_history_of_dag(dag_id: str, airflow_client: AirflowClient = Depend
     return response
 
 
+@router.get("/{dag_id}/dagRuns/{dag_run_id}/tasks")
+@api_response_wrapper
+async def get_task_of_dag_run(dag_id: str, dag_run_id: str,
+                              airflow_client: AirflowClient = Depends(get_airflow_client)):
+    """
+    get job history of DAG
+    :param dag_run_id:
+    :param dag_id:
+    :param airflow_client:
+    :return:
+    """
+    response = airflow_client.get(f"dags/{dag_id}/dagRuns/{dag_run_id}/taskInstances")
+    logger.info(response)
+    return response
+
+
 @router.get("/{dag_id}/dagRuns/{dag_run_id}/tasks/{task_id}")
 @api_response_wrapper
 async def get_task_of_dag_run(dag_id: str, dag_run_id: str, task_id: str,
@@ -298,6 +314,7 @@ async def get_task_of_dag_run(dag_id: str, dag_run_id: str, task_id: str,
                               flow: Flow = Depends(get_flow)):
     """
     get job history of DAG
+    :param flow:
     :param task_id:
     :param dag_run_id:
     :param dag_id:
