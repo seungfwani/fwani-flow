@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Column, String, Text, DateTime, func, Integer
+from sqlalchemy import Column, String, Text, DateTime, func, Integer, ForeignKey
 from sqlalchemy.orm import relationship
 
 from core.database import Base
@@ -15,9 +15,11 @@ class Flow(Base):
     version = Column(Integer, default=1)
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    owner_id = Column(String, ForeignKey("user.id"))
 
     tasks = relationship("Task", back_populates="flow", cascade="all, delete-orphan", passive_deletes=True)
     edges = relationship("Edge", back_populates="flow", cascade="all, delete-orphan", passive_deletes=True)
+    owner = relationship("User", back_populates="flows")
 
     def add_task(self, task_data):
         self.tasks.append(task_data)

@@ -189,6 +189,20 @@ async function handleUpload() {
   const success = await uploadUDFFile(udfInfo.value, udfFiles.value);
   if (success) {
     showUploadModal.value = false;
+    udfInfo.value = {
+      name: '',
+      main_filename: '',
+      function_name: '',
+      operator_type: '',
+      docker_image: '',
+      inputs: [],
+      output: {
+        name: '',
+        type: '',
+        description: ''
+      }
+    };
+    udfFiles.value = []
   } else {
     alert("업로드 실패!");
   }

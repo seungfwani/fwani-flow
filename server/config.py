@@ -6,6 +6,7 @@ class Config:
     DEBUG = os.getenv("DEBUG", "True").lower() == "true"
     TESTING = os.getenv("TESTING", "False").lower() == "true"
     SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-key")
+    AUTH_PROVIDER = os.getenv("AUTH_PROVIDER", "local")
 
     # 데이터베이스 설정
     DB_ENGINE = os.getenv("DB_ENGINE", "sqlite")
