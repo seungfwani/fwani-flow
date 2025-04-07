@@ -25,106 +25,11 @@
 ├── airflow.cfg                             # airflow 설정 파일
 ├── docker-compose-airflow-standalone.yaml  # docker-compose 배포 파일
 ├── entrypoint.sh                           # airflow + workflow plugin entrypoint
-├── docs
-│     ├── 00. 요구사항.md
-│     ├── 01. architecture.md
-│     ├── 02. database.md
-│     ├── 03. api.md
-│     ├── Workflow.drawio
-│     └── imgs
-│         ├── architecture.png
-│         └── table_schema.png
+├── docs                                    # workflow 설명 문서들
 ├── example                                 # 예제 udf 파일
-│     ├── example_udf_fetch.py
-│     ├── example_udf_finish.py
-│     ├── example_udf_process1.py
-│     └── example_udf_process2.py
 ├── front                                   # Frontend 파일
-│     ├── README.md
-│     ├── babel.config.js
-│     ├── jsconfig.json
-│     ├── package-lock.json
-│     ├── package.json
-│     ├── public
-│     │     ├── favicon.ico
-│     │     └── index.html
-│     ├── src
-│     │     ├── App.vue
-│     │     ├── api
-│     │     │     ├── dag.js
-│     │     │     └── udf.js
-│     │     ├── assets
-│     │     │     └── logo.png
-│     │     ├── components
-│     │     │     ├── CustomNode.vue
-│     │     │     ├── DAGEditor.vue
-│     │     │     ├── DAGList.vue
-│     │     │     ├── DropzoneBackground.vue
-│     │     │     ├── FlowSideBar.vue
-│     │     │     ├── HelloWorld.vue
-│     │     │     ├── UDFList.vue
-│     │     │     └── UDFUpload.vue
-│     │     ├── main.js
-│     │     └── scripts
-│     │         ├── editer.css
-│     │         └── useDnD.js
-│     └── vue.config.js
-├── fwani_airflow_plugin                        # 플러그인 버전 (사용 안할 가능성 높음)
-│     ├── __init__.py
-│     ├── dag_template.tpl
-│     ├── debug_router.py
-│     ├── decorator.py
-│     ├── requirements.txt
-│     ├── routes.py
-│     └── swagger.py
 ├── requirements.txt
-├── server                                      # 서버 코드
-│     ├── __init__.py
-│     ├── alembic
-│     │     ├── README
-│     │     ├── env.py
-│     │     ├── script.py.mako
-│     │     └── versions
-│     │         └── 4ede38919f46_initial_migration.py
-│     ├── alembic.ini
-│     ├── api
-│     │     ├── models
-│     │     │     └── dag_model.py
-│     │     └── routers
-│     │         ├── __init__.py
-│     │         ├── dag_router.py
-│     │         └── udf_router.py
-│     ├── config.py
-│     ├── core
-│     │     ├── database.py
-│     │     └── log.py
-│     ├── dag_template.tpl
-│     ├── data
-│     │     ├── dag
-│     │     │     ├── dag_ZGF0MTI.py
-│     │     │     ├── dag_ZGF0MTIz.py
-│     │     │     └── dag_dGVzdF9kMjJhZw.py
-│     │     ├── logs
-│     │     │     └── app.log
-│     │     └── udf
-│     │         ├── example_udf_fetch_25bcc7.py
-│     │         ├── example_udf_fetch_721477.py
-│     │         └── example_udf_fetch_ab90e6.py
-│     ├── env.sh
-│     ├── main.py
-│     ├── models
-│     │     ├── edge.py
-│     │     ├── flow.py
-│     │     ├── function_library.py
-│     │     └── task.py
-│     ├── requirements.txt
-│     ├── utils
-│     │     ├── functions.py
-│     │     └── udf_validator.py
-│     └── workflow.db
-
-26 directories, 79 files
-
+├── server                                  # 서버 코드
 ```
 
 ---
