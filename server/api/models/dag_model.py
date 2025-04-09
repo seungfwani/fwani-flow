@@ -4,6 +4,7 @@ from typing import List, Any, Optional
 from pydantic import BaseModel, Field, model_validator, ConfigDict
 
 from models.flow import Flow
+from models.flow_version import FlowVersion
 
 logger = logging.getLogger()
 
@@ -52,6 +53,7 @@ class DAGEdge(BaseModel):
 class DAGRequest(BaseModel):
     name: str = Field(..., description="DAG Name", examples=["DAG Name"])
     description: str = Field(..., description="DAG Description", examples=["DAG Description"])
+    owner: Optional[str] = Field(None,  description="DAG Owner", examples=["DAG Owner"])
     nodes: List[DAGNode]
     edges: List[DAGEdge]
 
@@ -60,11 +62,13 @@ class DAGResponse(BaseModel):
     id: str = Field(..., description="Generated DAG ID", examples=["00000000-0000-4000-9000-000000000000"])
     name: str = Field(..., description="DAG Name", examples=["DAG Name"])
     description: str = Field(..., description="DAG Description", examples=["DAG Description"])
+    is_draft: bool
+    version: Optional[int]
     nodes: List[DAGNode]
     edges: List[DAGEdge]
 
     @classmethod
-    def from_dag(cls, dag: Flow):
+    def from_dag(cls, flow_version: FlowVersion):
         try:
             nodes = [DAGNode(
                 id=task.id,
@@ -76,7 +80,7 @@ class DAGResponse(BaseModel):
                     inputs={inp.key: inp.value for inp in task.inputs},
                     label=task.function.name if task.function else "",
                 )
-            ) for task in dag.tasks]
+            ) for task in flow_version.tasks]
         except Exception as e:
             logger.warning(e)
             nodes = []
@@ -89,15 +93,17 @@ class DAGResponse(BaseModel):
                 target=edge.to_task_id,
                 label=edge.edge_ui.label if edge.edge_ui else "",
                 style=edge.edge_ui.style if edge.edge_ui else {},
-            ) for edge in dag.edges]
+            ) for edge in flow_version.edges]
         except Exception as e:
             logger.warning(e)
             edges = []
 
         return cls(
-            id=dag.id,
-            name=dag.name,
-            description=dag.description,
+            id=flow_version.flow.id,
+            name=flow_version.flow.name,
+            description=flow_version.flow.description,
+            is_draft=flow_version.is_draft,
+            version=flow_version.version,
             nodes=nodes,
             edges=edges,
         )

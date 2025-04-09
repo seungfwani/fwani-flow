@@ -1,8 +1,8 @@
 """Initial migration
 
-Revision ID: 79b258121ae5
+Revision ID: 1be631131310
 Revises: 
-Create Date: 2025-04-07 11:45:05.982136
+Create Date: 2025-04-09 15:50:00.638607
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '79b258121ae5'
+revision: str = '1be631131310'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -84,25 +84,37 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_function_output_id'), 'function_output', ['id'], unique=False)
-    op.create_table('task',
+    op.create_table('flow_version',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('flow_id', sa.String(), nullable=False),
+    sa.Column('version', sa.Integer(), nullable=True),
+    sa.Column('is_draft', sa.Boolean(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.Column('hash', sa.String(), nullable=True),
+    sa.ForeignKeyConstraint(['flow_id'], ['flow.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_flow_version_id'), 'flow_version', ['id'], unique=False)
+    op.create_table('task',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('flow_version_id', sa.String(), nullable=False),
     sa.Column('function_id', sa.String(), nullable=True),
     sa.Column('variable_id', sa.String(), nullable=False),
     sa.Column('decorator', sa.String(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['flow_id'], ['flow.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['flow_version_id'], ['flow_version.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['function_id'], ['function_library.id'], ondelete='SET NULL'),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_task_id'), 'task', ['id'], unique=False)
     op.create_table('edge',
     sa.Column('id', sa.String(), nullable=False),
-    sa.Column('flow_id', sa.String(), nullable=True),
+    sa.Column('flow_version_id', sa.String(), nullable=False),
     sa.Column('from_task_id', sa.String(), nullable=True),
     sa.Column('to_task_id', sa.String(), nullable=True),
-    sa.ForeignKeyConstraint(['flow_id'], ['flow.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['flow_version_id'], ['flow_version.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['from_task_id'], ['task.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['to_task_id'], ['task.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
@@ -158,6 +170,8 @@ def downgrade() -> None:
     op.drop_table('edge')
     op.drop_index(op.f('ix_task_id'), table_name='task')
     op.drop_table('task')
+    op.drop_index(op.f('ix_flow_version_id'), table_name='flow_version')
+    op.drop_table('flow_version')
     op.drop_index(op.f('ix_function_output_id'), table_name='function_output')
     op.drop_table('function_output')
     op.drop_index(op.f('ix_function_input_id'), table_name='function_input')

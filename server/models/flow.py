@@ -17,20 +17,12 @@ class Flow(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     owner_id = Column(String, ForeignKey("user.id"))
 
-    tasks = relationship("Task", back_populates="flow", cascade="all, delete-orphan", passive_deletes=True)
-    edges = relationship("Edge", back_populates="flow", cascade="all, delete-orphan", passive_deletes=True)
     owner = relationship("User", back_populates="flows")
-
-    def add_task(self, task_data):
-        self.tasks.append(task_data)
-
-    def add_edge(self, edge_data):
-        self.edges.append(edge_data)
+    versions = relationship("FlowVersion", back_populates="flow")
 
     def __repr__(self):
         return (f"<Flow ("
                 f"  id={self.id}"
                 f"  name={self.name}"
                 f"  description={self.description}"
-                f"  version={self.version}"
                 f")>")
