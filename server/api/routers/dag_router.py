@@ -148,7 +148,7 @@ def delete_dag_metadata(dag_id: str, db: Session):
     return flow
 
 
-def get_flow(dag_id: str, db: Session):
+def get_flow(dag_id: str, db: Session = Depends(get_db)):
     flow = db.query(Flow).filter(Flow.id == dag_id).first()
     if not flow:
         raise ValueError(f"DAG {dag_id} not found")
@@ -371,7 +371,7 @@ def publish_dag_version(dag_id: str, dag: DAGRequest, db: Session) -> FlowVersio
     # 1. draft version 찾기
     draft = db.query(FlowVersion).filter_by(flow_id=dag_id, is_draft=True).first()
     if not draft:
-        flow = db.query(Flow).filter_by(id=dag_id).first()
+        flow = get_flow(dag_id, db)
         if not flow:
             flow = create_flow(dag)
             draft = create_draft_version(dag, flow, db)
@@ -449,7 +449,56 @@ async def publish_dag(dag_id: str, dag: DAGRequest, db: Session = Depends(get_db
 @api_response_wrapper
 async def delete_dag(dag_id: str, db: Session = Depends(get_db)):
     """
-    Delete a python DAG file
+    Delete all DAG versions
+    :param dag_id:
+    :param db:
+    :return:
+    """
+    dag_data = delete_dag_metadata(dag_id, db)
+    db.commit()
+
+    dag_file_path = os.path.join(Config.DAG_DIR, f"{dag_id}.py")
+    if os.path.exists(dag_file_path):
+        try:
+            os.remove(dag_file_path)
+            logger.warning(f"🗑️ 저장된 DAG 파일 삭제: {dag_file_path}")
+        except Exception as e:
+            logger.error(f"파일 삭제 실패: {e}")
+            # 파일 삭제 실패는 치명적이지 않으니 경고만 로그 남기고 넘어갈 수 있음
+    return DAGResponse.from_dag(dag_data)
+
+
+@router.delete("/{dag_id}/version/{version}",
+               response_model=APIResponse[DAGResponse],
+               )
+@api_response_wrapper
+async def delete_dag(dag_id: str, version: str, db: Session = Depends(get_db)):
+    """
+    Delete specific DAG version
+    :param dag_id:
+    :param db:
+    :return:
+    """
+    dag_data = delete_dag_metadata(dag_id, db)
+    db.commit()
+
+    dag_file_path = os.path.join(Config.DAG_DIR, f"{dag_id}.py")
+    if os.path.exists(dag_file_path):
+        try:
+            os.remove(dag_file_path)
+            logger.warning(f"🗑️ 저장된 DAG 파일 삭제: {dag_file_path}")
+        except Exception as e:
+            logger.error(f"파일 삭제 실패: {e}")
+            # 파일 삭제 실패는 치명적이지 않으니 경고만 로그 남기고 넘어갈 수 있음
+    return DAGResponse.from_dag(dag_data)
+
+@router.delete("/{dag_id}/draft",
+               response_model=APIResponse[DAGResponse],
+               )
+@api_response_wrapper
+async def delete_dag(dag_id: str, version: str, db: Session = Depends(get_db)):
+    """
+    Delete draft DAG version
     :param dag_id:
     :param db:
     :return:
