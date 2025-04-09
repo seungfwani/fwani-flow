@@ -308,8 +308,10 @@ async def get_task_of_dag_run(dag_id: str, dag_run_id: str,
     task_mapper = {t.variable_id: t.id for t in flow.tasks}
     result = []
     for ti in response.get("task_instances", []):
-        ti['task_id'] = task_mapper[ti['task_id']]
-        result.append(ti)
+        task_variable_id = ti['task_id']
+        if task_variable_id in task_mapper:
+            ti['task_id'] = task_mapper[task_variable_id]
+            result.append(ti)
     return result
 
 
