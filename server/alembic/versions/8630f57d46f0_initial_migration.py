@@ -1,8 +1,8 @@
 """Initial migration
 
-Revision ID: 1be631131310
+Revision ID: 8630f57d46f0
 Revises: 
-Create Date: 2025-04-09 15:50:00.638607
+Create Date: 2025-04-10 16:52:15.182651
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '1be631131310'
+revision: str = '8630f57d46f0'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -96,6 +96,20 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_flow_version_id'), 'flow_version', ['id'], unique=False)
+    op.create_table('flow_trigger_queue',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('flow_version_id', sa.String(), nullable=False),
+    sa.Column('dag_id', sa.String(), nullable=True),
+    sa.Column('run_id', sa.String(), nullable=True),
+    sa.Column('status', sa.String(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.Column('data', sa.String(), nullable=True),
+    sa.Column('try_count', sa.Integer(), nullable=True),
+    sa.ForeignKeyConstraint(['flow_version_id'], ['flow_version.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_flow_trigger_queue_id'), 'flow_trigger_queue', ['id'], unique=False)
     op.create_table('task',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('flow_version_id', sa.String(), nullable=False),
@@ -170,6 +184,8 @@ def downgrade() -> None:
     op.drop_table('edge')
     op.drop_index(op.f('ix_task_id'), table_name='task')
     op.drop_table('task')
+    op.drop_index(op.f('ix_flow_trigger_queue_id'), table_name='flow_trigger_queue')
+    op.drop_table('flow_trigger_queue')
     op.drop_index(op.f('ix_flow_version_id'), table_name='flow_version')
     op.drop_table('flow_version')
     op.drop_index(op.f('ix_function_output_id'), table_name='function_output')
