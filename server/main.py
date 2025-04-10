@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
 from alembic import command
-from api.routers import routers
+from api.routers import v1_routers, v2_routers
 from config import Config
 from core.log import LOG_CONFIG, setup_logging
 from core.services.trigger_scheduler import start_scheduler
@@ -37,8 +37,10 @@ def init_app():
         lifespan=lifespan,
     )
     # API 라우트 등록
-    for router in routers:
+    for router in v1_routers:
         app.include_router(router, prefix="/api/v1")
+    for router in v2_routers:
+        app.include_router(router, prefix="/api/v2")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],

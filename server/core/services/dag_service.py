@@ -300,6 +300,8 @@ def create_update_draft_dag(dag: DAGRequest, db: Session) -> FlowVersion:
                 new_draft = create_draft_version(dag, flow, db, 1)
             else:
                 last_flow_version = sorted(flow.versions, key=lambda v: v.version, reverse=True)[0]
+                if not is_flow_changed(dag, last_flow_version.id, db):
+                    return last_flow_version
                 new_draft = create_draft_version(dag, flow, db, last_flow_version.version + 1)
 
     except Exception as e:
@@ -351,6 +353,8 @@ def register_trigger(flow_id: str, dag: Optional[DAGRequest], db: Session) -> Fl
         flow_version = get_flow_last_version(flow_id, db)
     else:
         flow_version = create_update_draft_dag(dag, db)
+    if not flow_version:
+        raise ValueError(f"No flow {flow_id} exists")
 
     trigger_entry = FlowTriggerQueue(
         id=str(uuid.uuid4()),
@@ -372,6 +376,12 @@ def get_flow_run(flow_id: str, run_id: str, db: Session):
         .first()
     )
 
+def get_flow_runs(flow_id: str, db: Session):
+    return (
+        db.query(FlowTriggerQueue)
+        .filter(FlowTriggerQueue.dag_id.like(f"{flow_id}%"))
+        .all()
+    )
 
 def kill_flow_run(flow_id: str, run_id: str, airflow_client: AirflowClient, db: Session):
     trigger_entry = get_flow_run(flow_id, run_id, db)

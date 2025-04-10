@@ -1,4 +1,4 @@
-from api.routers import dag_router, udf_router, auth_router, monitor_router
+from api.routers.v1 import dag_router, udf_router, auth_router, monitor_router
 
 routers = [
     dag_router.router,
