@@ -18,7 +18,7 @@ class Flow(Base):
     owner_id = Column(String, ForeignKey("user.id"))
 
     owner = relationship("User", back_populates="flows")
-    versions = relationship("FlowVersion", back_populates="flow")
+    versions = relationship("FlowVersion", back_populates="flow", cascade="all, delete-orphan", passive_deletes=True)
 
     def __repr__(self):
         return (f"<Flow ("

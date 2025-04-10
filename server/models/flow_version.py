@@ -20,6 +20,8 @@ class FlowVersion(Base):
     flow = relationship("Flow", back_populates="versions")
     tasks = relationship("Task", back_populates="flow_version", cascade="all, delete-orphan", passive_deletes=True)
     edges = relationship("Edge", back_populates="flow_version", cascade="all, delete-orphan", passive_deletes=True)
+    flow_trigger_queues = relationship("FlowTriggerQueue", back_populates="flow_version", cascade="all, delete-orphan",
+                                       passive_deletes=True)
 
     def set_tasks(self, tasks):
         self.tasks = tasks

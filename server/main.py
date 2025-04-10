@@ -1,5 +1,6 @@
 import logging
 import os
+from contextlib import asynccontextmanager
 
 import uvicorn
 from alembic.config import Config as AlembicConfig
@@ -10,8 +11,15 @@ from alembic import command
 from api.routers import routers
 from config import Config
 from core.log import LOG_CONFIG, setup_logging
+from core.services.trigger_scheduler import start_scheduler
 
 logger = logging.getLogger()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    start_scheduler()
+    yield
 
 
 def run_migrations():
@@ -26,6 +34,7 @@ def init_app():
     app = FastAPI(
         title="Workflow Management API",
         debug=Config.DEBUG,
+        lifespan=lifespan,
     )
     # API 라우트 등록
     for router in routers:

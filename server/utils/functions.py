@@ -1,8 +1,12 @@
+import base64
 import hashlib
-import os
+import json
 import re
 import uuid
-from typing import List
+from typing import List, Any
+
+from api.models.dag_model import DAGRequest, DAGNode
+from models.task import Task
 
 
 def generate_udf_filename(udf_name: str) -> str:
@@ -27,6 +31,42 @@ def get_udf_requirements(requirements_txt: str) -> List[str]:
             return [line.strip() for line in f.readlines() if line.strip()]
     except FileNotFoundError:
         return []
+
+
+def make_flow_id_by_name(name: str) -> str:
+    return "dag_" + base64.urlsafe_b64encode(name.encode()).rstrip(b'=').decode('ascii')
+
+
+def normalize_dag(dag: DAGRequest) -> dict[str, Any]:
+    def normalize_node(node: DAGNode):
+        return {
+            "function_id": node.data.function_id,
+            "inputs": sorted(node.data.inputs.items()),
+            "type": node.type,
+            "position": node.position,
+            "style": node.style,
+        }
+
+    return {
+        "name": dag.name,
+        "nodes": [normalize_node(n) for n in dag.nodes],
+        "edge_count": len(dag.edges),
+    }
+
+
+def normalize_task(n: Task):
+    return {
+        "function_id": n.function_id,
+        "inputs": sorted([(i.key, i.value) for i in n.inputs]),
+        "type": n.task_ui.type,
+        "position": n.task_ui.position,
+        "style": n.task_ui.style,
+    }
+
+
+def calculate_dag_hash(dag: DAGRequest) -> str:
+    hash_input = json.dumps(normalize_dag(dag), sort_keys=True)
+    return hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
 
 
 if __name__ == "__main__":
