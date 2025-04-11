@@ -3,15 +3,15 @@ import os
 from contextlib import asynccontextmanager
 
 import uvicorn
+from alembic import command
 from alembic.config import Config as AlembicConfig
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
-from alembic import command
 from api.routers import v1_routers, v2_routers
 from config import Config
 from core.log import LOG_CONFIG, setup_logging
-from core.services.trigger_scheduler import start_scheduler
+from core.scheduler import start_scheduler
 
 logger = logging.getLogger()
 

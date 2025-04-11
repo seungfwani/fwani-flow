@@ -14,6 +14,7 @@ from api.models.dag_model import DAGRequest
 from api.render_template import render_dag_script
 from config import Config
 from core.database import get_db
+from models.airflow_dag_run_history import AirflowDagRunHistory
 from models.edge import Edge
 from models.edge_ui import EdgeUI
 from models.flow import Flow
@@ -23,8 +24,7 @@ from models.function_library import FunctionLibrary
 from models.task import Task
 from models.task_input import TaskInput
 from models.task_ui import TaskUI
-from utils.airflow_client import AirflowClient
-from utils.functions import make_flow_id_by_name, normalize_dag, calculate_dag_hash, normalize_task
+from utils.functions import make_flow_id_by_name, normalize_dag, calculate_dag_hash, normalize_task, get_airflow_dag_id
 from utils.udf_validator import get_validated_inputs
 
 logger = logging.getLogger()
@@ -64,7 +64,7 @@ def get_flow(flow_id: str, db: Session = Depends(get_db)):
     return db.query(Flow).filter(Flow.id == flow_id).first()
 
 
-def get_flow_version(flow_id: str, db: Session, version: int = 0, is_draft=False, eager_load=False) -> FlowVersion:
+def get_flow_version(db: Session, flow_id: str, version: int = 0, is_draft=False, eager_load=False) -> FlowVersion:
     if eager_load:
         query = db.query(FlowVersion).options(
             joinedload(FlowVersion.flow),
@@ -81,14 +81,14 @@ def get_flow_version(flow_id: str, db: Session, version: int = 0, is_draft=False
 
 def get_flow_last_version(flow_id: str, db: Session) -> Optional[FlowVersion]:
     return (
-        db.query(FlowVersion).filter(FlowVersion.flow_id == flow_id)
+        db.query(FlowVersion).filter(FlowVersion.flow_id == flow_id, FlowVersion.is_draft == False)
         .order_by(desc(FlowVersion.version))
         .first()
     )
 
 
 def get_flow_last_version_or_draft(flow_id: str, db: Session):
-    draft_version = get_flow_version(flow_id, db, is_draft=True)
+    draft_version = get_flow_version(db, flow_id, is_draft=True)
     if draft_version:
         return draft_version
 
@@ -111,7 +111,7 @@ def delete_flow(flow_id: str, db: Session):
 
 def delete_flow_version(flow_id: str, db: Session, version: int = 0, is_draft=False):
     try:
-        flow_version = get_flow_version(flow_id, db, version=version, is_draft=is_draft, eager_load=False)
+        flow_version = get_flow_version(db, flow_id, version=version, is_draft=is_draft, eager_load=False)
         if not flow_version:
             raise ValueError(f"DAG {flow_id} version {version} draft {is_draft} not found")
         copied_flow_version = copy.deepcopy(flow_version)
@@ -284,7 +284,7 @@ def update_draft_version(version: FlowVersion, dag: DAGRequest, db: Session) -> 
 def create_update_draft_dag(dag: DAGRequest, db: Session) -> FlowVersion:
     flow_id = make_flow_id_by_name(dag.name)
     try:
-        existing_draft = get_flow_version(flow_id, db, is_draft=True)
+        existing_draft = get_flow_version(db, flow_id, is_draft=True)
         if existing_draft:  # 기존 draft 가 있으므로, 수정
             if not is_flow_changed(dag, existing_draft.id, db):
                 logger.info("⚠️ No draft version change")
@@ -342,7 +342,20 @@ def publish_flow_version(flow_id: str, dag: DAGRequest, db: Session) -> FlowVers
     return draft
 
 
-def register_trigger(flow_id: str, dag: Optional[DAGRequest], db: Session) -> FlowTriggerQueue:
+def register_trigger(flow_version: FlowVersion, db: Session):
+    trigger_entry = FlowTriggerQueue(
+        id=str(uuid.uuid4()),
+        flow_version_id=flow_version.id,
+        dag_id=get_airflow_dag_id(flow_version),
+        status="waiting",
+    )
+    db.add(trigger_entry)
+    db.commit()
+    logger.info(f"🕒 DAG Trigger 등록 완료: {trigger_entry.dag_id}")
+    return trigger_entry
+
+
+def register_trigger_last_version_or_draft(flow_id: str, dag: Optional[DAGRequest], db: Session) -> FlowTriggerQueue:
     """
     DAG 파일이 작성된 후 실제 Airflow에 등록되었는지 확인하고,
     준비되면 dagRuns API를 호출하여 실행하도록 큐에 등록합니다.
@@ -350,22 +363,17 @@ def register_trigger(flow_id: str, dag: Optional[DAGRequest], db: Session) -> Fl
     dag 가 있으면, draft 와 비교후 트리거링
     """
     if not dag:
-        flow_version = get_flow_last_version(flow_id, db)
+        flow_version = get_flow_last_version_or_draft(flow_id, db)
     else:
         flow_version = create_update_draft_dag(dag, db)
     if not flow_version:
         raise ValueError(f"No flow {flow_id} exists")
+    return register_trigger(flow_version, db)
 
-    trigger_entry = FlowTriggerQueue(
-        id=str(uuid.uuid4()),
-        flow_version_id=flow_version.id,
-        dag_id=f"{flow_version.flow_id}__{'draft' if flow_version.is_draft else f'v{flow_version.version}'}",
-        status="waiting",
-    )
-    db.add(trigger_entry)
-    db.commit()
-    logger.info(f"🕒 DAG Trigger 등록 완료: {trigger_entry.dag_id}")
-    return trigger_entry
+
+def register_trigger_specific_version(flow_id: str, version: int, db: Session) -> FlowTriggerQueue:
+    flow_version = get_flow_version(db, flow_id, version)
+    return register_trigger(flow_version, db)
 
 
 def get_flow_run(flow_id: str, run_id: str, db: Session):
@@ -376,6 +384,7 @@ def get_flow_run(flow_id: str, run_id: str, db: Session):
         .first()
     )
 
+
 def get_flow_runs(flow_id: str, db: Session):
     return (
         db.query(FlowTriggerQueue)
@@ -383,14 +392,14 @@ def get_flow_runs(flow_id: str, db: Session):
         .all()
     )
 
-def kill_flow_run(flow_id: str, run_id: str, airflow_client: AirflowClient, db: Session):
-    trigger_entry = get_flow_run(flow_id, run_id, db)
-    if not trigger_entry:
-        return
 
-    response = airflow_client.patch(f"dags/{trigger_entry.dag_id}/dagRuns/{trigger_entry.run_id}",
-                                    json_data=json.dumps({
-                                        "state": "failed",
-                                    }))
-    logger.info(response)
-    return response
+def get_all_dag_runs_of_all_versions(flow_id: str, db: Session) -> [AirflowDagRunHistory]:
+    flow = get_flow(flow_id, db)
+    results = []
+    for flow_version in flow.versions:
+        dag_run = db.query(AirflowDagRunHistory).filter(
+            AirflowDagRunHistory.flow_version_id == flow_version.id,
+        ).all()
+        if dag_run:
+            results += dag_run
+    return results

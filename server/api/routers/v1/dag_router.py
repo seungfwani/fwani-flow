@@ -2,20 +2,18 @@ import json
 import logging
 import os.path
 import pickle
-from typing import List, Optional
+from typing import List
 
-from fastapi import APIRouter, HTTPException, Depends, Body
+from fastapi import APIRouter, HTTPException, Depends
 from sqlalchemy.orm import Session
 
 from api.models.api_model import api_response_wrapper, APIResponse
 from api.models.dag_model import DAGRequest, DAGResponse
-from api.models.trigger_model import TriggerResponse
 from config import Config
 from core.database import get_db
-from core.services.dag_service import create_update_draft_dag, publish_flow_version, delete_flow_version, get_flow, \
-    delete_flow, get_flow_last_version_or_draft, get_flows, register_trigger, kill_flow_run, get_flow_run, get_flow_runs
-from models.flow import Flow
-from models.flow_trigger_queue import FlowTriggerQueue
+from core.services.dag_service import create_update_draft_dag, publish_flow_version, delete_flow_version, delete_flow, \
+    get_flow_last_version_or_draft, get_flows
+from models.flow_version import FlowVersion
 from utils.airflow_client import get_airflow_client, AirflowClient
 
 logger = logging.getLogger()
@@ -118,29 +116,30 @@ async def get_dag(dag_id: str, db: Session = Depends(get_db)):
     return DAGResponse.from_dag(get_flow_last_version_or_draft(dag_id, db))
 
 
-@router.post("/{dag_id}/trigger",
-             response_model=APIResponse[TriggerResponse],
-             )
+@router.post("/{dag_id}/trigger")
 @api_response_wrapper
-async def request_dag_trigger(dag_id: str, dag: Optional[DAGRequest] = Body(default=None),
-                              db: Session = Depends(get_db)):
+async def get_dag_runs(dag_id: str,
+                       airflow_client: AirflowClient = Depends(get_airflow_client),
+                       db: Session = Depends(get_db)):
     """
     Run DAG
     :param db:
-    :param dag:
     :param dag_id:
     :param airflow_client:
     :return:
     """
-    return TriggerResponse.from_flow_trigger_queue(register_trigger(dag_id, dag, db))
+    flow_version = get_flow_last_version_or_draft(dag_id, db)
+    airflow_dag_id = f"{dag_id}__" + "draft" if flow_version.is_draft else f"v{flow_version.version}"
+    response = airflow_client.post(f"dags/{airflow_dag_id}/dagRuns", json_data=json.dumps({}))
+    logger.info(response)
+    return response
 
 
 @router.patch("/{dag_id}/kill/{dag_run_id}")
 @api_response_wrapper
 async def kill_dag_run(dag_id: str, dag_run_id: str,
                        airflow_client: AirflowClient = Depends(get_airflow_client),
-                       db: Session = Depends(get_db)
-                       ):
+                       db: Session = Depends(get_db)):
     """
     kill job in DAG
     :param dag_id:
@@ -148,7 +147,13 @@ async def kill_dag_run(dag_id: str, dag_run_id: str,
     :param airflow_client:
     :return:
     """
-    return kill_flow_run(dag_id, dag_run_id, airflow_client, db)
+    flow_version = get_flow_last_version_or_draft(dag_id, db)
+    airflow_dag_id = f"{dag_id}__" + "draft" if flow_version.is_draft else f"v{flow_version.version}"
+    response = airflow_client.patch(f"dags/{airflow_dag_id}/dagRuns/{dag_run_id}", json_data=json.dumps({
+        "state": "failed",
+    }))
+    logger.info(response)
+    return response
 
 
 @router.get("/{dag_id}/dagRuns/{dag_run_id}")
@@ -163,24 +168,27 @@ async def get_dag_run(dag_id: str, dag_run_id: str,
     :param airflow_client:
     :return:
     """
-    trigger_entry = get_flow_run(dag_id, dag_run_id, db)
-    response = airflow_client.get(f"dags/{trigger_entry.dag_id}/dagRuns/{dag_run_id}")
+    flow_version = get_flow_last_version_or_draft(dag_id, db)
+    airflow_dag_id = f"{dag_id}__" + "draft" if flow_version.is_draft else f"v{flow_version.version}"
+    response = airflow_client.get(f"dags/{airflow_dag_id}/dagRuns/{dag_run_id}")
     logger.info(response)
     return response
 
 
 @router.get("/{dag_id}/history")
 @api_response_wrapper
-async def get_dag_run_list_of_all_versions(dag_id: str, airflow_client: AirflowClient = Depends(get_airflow_client),
-                                           db: Session = Depends(get_db)):
+async def get_history_of_dag(dag_id: str,
+                             airflow_client: AirflowClient = Depends(get_airflow_client),
+                             db: Session = Depends(get_db)):
     """
     get job history of DAG
     :param dag_id:
     :param airflow_client:
     :return:
     """
-    trigger_entry = get_flow_runs(dag_id, db)
-    response = airflow_client.get(f"dags/{trigger_entry[0].dag_id}/dagRuns")
+    flow_version = get_flow_last_version_or_draft(dag_id, db)
+    airflow_dag_id = f"{dag_id}__" + "draft" if flow_version.is_draft else f"v{flow_version.version}"
+    response = airflow_client.get(f"dags/{airflow_dag_id}/dagRuns")
     logger.info(response)
     return response
 
@@ -189,7 +197,7 @@ async def get_dag_run_list_of_all_versions(dag_id: str, airflow_client: AirflowC
 @api_response_wrapper
 async def get_tasks_of_dag_run(dag_id: str, dag_run_id: str,
                                airflow_client: AirflowClient = Depends(get_airflow_client),
-                              db: Session = Depends(get_db)):
+                               db: Session = Depends(get_db)):
     """
     get all tasks of DAG_runs
     :param dag_run_id:
@@ -197,10 +205,11 @@ async def get_tasks_of_dag_run(dag_id: str, dag_run_id: str,
     :param airflow_client:
     :return:
     """
-    trigger_entry = get_flow_run(dag_id, dag_run_id, db)
-    response = airflow_client.get(f"dags/{trigger_entry.dag_id}/dagRuns/{dag_run_id}/taskInstances")
+    flow_version = get_flow_last_version_or_draft(dag_id, db)
+    airflow_dag_id = f"{dag_id}__" + "draft" if flow_version.is_draft else f"v{flow_version.version}"
+    response = airflow_client.get(f"dags/{airflow_dag_id}/dagRuns/{dag_run_id}/taskInstances")
     logger.info(f"airflow_client taskInstance response: {response}")
-    task_mapper = {t.variable_id: t.id for t in trigger_entry.flow_version.tasks}
+    task_mapper = {t.variable_id: t.id for t in flow_version.tasks}
     logger.info(f"task information for the current DAG: {task_mapper}")
     result = []
     for ti in response.get("task_instances", []):
@@ -225,35 +234,39 @@ async def get_task_of_dag_run(dag_id: str, dag_run_id: str, task_id: str,
     :param airflow_client:
     :return:
     """
-    trigger_entry = get_flow_run(dag_id, dag_run_id, db)
+    flow_version = get_flow_last_version_or_draft(dag_id, db)
+    airflow_dag_id = f"{dag_id}__" + "draft" if flow_version.is_draft else f"v{flow_version.version}"
     task_variable_id = None
-    for task in trigger_entry.flow_version.tasks:
+    for task in flow_version.tasks:
         if task.id == task_id:
             task_variable_id = task.variable_id
             break
     if task_variable_id is None:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
-    response = airflow_client.get(f"dags/{trigger_entry.dag_id}/dagRuns/{dag_run_id}/taskInstances/{task_variable_id}")
+
+    response = airflow_client.get(f"dags/{airflow_dag_id}/dagRuns/{dag_run_id}/taskInstances/{task_variable_id}")
     logger.info(response)
     return response
 
 
 @router.get("/{dag_id}/dagRuns/{dag_run_id}/result")
 @api_response_wrapper
-async def get_result_of_dag_run(dag_id: str, dag_run_id: str, db: Session = Depends(get_db)):
+async def get_result_of_dag_run(dag_id: str, dag_run_id: str,
+                                db: Session = Depends(get_db)):
     """
     get job history of DAG
     :param dag_run_id:
     :param dag_id:
     :return:
     """
-    trigger_entry = get_flow_run(dag_id, dag_run_id, db)
-    return get_dag_result(trigger_entry)
+    flow_version = get_flow_last_version_or_draft(dag_id, db)
+    return get_dag_result(dag_id, dag_run_id, flow_version)
 
 
-def get_dag_result(trigger_entry: FlowTriggerQueue):
+def get_dag_result(dag_id, run_id, flow_version: FlowVersion):
     shared_dir = os.path.abspath(Config.SHARED_DIR)
-    result_dir = os.path.join(shared_dir, f"dag_id={trigger_entry.dag_id}/run_id={trigger_entry.run_id}")
+    airflow_dag_id = f"{dag_id}__" + "draft" if flow_version.is_draft else f"v{flow_version.version}"
+    result_dir = os.path.join(shared_dir, f"dag_id={airflow_dag_id}/run_id={run_id}")
     json_path = os.path.join(result_dir, "final_result.json")
     pkl_path = os.path.join(result_dir, "final_result.pkl")
     if os.path.exists(json_path):

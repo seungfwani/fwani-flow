@@ -1,8 +1,8 @@
 """Initial migration
 
-Revision ID: 8630f57d46f0
+Revision ID: 22f504318666
 Revises: 
-Create Date: 2025-04-10 16:52:15.182651
+Create Date: 2025-04-11 15:58:38.052573
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '8630f57d46f0'
+revision: str = '22f504318666'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -96,6 +96,23 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_flow_version_id'), 'flow_version', ['id'], unique=False)
+    op.create_table('airflow_dag_run_history',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('flow_version_id', sa.String(), nullable=False),
+    sa.Column('run_id', sa.String(), nullable=False),
+    sa.Column('execution_date', sa.DateTime(), nullable=True),
+    sa.Column('start_date', sa.DateTime(), nullable=True),
+    sa.Column('end_date', sa.DateTime(), nullable=True),
+    sa.Column('status', sa.String(), nullable=True),
+    sa.Column('external_trigger', sa.Boolean(), nullable=True),
+    sa.Column('run_type', sa.String(), nullable=True),
+    sa.Column('conf', sa.String(), nullable=True),
+    sa.Column('source', sa.String(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['flow_version_id'], ['flow_version.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
     op.create_table('flow_trigger_queue',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('flow_version_id', sa.String(), nullable=False),
@@ -186,6 +203,7 @@ def downgrade() -> None:
     op.drop_table('task')
     op.drop_index(op.f('ix_flow_trigger_queue_id'), table_name='flow_trigger_queue')
     op.drop_table('flow_trigger_queue')
+    op.drop_table('airflow_dag_run_history')
     op.drop_index(op.f('ix_flow_version_id'), table_name='flow_version')
     op.drop_table('flow_version')
     op.drop_index(op.f('ix_function_output_id'), table_name='function_output')
