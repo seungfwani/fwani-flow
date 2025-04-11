@@ -15,6 +15,7 @@ from core.services.dag_service import create_update_draft_dag, publish_flow_vers
     get_flow_last_version_or_draft, get_flows
 from models.flow_version import FlowVersion
 from utils.airflow_client import get_airflow_client, AirflowClient
+from utils.functions import get_airflow_dag_id
 
 logger = logging.getLogger()
 
@@ -129,8 +130,7 @@ async def get_dag_runs(dag_id: str,
     :return:
     """
     flow_version = get_flow_last_version_or_draft(dag_id, db)
-    airflow_dag_id = f"{dag_id}__" + "draft" if flow_version.is_draft else f"v{flow_version.version}"
-    response = airflow_client.post(f"dags/{airflow_dag_id}/dagRuns", json_data=json.dumps({}))
+    response = airflow_client.post(f"dags/{get_airflow_dag_id(flow_version)}/dagRuns", json_data=json.dumps({}))
     logger.info(response)
     return response
 
@@ -148,8 +148,7 @@ async def kill_dag_run(dag_id: str, dag_run_id: str,
     :return:
     """
     flow_version = get_flow_last_version_or_draft(dag_id, db)
-    airflow_dag_id = f"{dag_id}__" + "draft" if flow_version.is_draft else f"v{flow_version.version}"
-    response = airflow_client.patch(f"dags/{airflow_dag_id}/dagRuns/{dag_run_id}", json_data=json.dumps({
+    response = airflow_client.patch(f"dags/{get_airflow_dag_id(flow_version)}/dagRuns/{dag_run_id}", json_data=json.dumps({
         "state": "failed",
     }))
     logger.info(response)
@@ -169,8 +168,7 @@ async def get_dag_run(dag_id: str, dag_run_id: str,
     :return:
     """
     flow_version = get_flow_last_version_or_draft(dag_id, db)
-    airflow_dag_id = f"{dag_id}__" + "draft" if flow_version.is_draft else f"v{flow_version.version}"
-    response = airflow_client.get(f"dags/{airflow_dag_id}/dagRuns/{dag_run_id}")
+    response = airflow_client.get(f"dags/{get_airflow_dag_id(flow_version)}/dagRuns/{dag_run_id}")
     logger.info(response)
     return response
 
@@ -187,8 +185,7 @@ async def get_history_of_dag(dag_id: str,
     :return:
     """
     flow_version = get_flow_last_version_or_draft(dag_id, db)
-    airflow_dag_id = f"{dag_id}__" + "draft" if flow_version.is_draft else f"v{flow_version.version}"
-    response = airflow_client.get(f"dags/{airflow_dag_id}/dagRuns")
+    response = airflow_client.get(f"dags/{get_airflow_dag_id(flow_version)}/dagRuns")
     logger.info(response)
     return response
 
@@ -206,8 +203,7 @@ async def get_tasks_of_dag_run(dag_id: str, dag_run_id: str,
     :return:
     """
     flow_version = get_flow_last_version_or_draft(dag_id, db)
-    airflow_dag_id = f"{dag_id}__" + "draft" if flow_version.is_draft else f"v{flow_version.version}"
-    response = airflow_client.get(f"dags/{airflow_dag_id}/dagRuns/{dag_run_id}/taskInstances")
+    response = airflow_client.get(f"dags/{get_airflow_dag_id(flow_version)}/dagRuns/{dag_run_id}/taskInstances")
     logger.info(f"airflow_client taskInstance response: {response}")
     task_mapper = {t.variable_id: t.id for t in flow_version.tasks}
     logger.info(f"task information for the current DAG: {task_mapper}")
@@ -235,7 +231,6 @@ async def get_task_of_dag_run(dag_id: str, dag_run_id: str, task_id: str,
     :return:
     """
     flow_version = get_flow_last_version_or_draft(dag_id, db)
-    airflow_dag_id = f"{dag_id}__" + "draft" if flow_version.is_draft else f"v{flow_version.version}"
     task_variable_id = None
     for task in flow_version.tasks:
         if task.id == task_id:
@@ -244,7 +239,7 @@ async def get_task_of_dag_run(dag_id: str, dag_run_id: str, task_id: str,
     if task_variable_id is None:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
 
-    response = airflow_client.get(f"dags/{airflow_dag_id}/dagRuns/{dag_run_id}/taskInstances/{task_variable_id}")
+    response = airflow_client.get(f"dags/{get_airflow_dag_id(flow_version)}/dagRuns/{dag_run_id}/taskInstances/{task_variable_id}")
     logger.info(response)
     return response
 
@@ -265,8 +260,7 @@ async def get_result_of_dag_run(dag_id: str, dag_run_id: str,
 
 def get_dag_result(dag_id, run_id, flow_version: FlowVersion):
     shared_dir = os.path.abspath(Config.SHARED_DIR)
-    airflow_dag_id = f"{dag_id}__" + "draft" if flow_version.is_draft else f"v{flow_version.version}"
-    result_dir = os.path.join(shared_dir, f"dag_id={airflow_dag_id}/run_id={run_id}")
+    result_dir = os.path.join(shared_dir, f"dag_id={get_airflow_dag_id(flow_version)}/run_id={run_id}")
     json_path = os.path.join(result_dir, "final_result.json")
     pkl_path = os.path.join(result_dir, "final_result.pkl")
     if os.path.exists(json_path):
