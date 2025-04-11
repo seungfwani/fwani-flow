@@ -31,20 +31,26 @@ logger = logging.getLogger()
 
 
 def get_flows(db: Session):
+    # 1. 드래프트 버전 ID
+    draft_ids_subquery = (
+        db.query(FlowVersion.id)
+        .filter(FlowVersion.is_draft == True)
+        .group_by(FlowVersion.flow_id)
+    )
+
+    # 2. 퍼블리시된 최신 버전 ID
+    latest_published_ids_subquery = (
+        db.query(func.max(FlowVersion.id))
+        .filter(FlowVersion.is_draft == False)
+        .group_by(FlowVersion.flow_id)
+    )
+
+    # 3. 드래프트 또는 최신 퍼블리시된 버전만 조회
     return (
         db.query(FlowVersion)
         .filter(
-            FlowVersion.id.in_(
-                db.query(FlowVersion.id)
-                .filter(FlowVersion.is_draft == True)
-                .group_by(FlowVersion.flow_id)
-            )
-            |
-            FlowVersion.id.in_(
-                db.query(func.max(FlowVersion.id))
-                .filter(FlowVersion.is_draft == False)
-                .group_by(FlowVersion.flow_id)
-            )
+            FlowVersion.id.in_(draft_ids_subquery)
+            | FlowVersion.id.in_(latest_published_ids_subquery)
         )
         .order_by(desc(FlowVersion.updated_at))
         .all()
