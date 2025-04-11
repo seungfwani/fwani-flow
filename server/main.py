@@ -1,17 +1,25 @@
 import logging
 import os
+from contextlib import asynccontextmanager
 
 import uvicorn
+from alembic import command
 from alembic.config import Config as AlembicConfig
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
-from alembic import command
-from api.routers import routers
+from api.routers import v1_routers, v2_routers
 from config import Config
 from core.log import LOG_CONFIG, setup_logging
+from core.scheduler import start_scheduler
 
 logger = logging.getLogger()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    start_scheduler()
+    yield
 
 
 def run_migrations():
@@ -26,10 +34,13 @@ def init_app():
     app = FastAPI(
         title="Workflow Management API",
         debug=Config.DEBUG,
+        lifespan=lifespan,
     )
     # API 라우트 등록
-    for router in routers:
+    for router in v1_routers:
         app.include_router(router, prefix="/api/v1")
+    for router in v2_routers:
+        app.include_router(router, prefix="/api/v2")
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],

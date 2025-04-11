@@ -1,9 +1,13 @@
+import json
 import logging
+from datetime import datetime
 from typing import List, Any, Optional
 
 from pydantic import BaseModel, Field, model_validator, ConfigDict
 
-from models.flow import Flow
+from models.airflow_dag_run_history import AirflowDagRunHistory
+from models.flow_version import FlowVersion
+from utils.functions import string2datetime
 
 logger = logging.getLogger()
 
@@ -52,6 +56,7 @@ class DAGEdge(BaseModel):
 class DAGRequest(BaseModel):
     name: str = Field(..., description="DAG Name", examples=["DAG Name"])
     description: str = Field(..., description="DAG Description", examples=["DAG Description"])
+    owner: Optional[str] = Field(None, description="DAG Owner", examples=["DAG Owner"])
     nodes: List[DAGNode]
     edges: List[DAGEdge]
 
@@ -60,11 +65,13 @@ class DAGResponse(BaseModel):
     id: str = Field(..., description="Generated DAG ID", examples=["00000000-0000-4000-9000-000000000000"])
     name: str = Field(..., description="DAG Name", examples=["DAG Name"])
     description: str = Field(..., description="DAG Description", examples=["DAG Description"])
+    is_draft: bool
+    version: Optional[int]
     nodes: List[DAGNode]
     edges: List[DAGEdge]
 
     @classmethod
-    def from_dag(cls, dag: Flow):
+    def from_dag(cls, flow_version: FlowVersion):
         try:
             nodes = [DAGNode(
                 id=task.id,
@@ -76,7 +83,7 @@ class DAGResponse(BaseModel):
                     inputs={inp.key: inp.value for inp in task.inputs},
                     label=task.function.name if task.function else "",
                 )
-            ) for task in dag.tasks]
+            ) for task in flow_version.tasks]
         except Exception as e:
             logger.warning(e)
             nodes = []
@@ -89,15 +96,75 @@ class DAGResponse(BaseModel):
                 target=edge.to_task_id,
                 label=edge.edge_ui.label if edge.edge_ui else "",
                 style=edge.edge_ui.style if edge.edge_ui else {},
-            ) for edge in dag.edges]
+            ) for edge in flow_version.edges]
         except Exception as e:
             logger.warning(e)
             edges = []
 
         return cls(
-            id=dag.id,
-            name=dag.name,
-            description=dag.description,
+            id=flow_version.flow.id,
+            name=flow_version.flow.name,
+            description=flow_version.flow.description,
+            is_draft=flow_version.is_draft,
+            version=flow_version.version,
             nodes=nodes,
             edges=edges,
+        )
+
+
+class AirflowDagRunModel(BaseModel):
+    id: str
+    dag_id: str
+    version: int
+    is_draft: bool
+    run_id: str
+    execution_date: Optional[datetime]
+    start_date: Optional[datetime]
+    end_date: Optional[datetime]
+    status: Optional[str]
+    external_trigger: Optional[bool] = True
+    run_type: Optional[str]
+    conf: Optional[dict] = {}  # JSON 문자열을 dict로 역직렬화
+    source: Optional[str] = "airflow"
+
+    @classmethod
+    def from_orm(cls, data: AirflowDagRunHistory):
+        return cls(
+            id=data.id,
+            dag_id=data.flow_version.flow_id,
+            version=data.flow_version.version,
+            is_draft=data.flow_version.is_draft,
+            run_id=data.run_id,
+            execution_date=data.execution_date,
+            start_date=data.start_date,
+            end_date=data.end_date,
+            status=data.status,
+            external_trigger=data.external_trigger,
+            run_type=data.run_type,
+            conf=json.loads(data.conf),
+            source=data.source,
+        )
+
+
+class AirflowTaskInstanceModel(BaseModel):
+    task_id: str
+    execution_date: Optional[datetime]
+    start_date: Optional[datetime]
+    end_date: Optional[datetime]
+    duration: Optional[float]
+    operator: Optional[str]
+    queued_when: Optional[datetime]
+    status: str
+
+    @classmethod
+    def from_json(cls, data: dict):
+        return cls(
+            task_id=data["task_id"],
+            execution_date=string2datetime(data.get("execution_date")),
+            start_date=string2datetime(data.get("start_date")),
+            end_date=string2datetime(data.get("end_date")),
+            duration=data.get("duration"),
+            operator=data.get("operator"),
+            queued_when=string2datetime(data.get("queued_when")),
+            status=data.get("state"),
         )

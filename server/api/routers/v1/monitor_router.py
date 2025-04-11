@@ -16,9 +16,9 @@ router = APIRouter(
 
 @router.get("/event-logs")
 @api_response_wrapper
-async def get_task_of_dag_run(airflow_client: AirflowClient = Depends(get_airflow_client)):
+async def get_event_log(airflow_client: AirflowClient = Depends(get_airflow_client)):
     """
-    get job history of DAG
+    get event logs
     :param airflow_client:
     :return:
     """
