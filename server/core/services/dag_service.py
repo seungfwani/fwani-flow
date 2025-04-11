@@ -7,8 +7,8 @@ import uuid
 from typing import List, Optional
 
 from fastapi import Depends, HTTPException
-from sqlalchemy import desc, func
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import desc, func, case
+from sqlalchemy.orm import Session, joinedload, aliased
 
 from api.models.dag_model import DAGRequest
 from api.render_template import render_dag_script
@@ -31,30 +31,34 @@ logger = logging.getLogger()
 
 
 def get_flows(db: Session):
-    # 1. 드래프트 버전 ID
-    draft_ids_subquery = (
-        db.query(FlowVersion.id)
-        .filter(FlowVersion.is_draft == True)
-        .group_by(FlowVersion.flow_id)
-    )
 
-    # 2. 퍼블리시된 최신 버전 ID
-    latest_published_ids_subquery = (
-        db.query(func.max(FlowVersion.id))
-        .filter(FlowVersion.is_draft == False)
-        .group_by(FlowVersion.flow_id)
-    )
-
-    # 3. 드래프트 또는 최신 퍼블리시된 버전만 조회
-    return (
-        db.query(FlowVersion)
-        .filter(
-            FlowVersion.id.in_(draft_ids_subquery)
-            | FlowVersion.id.in_(latest_published_ids_subquery)
+    # 버전별 우선순위: draft가 있으면 draft, 없으면 최신 published
+    version_rank = func.row_number().over(
+        partition_by=FlowVersion.flow_id,
+        order_by=(
+            # draft 우선, 없으면 최신 updated_at
+            case((FlowVersion.is_draft == True, 0), else_=1),
+            FlowVersion.updated_at.desc(),
         )
-        .order_by(desc(FlowVersion.updated_at))
+    ).label("version_rank")
+
+    # FlowVersion + rank
+    ranked_subquery = (
+        db.query(FlowVersion, version_rank)
+        .subquery()
+    )
+
+    FlowVersionAlias = aliased(FlowVersion, ranked_subquery)
+
+    # version_rank = 1 인 것만 선택
+    flows = (
+        db.query(FlowVersionAlias)
+        .filter(ranked_subquery.c.version_rank == 1)
+        .order_by(FlowVersionAlias.updated_at.desc())
         .all()
     )
+
+    return flows
 
 
 def get_versions_of_flow(flow_id: str, db: Session) -> List[FlowVersion]:
