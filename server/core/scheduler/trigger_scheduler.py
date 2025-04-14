@@ -37,6 +37,10 @@ def process_trigger_queue(db: Session):
             # if last_parsed_time < trigger.flow_version.updated_at:
             #     continue
             if response.get("is_paused") is not None:
+                if response["is_paused"]:
+                    active_result = airflow_client.patch(f"dags/{trigger.dag_id}",
+                                                         json_data=json.dumps({"is_paused": False}))
+                    logger.info(f"DAG {trigger.dag_id} is activated. {active_result}")
                 run_res = airflow_client.post(f"dags/{trigger.dag_id}/dagRuns",
                                               json_data=json.dumps({
                                                   "conf": {

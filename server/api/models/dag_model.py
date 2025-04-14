@@ -154,7 +154,7 @@ class AirflowTaskInstanceModel(BaseModel):
     duration: Optional[float]
     operator: Optional[str]
     queued_when: Optional[datetime]
-    status: str
+    status: Optional[str]
 
     @classmethod
     def from_json(cls, data: dict):
