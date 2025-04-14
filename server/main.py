@@ -11,7 +11,7 @@ from starlette.middleware.cors import CORSMiddleware
 from api.routers import v1_routers, v2_routers
 from config import Config
 from core.log import LOG_CONFIG, setup_logging
-from core.scheduler import start_scheduler
+from core.schedulers import start_scheduler
 
 logger = logging.getLogger()
 

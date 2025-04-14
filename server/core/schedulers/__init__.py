@@ -1,7 +1,7 @@
 from apscheduler.schedulers.background import BackgroundScheduler
 
-from core.scheduler.airflow_sync_scheduler import trigger_sync_job
-from core.scheduler.trigger_scheduler import trigger_job
+from core.schedulers.airflow_sync_scheduler import trigger_sync_job
+from core.schedulers.trigger_scheduler import trigger_job
 
 scheduler = BackgroundScheduler()
 
