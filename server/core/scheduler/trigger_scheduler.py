@@ -51,7 +51,7 @@ def process_trigger_queue(db: Session):
                 # trigger 성공시 airflow 의 반환 값을 저장
                 flow_id, version, is_draft = split_airflow_dag_id_to_flow_and_version(run_res["dag_id"])
                 flow_version = get_flow_version(db, flow_id, version, is_draft)
-                db.add(AirflowDagRunHistory.from_json(flow_version, run_res, trigger.id))
+                db.add(AirflowDagRunHistory.from_json(flow_version, run_res))
                 logger.info(f"🚀 DAG triggered: {trigger.dag_id}, response: {run_res}")
             else:
                 logger.info(f"🔁 DAG not ready yet: {trigger.dag_id}")
