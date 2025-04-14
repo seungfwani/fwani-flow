@@ -26,12 +26,12 @@ class AirflowDagRunHistory(Base):
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now())
 
-    flow_version = relationship("FlowVersion")
+    flow_version = relationship("FlowVersion", back_populates="airflow_dag_run_histories")
 
     @classmethod
-    def from_json(cls, flow_version: FlowVersion, data: dict) -> "AirflowDagRunHistory":
+    def from_json(cls, flow_version: FlowVersion, data: dict, trigger_id: str = None) -> "AirflowDagRunHistory":
         return AirflowDagRunHistory(
-            id=str(uuid.uuid4()),
+            id=trigger_id if trigger_id else str(uuid.uuid4()),  # 트리거 API 로 요청된 것과 id 를 맞추기 위함
             run_id=data["dag_run_id"],
             execution_date=string2datetime(data.get("execution_date")),
             start_date=string2datetime(data.get("start_date")),

@@ -2,13 +2,12 @@ import json
 import logging
 import os
 import pickle
-from typing import List
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from api.models.api_model import api_response_wrapper, APIResponse
-from api.models.dag_model import AirflowDagRunModel, AirflowTaskInstanceModel
+from api.models.dag_model import AirflowDagRunModel, TaskInstanceResponse, DAGNode
 from config import Config
 from core.database import get_db
 from core.services.dag_run_service import kill_flow_run, get_flow_run_history, get_all_tasks_by_run_id, \
@@ -51,11 +50,14 @@ async def get_dag_run_info(run_id: str,
     :param dag_run_id:
     :return:
     """
-    return AirflowDagRunModel.from_orm(get_flow_run_history(run_id, db))
+    flow_run = get_flow_run_history(run_id, db)
+    if not flow_run:
+        raise HTTPException(status_code=404, detail=f"DAG Run [{run_id}] not found")
+    return AirflowDagRunModel.from_orm(flow_run)
 
 
 @router.get("/{run_id}/tasks",
-            response_model=APIResponse[List[AirflowTaskInstanceModel]], )
+            response_model=APIResponse[TaskInstanceResponse], )
 @api_response_wrapper
 async def get_tasks_of_dag_run(run_id: str,
                                airflow_client: AirflowClient = Depends(get_airflow_client),
@@ -67,13 +69,12 @@ async def get_tasks_of_dag_run(run_id: str,
     :param airflow_client:
     :return:
     """
-
-    return [AirflowTaskInstanceModel.from_json(ti)
-            for ti in get_all_tasks_by_run_id(run_id, airflow_client, db)]
+    flow_version, tasks = get_all_tasks_by_run_id(run_id, airflow_client, db)
+    return TaskInstanceResponse.from_data(flow_version, tasks)
 
 
 @router.get("/{run_id}/tasks/{task_id}",
-            response_model=APIResponse[AirflowTaskInstanceModel], )
+            response_model=APIResponse[DAGNode], )
 @api_response_wrapper
 async def get_task_of_dag_run(run_id: str, task_id: str,
                               airflow_client: AirflowClient = Depends(get_airflow_client),
@@ -87,7 +88,8 @@ async def get_task_of_dag_run(run_id: str, task_id: str,
     :param airflow_client:
     :return:
     """
-    return AirflowTaskInstanceModel.from_json(get_task_in_run_id(run_id, task_id, airflow_client, db))
+    task, ti = get_task_in_run_id(run_id, task_id, airflow_client, db)
+    return DAGNode.from_data(task, ti)
 
 
 @router.get("/{run_id}/result")
