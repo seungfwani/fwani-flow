@@ -14,6 +14,7 @@ class AirflowDagRunHistory(Base):
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     flow_version_id = Column(String, ForeignKey("flow_version.id", ondelete="CASCADE"), nullable=False)
+    dag_id = Column(String, nullable=False)
     run_id = Column(String, nullable=False)
     execution_date = Column(DateTime)
     start_date = Column(DateTime)
@@ -32,6 +33,7 @@ class AirflowDagRunHistory(Base):
     def from_json(cls, flow_version: FlowVersion, data: dict) -> "AirflowDagRunHistory":
         return AirflowDagRunHistory(
             id=str(uuid.uuid4()),  # 트리거 API 로 요청된 것과 id 를 맞추기 위함 ??
+            dag_id=data["dag_id"],
             run_id=data["dag_run_id"],
             execution_date=string2datetime(data.get("execution_date")),
             start_date=string2datetime(data.get("start_date")),
