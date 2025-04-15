@@ -152,7 +152,6 @@ async def delete_udf(udf_id: str, db: Session = Depends(get_db)):
 
     if os.path.isdir(udf_data.path):
         shutil.rmtree(udf_data.path)
-        os.remove(udf_data.path)
         logger.info(f"🗑️ 저장된 파일 삭제 완료: {udf_data.path}")
     db.delete(udf_data)
     db.commit()
