@@ -150,8 +150,10 @@ async def delete_udf(udf_id: str, db: Session = Depends(get_db)):
     if not os.path.exists(udf_data.path):
         raise HTTPException(status_code=404, detail="UDF file not found")
 
-    os.remove(udf_data.path)
-    logger.info(f"🗑️ 저장된 파일 삭제: {udf_data.path}")
+    if os.path.isdir(udf_data.path):
+        shutil.rmtree(udf_data.path)
+        os.remove(udf_data.path)
+        logger.info(f"🗑️ 저장된 파일 삭제 완료: {udf_data.path}")
     db.delete(udf_data)
     db.commit()
     logger.info(f"🗑️ 메타데이터 삭제: {udf_data}")
