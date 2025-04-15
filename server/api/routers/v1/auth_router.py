@@ -24,6 +24,9 @@ router = APIRouter(
              )
 @api_response_wrapper
 async def create_user(user: UserSignupSchema, db: Session = Depends(get_db), cp: CryptPassword = Depends()):
+    """
+    User 생성. email+Password 조합 제공
+    """
     user_in_db = db.query(User).filter(User.email == user.email).first()
     if user_in_db:
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -42,6 +45,9 @@ async def login(
         db: Session = Depends(get_db),
         cp: CryptPassword = Depends()
 ):
+    """
+    Login. email + Password 조합으로 로그인 제공
+    """
     user = db.query(User).filter(User.email == form_data.username).first()
     if not user or not cp.verify_password(user.hashed_password, form_data.password):
         raise HTTPException(status_code=401, detail="이메일 또는 비밀번호가 틀렸습니다")

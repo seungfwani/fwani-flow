@@ -41,11 +41,7 @@ async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
                      files: List[UploadFile] = File(...),
                      db: Session = Depends(get_db)):
     """
-    Upload a python UDF file
-    :param udf_metadata:
-    :param files:
-    :param db: SqlAlchemy session
-    :return:
+    UDF 업로드
     """
     if not files:
         raise HTTPException(status_code=404, detail="No files uploaded")
@@ -139,9 +135,7 @@ async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
 @api_response_wrapper
 async def delete_udf(udf_id: str, db: Session = Depends(get_db)):
     """
-    Delete a python UDF file
-    :param udf_id:
-    :return:
+    UDF 삭제
     """
 
     if not (udf_data := db.query(FunctionLibrary).filter(FunctionLibrary.id == udf_id).first()):
@@ -164,8 +158,7 @@ async def delete_udf(udf_id: str, db: Session = Depends(get_db)):
 @api_response_wrapper
 async def get_udf_list(db: Session = Depends(get_db)):
     """
-    Get all available UDF files
-    :return:
+    이용가능 한 UDF 리스트 조회
     """
     logger.info(f"▶️ udf 리스트 조회")
     return [UDFResponse.from_function_library(udf_data)

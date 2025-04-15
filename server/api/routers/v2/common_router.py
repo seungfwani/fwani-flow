@@ -17,14 +17,20 @@ router = APIRouter(
 
 
 @router.get("/data-types",
-            response_model=APIResponse[List[str]], )
+            response_model=APIResponse[List[DataType]], )
 @api_response_wrapper
 async def get_data_types():
+    """
+    이용 가능한 데이터의 타입 리스트 조회
+    """
     return [dt.value for dt in DataType]
 
 
 @router.get("/operator-types",
-            response_model=APIResponse[List[str]], )
+            response_model=APIResponse[List[OperatorType]], )
 @api_response_wrapper
 async def get_operator_types():
+    """
+    이용 가능한 Operator 타입 리스트 조회
+    """
     return [ot.value for ot in OperatorType]

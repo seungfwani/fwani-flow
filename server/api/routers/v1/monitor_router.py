@@ -18,9 +18,7 @@ router = APIRouter(
 @api_response_wrapper
 async def get_event_log(airflow_client: AirflowClient = Depends(get_airflow_client)):
     """
-    get event logs
-    :param airflow_client:
-    :return:
+    모든 airflow 의 이벤트 로그 리스트
     """
     response = airflow_client.get(f"eventLogs")
     logger.info(response)

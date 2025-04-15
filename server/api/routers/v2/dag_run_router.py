@@ -30,11 +30,7 @@ async def kill_dag_run(run_id: str,
                        db: Session = Depends(get_db)
                        ):
     """
-    kill job in DAG
-    :param dag_id:
-    :param dag_run_id:
-    :param airflow_client:
-    :return:
+    DAG run 중지
     """
     return kill_flow_run(run_id, airflow_client, db)
 
@@ -45,10 +41,7 @@ async def kill_dag_run(run_id: str,
 async def get_dag_run_info(run_id: str,
                            db: Session = Depends(get_db)):
     """
-    get job in DAG
-    :param dag_id:
-    :param dag_run_id:
-    :return:
+    특정 DAG run 정보 조회
     """
     flow_run = get_flow_run_history(run_id, db)
     if not flow_run:
@@ -63,11 +56,7 @@ async def get_tasks_of_dag_run(run_id: str,
                                airflow_client: AirflowClient = Depends(get_airflow_client),
                                db: Session = Depends(get_db)):
     """
-    get all tasks of DAG_runs
-    :param dag_run_id:
-    :param dag_id:
-    :param airflow_client:
-    :return:
+    DAG run 의 모든 태스크 리스트 조회
     """
     flow_version, tasks = get_all_tasks_by_run_id(run_id, airflow_client, db)
     return TaskInstanceResponse.from_data(flow_version, tasks)
@@ -80,13 +69,7 @@ async def get_task_of_dag_run(run_id: str, task_id: str,
                               airflow_client: AirflowClient = Depends(get_airflow_client),
                               db: Session = Depends(get_db)):
     """
-    get job history of DAG
-    :param flow:
-    :param task_id:
-    :param dag_run_id:
-    :param dag_id:
-    :param airflow_client:
-    :return:
+    DAG run 의 특정 태스크 리스트 조회
     """
     task, ti = get_task_in_run_id(run_id, task_id, airflow_client, db)
     return DAGNode.from_data(task, ti)
@@ -96,10 +79,7 @@ async def get_task_of_dag_run(run_id: str, task_id: str,
 @api_response_wrapper
 async def get_result_of_dag_run(run_id: str, db: Session = Depends(get_db)):
     """
-    get job history of DAG
-    :param dag_run_id:
-    :param dag_id:
-    :return:
+    DAG run 의 결과 데이터 조회
     """
     flow_run = get_flow_run_history(run_id, db)
     return get_dag_result(flow_run.flow_version.flow_id, flow_run.flow_version.version, flow_run.run_id)

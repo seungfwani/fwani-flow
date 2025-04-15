@@ -27,11 +27,7 @@ router = APIRouter(
 async def request_dag_trigger(dag_id: str, dag: Optional[DAGRequest] = Body(default=None),
                               db: Session = Depends(get_db)):
     """
-    Run DAG
-    :param db:
-    :param dag:
-    :param dag_id:
-    :return:
+    DAG 실행
     """
     return TriggerResponse.from_flow_trigger_queue(register_trigger_last_version_or_draft(dag_id, dag, db))
 
@@ -43,11 +39,7 @@ async def request_dag_trigger(dag_id: str, dag: Optional[DAGRequest] = Body(defa
 async def request_dag_trigger(dag_id: str, version: int,
                               db: Session = Depends(get_db)):
     """
-    Run DAG
-    :param version:
-    :param db:
-    :param dag_id:
-    :return:
+    특정 DAG 버전을 실행
     """
     return TriggerResponse.from_flow_trigger_queue(register_trigger_specific_version(dag_id, version, db))
 
@@ -57,9 +49,6 @@ async def request_dag_trigger(dag_id: str, version: int,
 @api_response_wrapper
 async def get_history_of_dag(dag_id: str, db: Session = Depends(get_db)):
     """
-    get job history of DAG
-    :param dag_id:
-    :param airflow_client:
-    :return:
+    DAG Run 리스트 조회
     """
     return [AirflowDagRunModel.from_orm(data) for data in get_all_dag_runs_of_all_versions(dag_id, db)]
