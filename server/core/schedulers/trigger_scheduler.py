@@ -27,26 +27,22 @@ def process_trigger_queue(db: Session):
         password=Config.AIRFLOW_PASSWORD,
     )
     for trigger in pending_triggers:
+        trigger.try_count += 1
         if trigger.try_count >= 5:
             trigger.status = "failed"
             logger.error(f"❌ Trigger failed for {trigger.dag_id}")
             continue
         try:
             response = airflow_client.get(f"dags/{trigger.dag_id}")
-            # last_parsed_time = datetime.datetime.strptime(response.get("last_parsed_time"),"%Y-%m-%dT%H:%M:%S.%f+00:00")
-            # logger.info(f"last_parsed_time {last_parsed_time}, flow_version_updated_time: {trigger.flow_version.updated_at}")
-            # if last_parsed_time < trigger.flow_version.updated_at:
-            #     continue
-            file_contents = airflow_client.get_content(f"/dagSources/{response.get("file_token")}")
-            file_hash = get_hash(file_contents)
             if response.get("is_paused") is not None:
                 if response["is_paused"]:
                     active_result = airflow_client.patch(f"dags/{trigger.dag_id}",
                                                          json_data=json.dumps({"is_paused": False}))
                     logger.info(f"DAG {trigger.dag_id} is activated. {active_result}")
+                file_contents = airflow_client.get_content(f"/dagSources/{response.get("file_token")}")
+                file_hash = get_hash(file_contents)
                 if file_hash != trigger.file_hash:  # 파일이 airflow 에 로딩이 안된 경우
                     logger.info(f"🔁 DAG not ready yet: {trigger.dag_id}")
-                    trigger.try_count += 1
                     continue
                 run_res = airflow_client.post(f"dags/{trigger.dag_id}/dagRuns",
                                               json_data=json.dumps({
@@ -62,7 +58,6 @@ def process_trigger_queue(db: Session):
                 logger.info(f"🚀 DAG triggered: {trigger.dag_id}, response: {run_res}")
             else:
                 logger.info(f"🔁 DAG not ready yet: {trigger.dag_id}")
-                trigger.try_count += 1
         except Exception as e:
             logger.error(f"❌ Trigger failed for {trigger.dag_id}: {e}", e)
             trigger.status = "failed"
