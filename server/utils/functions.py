@@ -69,10 +69,24 @@ def calculate_dag_hash(dag) -> str:
     return hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
 
 
-def string2datetime(s: str, f: str = "%Y-%m-%dT%H:%M:%S.%f%z") -> datetime:
+def string2datetime(s: str, f: str = None) -> datetime:
     if not s:
         return datetime.now()
-    return datetime.strptime(s, f)
+
+    formats_to_try = [f] if f else []
+    # 백업 포맷 추가
+    formats_to_try += [
+        "%Y-%m-%dT%H:%M:%S.%f%z",
+        "%Y-%m-%dT%H:%M:%S%z"
+    ]
+
+    for fmt in formats_to_try:
+        try:
+            return datetime.strptime(s, fmt)
+        except (ValueError, TypeError):
+            continue
+
+    raise ValueError(f"Unsupported datetime format: {s}")
 
 
 def get_airflow_dag_id(flow_version) -> str:
@@ -80,7 +94,10 @@ def get_airflow_dag_id(flow_version) -> str:
 
 
 def split_airflow_dag_id_to_flow_and_version(dag_id) -> (str, int | str, bool):
-    flow_id, version_raw = re.match(r"([a-zA-Z0-9_]+)__(v\d+|draft)", dag_id).groups()
+    matched = re.match(r"([a-zA-Z0-9_]+)__(v\d+|draft)", dag_id)
+    if not matched:
+        return dag_id, 0, False
+    flow_id, version_raw = matched.groups()
     if version_raw == "draft":
         return flow_id, 1, True
     else:

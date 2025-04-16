@@ -31,7 +31,6 @@ logger = logging.getLogger()
 
 
 def get_flows(db: Session):
-
     # 버전별 우선순위: draft가 있으면 draft, 없으면 최신 published
     version_rank = func.row_number().over(
         partition_by=FlowVersion.flow_id,
@@ -72,6 +71,12 @@ def get_versions_of_flow(flow_id: str, db: Session) -> List[FlowVersion]:
 
 def get_flow(flow_id: str, db: Session = Depends(get_db)):
     return db.query(Flow).filter(Flow.id == flow_id).first()
+
+
+def get_all_flow_versions(flow_id: str, db: Session) -> List[FlowVersion]:
+    return (db.query(FlowVersion).filter(FlowVersion.flow_id == flow_id)
+            .order_by(desc(FlowVersion.version))
+            .all())
 
 
 def get_flow_version(db: Session, flow_id: str, version: int = 0, is_draft=False, eager_load=False) -> FlowVersion:
@@ -404,12 +409,15 @@ def get_flow_runs(flow_id: str, db: Session):
 
 
 def get_all_dag_runs_of_all_versions(flow_id: str, db: Session) -> [AirflowDagRunHistory]:
-    flow = get_flow(flow_id, db)
-    results = []
-    for flow_version in flow.versions:
-        dag_run = db.query(AirflowDagRunHistory).filter(
-            AirflowDagRunHistory.flow_version_id == flow_version.id,
-        ).all()
-        if dag_run:
-            results += dag_run
-    return results
+    flow_versions = get_all_flow_versions(flow_id, db)
+    if not flow_versions:
+        return []
+    flow_version_ids = [fv.id for fv in flow_versions]
+    return (
+        db.query(AirflowDagRunHistory).filter(
+            AirflowDagRunHistory.flow_version_id.in_(flow_version_ids)
+        )
+        .group_by(AirflowDagRunHistory.flow_version_id)
+        .order_by(desc(AirflowDagRunHistory.created_at))
+        .all()
+    )
