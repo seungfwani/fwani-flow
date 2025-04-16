@@ -69,6 +69,13 @@ def calculate_dag_hash(dag) -> str:
     return hashlib.sha256(hash_input.encode("utf-8")).hexdigest()
 
 
+def get_hash(data: str | bytes) -> str:
+    if isinstance(data, str):
+        return hashlib.sha256(data.encode("utf-8")).hexdigest()
+    else:
+        return hashlib.sha256(data).hexdigest()
+
+
 def string2datetime(s: str, f: str = None) -> datetime:
     if not s:
         return datetime.now()

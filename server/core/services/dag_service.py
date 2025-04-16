@@ -24,7 +24,8 @@ from models.function_library import FunctionLibrary
 from models.task import Task
 from models.task_input import TaskInput
 from models.task_ui import TaskUI
-from utils.functions import make_flow_id_by_name, normalize_dag, calculate_dag_hash, normalize_task, get_airflow_dag_id
+from utils.functions import make_flow_id_by_name, normalize_dag, calculate_dag_hash, normalize_task, get_airflow_dag_id, \
+    get_hash
 from utils.udf_validator import get_validated_inputs
 
 logger = logging.getLogger()
@@ -249,10 +250,12 @@ def write_dag_file(flow_version: FlowVersion):
     dag_file_path = os.path.join(dag_dir_path, dag_version)
     try:
         # write dag
+        file_contents = render_dag_script(f"{flow_version.flow_id}__{dag_version}",
+                                          flow_version.tasks,
+                                          flow_version.edges)
         with open(dag_file_path + ".py", 'w') as dag_file:
-            dag_file.write(render_dag_script(f"{flow_version.flow_id}__{dag_version}",
-                                             flow_version.tasks,
-                                             flow_version.edges))
+            dag_file.write(file_contents)
+        flow_version.file_hash = get_hash(file_contents)
     except Exception as e:
         logger.error(f"❌ DAG 파일 생성 실패: {e}")
         if os.path.exists(dag_file_path):
@@ -300,24 +303,27 @@ def create_update_draft_dag(dag: DAGRequest, db: Session) -> FlowVersion:
     flow_id = make_flow_id_by_name(dag.name)
     try:
         existing_draft = get_flow_version(db, flow_id, is_draft=True)
-        if existing_draft:  # 기존 draft 가 있으므로, 수정
-            if not is_flow_changed(dag, existing_draft.id, db):
+        if existing_draft:  # draft O
+            if not is_flow_changed(dag, existing_draft.id, db):  # 변경 X -> 기존 draft
                 logger.info("⚠️ No draft version change")
                 return existing_draft
-            else:
+            else:  # 변경 O -> update draft
                 logger.info("🔄 Draft version changed")
                 new_draft = update_draft_version(existing_draft, dag, db)
-        else:  # 새 draft 생성
+                write_dag_file(new_draft)
+                db.commit()
+                return new_draft
+        else:  # draft X
+            last_fv = get_flow_last_version(flow_id, db)  # check last publish
+            if last_fv and not is_flow_changed(dag, last_fv.id, db):  # last O, 변경 X
+                return last_fv
+            flow = last_fv.flow if last_fv else create_flow(dag)
+            next_version = (last_fv.version + 1) if last_fv else 1
             logger.info(f"🔄 Creating new draft version of {dag.name} ...")
-            flow = get_flow(flow_id, db)
-            if not flow:
-                flow = create_flow(dag)
-                new_draft = create_draft_version(dag, flow, db, 1)
-            else:
-                last_flow_version = sorted(flow.versions, key=lambda v: v.version, reverse=True)[0]
-                if not is_flow_changed(dag, last_flow_version.id, db):
-                    return last_flow_version
-                new_draft = create_draft_version(dag, flow, db, last_flow_version.version + 1)
+            flow_version = create_draft_version(dag, flow, db, next_version)
+            write_dag_file(flow_version)
+            db.commit()
+            return flow_version
 
     except Exception as e:
         logger.error(f"❌ 오류 발생: {e}")
@@ -325,9 +331,6 @@ def create_update_draft_dag(dag: DAGRequest, db: Session) -> FlowVersion:
         db.rollback()
         logger.warning(f"🔄 메타데이터 롤백")
         raise HTTPException(status_code=500, detail=f"DAG creation failed. {e}")
-    write_dag_file(new_draft)
-    db.commit()
-    return new_draft
 
 
 def publish_flow_version(flow_id: str, dag: DAGRequest, db: Session) -> FlowVersion:

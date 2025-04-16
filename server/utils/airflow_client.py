@@ -68,6 +68,11 @@ class AirflowClient:
         response = self._request_with_reconnect("GET", url, params=params)
         return response.json()
 
+    def get_content(self, endpoint, params=None):
+        url = self._make_url(endpoint)
+        response = self._request_with_reconnect("GET", url, params=params)
+        return response.content
+
     def post(self, endpoint, json_data=None):
         url = self._make_url(endpoint)
         response = self._request_with_reconnect("POST", url, data=json_data)
