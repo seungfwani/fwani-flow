@@ -417,7 +417,6 @@ def get_all_dag_runs_of_all_versions(flow_id: str, db: Session) -> [AirflowDagRu
         db.query(AirflowDagRunHistory).filter(
             AirflowDagRunHistory.flow_version_id.in_(flow_version_ids)
         )
-        .group_by(AirflowDagRunHistory.flow_version_id)
         .order_by(desc(AirflowDagRunHistory.created_at))
         .all()
     )
