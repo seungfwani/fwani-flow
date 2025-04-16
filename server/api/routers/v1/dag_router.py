@@ -55,7 +55,7 @@ async def publish_dag(dag_id: str, dag: DAGRequest, db: Session = Depends(get_db
 
 
 @router.delete("/{dag_id}",
-               response_model=APIResponse[DAGResponse],
+               response_model=APIResponse[List[DAGResponse]],
                )
 @api_response_wrapper
 async def delete_dag(dag_id: str, db: Session = Depends(get_db)):
@@ -64,7 +64,8 @@ async def delete_dag(dag_id: str, db: Session = Depends(get_db)):
 
     (주의!) 모든 버전이 함께 삭제됩니다. 기록도 삭제됩니다.
     """
-    return DAGResponse.from_dag(delete_flow(dag_id, db))
+    response = [DAGResponse.from_dag(fv) for fv in delete_flow(dag_id, db).versions]
+    return response
 
 
 @router.delete("/{dag_id}/version/{version}",

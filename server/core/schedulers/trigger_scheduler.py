@@ -44,7 +44,7 @@ def process_trigger_queue(db: Session):
                     active_result = airflow_client.patch(f"dags/{trigger.dag_id}",
                                                          json_data=json.dumps({"is_paused": False}))
                     logger.info(f"DAG {trigger.dag_id} is activated. {active_result}")
-                if file_hash != trigger.flow_version.file_hash:  # 파일이 airflow 에 로딩이 안된 경우
+                if file_hash != trigger.file_hash:  # 파일이 airflow 에 로딩이 안된 경우
                     logger.info(f"🔁 DAG not ready yet: {trigger.dag_id}")
                     trigger.try_count += 1
                     continue

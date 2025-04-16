@@ -18,5 +18,6 @@ class FlowTriggerQueue(Base):
     updated_at = Column(DateTime, default=func.now())
     data = Column(String, nullable=True)
     try_count = Column(Integer, default=0)
+    file_hash = Column(String)
 
     flow_version = relationship("FlowVersion", back_populates="flow_trigger_queues")

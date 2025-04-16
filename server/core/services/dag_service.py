@@ -114,14 +114,17 @@ def get_flow_last_version_or_draft(flow_id: str, db: Session):
     return last_flow_version
 
 
-def delete_flow(flow_id: str, db: Session):
+def delete_flow(flow_id: str, db: Session) -> Flow:
     logger.info(f"⚠️ Get DAG {flow_id} metadata for deleting")
-    flow = db.query(Flow).filter(Flow.id == flow_id).first()
+    flow = (db.query(Flow).filter(Flow.id == flow_id)
+            .options(joinedload(Flow.versions))
+            .first())
     if not flow:
         raise ValueError(f"DAG {flow_id} not found")
 
     db.delete(flow)
     logger.info(f"🗑️ Delete DAG {flow_id} metadata")
+    db.commit()
     return flow
 
 
@@ -366,6 +369,7 @@ def register_trigger(flow_version: FlowVersion, db: Session):
         flow_version_id=flow_version.id,
         dag_id=get_airflow_dag_id(flow_version),
         status="waiting",
+        file_hash=flow_version.file_hash,
     )
     db.add(trigger_entry)
     db.commit()
