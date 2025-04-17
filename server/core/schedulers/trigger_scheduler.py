@@ -28,8 +28,8 @@ def process_trigger_queue(db: Session):
         password=Config.AIRFLOW_PASSWORD,
     )
     for trigger in pending_triggers:
-        trigger.try_count += 1
         try:
+            trigger.try_count += 1
             logger.info(f"Attempting to process ({trigger.id}/{trigger.dag_id}) trigger queue #{{{trigger.try_count}}}")
             if trigger.try_count >= 5:
                 trigger.status = "failed"
