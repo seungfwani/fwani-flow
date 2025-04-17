@@ -259,6 +259,7 @@ def write_dag_file(flow_version: FlowVersion):
         with open(dag_file_path + ".py", 'w') as dag_file:
             dag_file.write(file_contents)
         flow_version.file_hash = get_hash(file_contents)
+        flow_version.is_loaded_by_airflow = False
     except Exception as e:
         logger.error(f"❌ DAG 파일 생성 실패: {e}")
         if os.path.exists(dag_file_path):
@@ -314,7 +315,6 @@ def create_update_draft_dag(dag: DAGRequest, db: Session) -> FlowVersion:
                 logger.info("🔄 Draft version changed")
                 new_draft = update_draft_version(existing_draft, dag, db)
                 write_dag_file(new_draft)
-                new_draft.is_loaded_by_airflow = False
                 db.commit()
                 return new_draft
         else:  # draft X
@@ -326,7 +326,6 @@ def create_update_draft_dag(dag: DAGRequest, db: Session) -> FlowVersion:
             logger.info(f"🔄 Creating new draft version of {dag.name} ...")
             flow_version = create_draft_version(dag, flow, db, next_version)
             write_dag_file(flow_version)
-            flow_version.is_loaded_by_airflow = False
             db.commit()
             return flow_version
 
@@ -361,7 +360,6 @@ def publish_flow_version(flow_id: str, dag: DAGRequest, db: Session) -> FlowVers
     db.flush()
 
     write_dag_file(draft)
-    draft.is_loaded_by_airflow = False
     db.commit()
     return draft
 
