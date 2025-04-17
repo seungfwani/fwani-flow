@@ -42,18 +42,20 @@ def process_trigger_queue(db: Session):
                     f"last_parsed_time {last_parsed_time}, flow_version_updated_time: {trigger.flow_version.updated_at}")
                 if last_parsed_time < trigger.flow_version.updated_at.replace(tzinfo=datetime.timezone.utc):
                     continue
-                else:
-                    trigger.flow_version.is_loaded_by_airflow = True
-            if response.get("is_paused") is not None:
-                if response["is_paused"]:
-                    active_result = airflow_client.patch(f"dags/{trigger.dag_id}",
-                                                         json_data=json.dumps({"is_paused": False}))
-                    logger.info(f"DAG {trigger.dag_id} is activated. {active_result}")
+                # 마지막 파싱된 시간이 flow version 의 수정시간 보다 크다면
+                # 파일 해쉬 체크
                 file_contents = airflow_client.get_content(f"/dagSources/{response.get("file_token")}")
                 file_hash = get_hash(file_contents)
                 if file_hash != trigger.file_hash:  # 파일이 airflow 에 로딩이 안된 경우
                     logger.info(f"🔁 DAG not ready yet: {trigger.dag_id}")
                     continue
+                trigger.flow_version.is_loaded_by_airflow = True
+
+            if response.get("is_paused") is not None:
+                if response["is_paused"]:
+                    active_result = airflow_client.patch(f"dags/{trigger.dag_id}",
+                                                         json_data=json.dumps({"is_paused": False}))
+                    logger.info(f"DAG {trigger.dag_id} is activated. {active_result}")
                 run_res = airflow_client.post(f"dags/{trigger.dag_id}/dagRuns",
                                               json_data=json.dumps({
                                                   "conf": {
