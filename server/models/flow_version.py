@@ -17,6 +17,7 @@ class FlowVersion(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     hash = Column(String)
     file_hash = Column(String)
+    is_loaded_by_airflow = Column(Boolean, default=False)
 
     flow = relationship("Flow", back_populates="versions")
     tasks = relationship("Task", back_populates="flow_version", cascade="all, delete-orphan", passive_deletes=True)

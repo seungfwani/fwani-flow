@@ -1,3 +1,4 @@
+import datetime
 import json
 import logging
 from typing import List
@@ -10,7 +11,7 @@ from core.services.dag_service import get_flow_version
 from models.airflow_dag_run_history import AirflowDagRunHistory
 from models.flow_trigger_queue import FlowTriggerQueue
 from utils.airflow_client import AirflowClient
-from utils.functions import split_airflow_dag_id_to_flow_and_version, get_hash
+from utils.functions import split_airflow_dag_id_to_flow_and_version, get_hash, string2datetime
 
 logger = logging.getLogger()
 
@@ -34,6 +35,13 @@ def process_trigger_queue(db: Session):
             continue
         try:
             response = airflow_client.get(f"dags/{trigger.dag_id}")
+            if not trigger.flow_version.is_loaded_by_airflow:
+                last_parsed_time = string2datetime(response.get("last_parsed_time"))
+                logger.info(f"last_parsed_time {last_parsed_time}, flow_version_updated_time: {trigger.flow_version.updated_at}")
+                if last_parsed_time < trigger.flow_version.updated_at:
+                    continue
+                else:
+                    trigger.flow_version.is_loaded_by_airflow = True
             if response.get("is_paused") is not None:
                 if response["is_paused"]:
                     active_result = airflow_client.patch(f"dags/{trigger.dag_id}",
