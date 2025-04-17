@@ -38,7 +38,7 @@ def process_trigger_queue(db: Session):
             if not trigger.flow_version.is_loaded_by_airflow:
                 last_parsed_time = string2datetime(response.get("last_parsed_time"))
                 logger.info(f"last_parsed_time {last_parsed_time}, flow_version_updated_time: {trigger.flow_version.updated_at}")
-                if last_parsed_time < trigger.flow_version.updated_at:
+                if last_parsed_time < trigger.flow_version.updated_at.replace(tzinfo=datetime.timezone.utc):
                     continue
                 else:
                     trigger.flow_version.is_loaded_by_airflow = True
