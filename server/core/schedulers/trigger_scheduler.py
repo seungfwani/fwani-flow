@@ -29,12 +29,12 @@ def process_trigger_queue(db: Session):
     )
     for trigger in pending_triggers:
         trigger.try_count += 1
-        logger.info(f"Attempting to process ({trigger.id}/{trigger.dag_id}) trigger queue #{{{trigger.try_count}}}")
-        if trigger.try_count >= 5:
-            trigger.status = "failed"
-            logger.error(f"❌ Trigger failed for {trigger.dag_id}")
-            continue
         try:
+            logger.info(f"Attempting to process ({trigger.id}/{trigger.dag_id}) trigger queue #{{{trigger.try_count}}}")
+            if trigger.try_count >= 5:
+                trigger.status = "failed"
+                logger.error(f"❌ Trigger failed for {trigger.dag_id}")
+                continue
             response = airflow_client.get(f"dags/{trigger.dag_id}")
             if not trigger.flow_version.is_loaded_by_airflow:
                 last_parsed_time = string2datetime(response.get("last_parsed_time"))
@@ -71,6 +71,8 @@ def process_trigger_queue(db: Session):
         except Exception as e:
             logger.error(f"❌ Trigger failed for {trigger.dag_id}: {e}", e)
             trigger.status = "failed"
+        finally:
+            db.add(trigger)
 
     db.commit()
 
