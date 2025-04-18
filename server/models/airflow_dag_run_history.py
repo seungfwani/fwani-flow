@@ -66,8 +66,8 @@ class AirflowDagRunHistory(Base):
             dag_run_history.snapshot_edges.append(
                 AirflowDagRunSnapshotEdge(
                     edge_id=edge.id,
-                    source=edge.source,
-                    target=edge.target,
+                    source=edge.from_task_id,
+                    target=edge.to_task_id,
                     type=edge.edge_ui.type,
                     label=edge.edge_ui.label,
                     labelStyle=edge.edge_ui.labelStyle,
