@@ -82,12 +82,12 @@ async def get_result_of_dag_run(run_id: str, db: Session = Depends(get_db)):
     DAG run 의 결과 데이터 조회
     """
     flow_run = get_flow_run_history(run_id, db)
-    return get_dag_result(flow_run.flow_version.flow_id, flow_run.flow_version.version, flow_run.run_id)
+    return get_dag_result(flow_run.dag_id, flow_run.run_id)
 
 
-def get_dag_result(dag_id, version, run_id):
+def get_dag_result(dag_id, run_id):
     shared_dir = os.path.abspath(Config.SHARED_DIR)
-    result_dir = os.path.join(shared_dir, f"dag_id={dag_id}__v{version}/run_id={run_id}")
+    result_dir = os.path.join(shared_dir, f"dag_id={dag_id}/run_id={run_id}")
     json_path = os.path.join(result_dir, "final_result.json")
     pkl_path = os.path.join(result_dir, "final_result.pkl")
     if os.path.exists(json_path):
