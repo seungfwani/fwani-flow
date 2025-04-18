@@ -53,6 +53,7 @@ class AirflowDagRunHistory(Base):
             dag_run_history.snapshot_tasks.append(
                 AirflowDagRunSnapshotTask(
                     task_id=task.id,
+                    variable_id=task.variable_id,
                     function_id=task.function_id,
                     inputs={inp.key: inp.value for inp in task.inputs},
                     type=task.task_ui.type,
@@ -84,6 +85,7 @@ class AirflowDagRunSnapshotTask(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     dag_run_history_id = Column(String, ForeignKey("airflow_dag_run_history.id", ondelete="CASCADE"), nullable=False)
     task_id = Column(String)
+    variable_id = Column(String)
     function_id = Column(String)
     inputs = Column(JSON)
     # ui 관련
