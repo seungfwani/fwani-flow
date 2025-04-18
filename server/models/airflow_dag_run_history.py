@@ -61,7 +61,7 @@ class AirflowDagRunHistory(Base):
                     style=task.task_ui.style,
                 )
             )
-        for edge in flow_version.dag_edges:
+        for edge in flow_version.edges:
             dag_run_history.snapshot_edges.append(
                 AirflowDagRunSnapshotEdge(
                     edge_id=edge.id,

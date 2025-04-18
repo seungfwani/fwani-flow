@@ -213,16 +213,16 @@ class TaskInstanceResponse(BaseModel):
 
         try:
             edges = [DAGEdge(
-                id=edge.id,
-                type=edge.edge_ui.type if edge.edge_ui else "custom",
-                source=edge.from_task_id,
-                target=edge.to_task_id,
-                label=edge.edge_ui.label if edge.edge_ui else "",
+                id=edge.edge_id,
+                type=edge.type,
+                source=edge.source,
+                target=edge.target,
+                label=edge.label,
                 labelStyle=edge.labelStyle,
                 labelBgStyle=edge.labelBgStyle,
                 labelBgPadding=edge.labelBgPadding,
                 labelBgBorderRadius=edge.labelBgBorderRadius,
-                style=edge.edge_ui.style if edge.edge_ui else {},
+                style=edge.style,
             ) for edge in airflow_dag_run_history.snapshot_edges]
         except Exception as e:
             logger.warning(e)
