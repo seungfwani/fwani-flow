@@ -76,6 +76,7 @@ class AirflowDagRunHistory(Base):
                     style=edge.edge_ui.style,
                 )
             )
+        return dag_run_history
 
 
 class AirflowDagRunSnapshotTask(Base):
