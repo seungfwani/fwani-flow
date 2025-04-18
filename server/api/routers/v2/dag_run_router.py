@@ -58,8 +58,8 @@ async def get_tasks_of_dag_run(run_id: str,
     """
     DAG run 의 모든 태스크 리스트 조회
     """
-    flow_version, tasks = get_all_tasks_by_run_id(run_id, airflow_client, db)
-    return TaskInstanceResponse.from_data(flow_version, tasks)
+    airflow_dag_run_history, tasks = get_all_tasks_by_run_id(run_id, airflow_client, db)
+    return TaskInstanceResponse.from_data(airflow_dag_run_history, tasks)
 
 
 @router.get("/{run_id}/tasks/{task_id}",
@@ -72,7 +72,7 @@ async def get_task_of_dag_run(run_id: str, task_id: str,
     DAG run 의 특정 태스크 리스트 조회
     """
     task, ti = get_task_in_run_id(run_id, task_id, airflow_client, db)
-    return DAGNode.from_data(task, ti)
+    return DAGNode.from_data_with_ti_of_airflow(task, ti)
 
 
 @router.get("/{run_id}/result")

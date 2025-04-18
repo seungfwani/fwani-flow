@@ -5,7 +5,7 @@ from typing import List, Any, Optional, Tuple
 
 from pydantic import BaseModel, Field, model_validator, ConfigDict
 
-from models.airflow_dag_run_history import AirflowDagRunHistory
+from models.airflow_dag_run_history import AirflowDagRunHistory, AirflowDagRunSnapshotTask
 from models.flow_version import FlowVersion
 from models.task import Task
 from utils.functions import string2datetime
@@ -75,6 +75,21 @@ class DAGNode(BaseModel):
                 function_id=task.function_id,
                 inputs={inp.key: inp.value for inp in task.inputs},
                 label=task.function.name if task.function else "",
+                extra_data=AirflowTaskInstanceModel.from_json(ti) if ti else None,
+            )
+        )
+
+    @classmethod
+    def from_data_with_ti_of_airflow(cls, task: AirflowDagRunSnapshotTask, ti: dict):
+        return cls(
+            id=task.task_id,
+            type=task.type,
+            position=task.position,
+            style=task.style,
+            data=DAGNodeData(
+                function_id=task.function_id,
+                inputs=task.inputs,
+                label=task.label,
                 extra_data=AirflowTaskInstanceModel.from_json(ti) if ti else None,
             )
         )
@@ -188,9 +203,10 @@ class TaskInstanceResponse(BaseModel):
     edges: List[DAGEdge]
 
     @classmethod
-    def from_data(cls, flow_version: FlowVersion, data: List[Tuple[Task, dict]]):
+    def from_data(cls, airflow_dag_run_history: AirflowDagRunHistory,
+                  data: List[Tuple[AirflowDagRunSnapshotTask, dict]]):
         try:
-            nodes = [DAGNode.from_data(task, ti) for task, ti in data]
+            nodes = [DAGNode.from_data_with_ti_of_airflow(task, ti) for task, ti in data]
         except Exception as e:
             logger.warning(e)
             nodes = []
@@ -202,18 +218,22 @@ class TaskInstanceResponse(BaseModel):
                 source=edge.from_task_id,
                 target=edge.to_task_id,
                 label=edge.edge_ui.label if edge.edge_ui else "",
+                labelStyle=edge.labelStyle,
+                labelBgStyle=edge.labelBgStyle,
+                labelBgPadding=edge.labelBgPadding,
+                labelBgBorderRadius=edge.labelBgBorderRadius,
                 style=edge.edge_ui.style if edge.edge_ui else {},
-            ) for edge in flow_version.edges]
+            ) for edge in airflow_dag_run_history.snapshot_edges]
         except Exception as e:
             logger.warning(e)
             edges = []
 
         return cls(
-            id=flow_version.flow.id,
-            name=flow_version.flow.name,
-            description=flow_version.flow.description,
-            is_draft=flow_version.is_draft,
-            version=flow_version.version,
+            id=airflow_dag_run_history.flow_version.flow.id,
+            name=airflow_dag_run_history.flow_version.flow.name,
+            description=airflow_dag_run_history.flow_version.flow.description,
+            is_draft=airflow_dag_run_history.flow_version.is_draft,
+            version=airflow_dag_run_history.flow_version.version,
             nodes=nodes,
             edges=edges,
         )
