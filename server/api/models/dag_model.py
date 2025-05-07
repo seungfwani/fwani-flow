@@ -129,6 +129,8 @@ class DAGResponse(BaseModel):
 
     @classmethod
     def from_dag(cls, flow_version: FlowVersion):
+        if not flow_version:
+            return None
         try:
             nodes = [DAGNode.from_data(task) for task in flow_version.tasks]
         except Exception as e:
