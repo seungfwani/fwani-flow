@@ -81,6 +81,9 @@ def get_task_by_id(flow_run: AirflowDagRunHistory, task_id: str) -> Task | None:
 def get_task_result_each_tasks(run_id: str, task_id: str, db: Session):
     flow_run = get_flow_run_history(run_id, db)
     task = get_task_by_id(flow_run, task_id)
+    if task is None:
+        raise HTTPException(status_code=404, detail=f"Task({task_id}) 가 존재하지 않습니다.")
+
     airflow_dag_id = flow_run.dag_id
     airflow_run_id = flow_run.run_id
 
@@ -92,7 +95,7 @@ def get_task_result_each_tasks(run_id: str, task_id: str, db: Session):
             logger.info(f"load pickle file: {pkl_path}")
             with open(pkl_path, "rb") as f:
                 result = pickle.load(f)
-            return {"result": str(result), "type": "pickle"}
+            return {"result": result, "type": task.function.output.type}
         except Exception as e:
             logger.error("⚠️ Failed to load pickle result", e)
             raise
