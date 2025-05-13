@@ -11,7 +11,7 @@ from api.models.dag_model import AirflowDagRunModel, TaskInstanceResponse, DAGNo
 from config import Config
 from core.database import get_db
 from core.services.dag_run_service import kill_flow_run, get_flow_run_history, get_all_tasks_by_run_id, \
-    get_task_in_run_id
+    get_task_in_run_id, get_task_result_each_tasks
 from utils.airflow_client import AirflowClient, get_airflow_client
 
 logger = logging.getLogger()
@@ -105,3 +105,12 @@ def get_dag_result(dag_id, run_id):
             raise
     else:
         raise HTTPException(status_code=404, detail="결과 파일이 존재하지 않습니다.")
+
+
+@router.get("/{run_id}/tasks/{task_id}/result")
+@api_response_wrapper
+async def get_result_of_dag_run(run_id: str, task_id: str, db: Session = Depends(get_db)):
+    """
+    DAG run 의 결과 데이터 조회
+    """
+    return get_task_result_each_tasks(run_id, task_id, db)

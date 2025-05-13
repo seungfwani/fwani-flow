@@ -1,10 +1,15 @@
 import json
 import logging
+import os
+import pickle
 from typing import Tuple, List
 
+from fastapi import HTTPException
 from sqlalchemy.orm import Session
 
+from config import Config
 from models.airflow_dag_run_history import AirflowDagRunHistory, AirflowDagRunSnapshotTask
+from models.task import Task
 from utils.airflow_client import AirflowClient
 
 logger = logging.getLogger()
@@ -64,3 +69,31 @@ def get_task_in_run_id(run_id: str, task_id: str, airflow_client: AirflowClient,
         return task_mapper[task_variable_id], response
     else:
         raise ValueError(f"Task {task_id} not found")
+
+
+def get_task_by_id(flow_run: AirflowDagRunHistory, task_id: str) -> Task | None:
+    for task in flow_run.flow_version.tasks:
+        if task.id == task_id:
+            return task
+    return None
+
+
+def get_task_result_each_tasks(run_id: str, task_id: str, db: Session):
+    flow_run = get_flow_run_history(run_id, db)
+    task = get_task_by_id(flow_run, task_id)
+    dag_id = flow_run.dag_id
+
+    shared_dir = os.path.abspath(Config.SHARED_DIR)
+    result_dir = os.path.join(shared_dir, f"dag_id={dag_id}/run_id={run_id}")
+    pkl_path = os.path.join(result_dir, f"{task.variable_id}.pkl")
+    if os.path.exists(pkl_path):
+        try:
+            logger.info(f"load pickle file: {pkl_path}")
+            with open(pkl_path, "rb") as f:
+                result = pickle.load(f)
+            return {"result": str(result), "type": "pickle"}
+        except Exception as e:
+            logger.error("⚠️ Failed to load pickle result", e)
+            raise
+    else:
+        raise HTTPException(status_code=404, detail="결과 파일이 존재하지 않습니다.")
