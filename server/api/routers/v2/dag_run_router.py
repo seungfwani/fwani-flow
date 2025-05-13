@@ -109,7 +109,7 @@ def get_dag_result(dag_id, run_id):
 
 @router.get("/{run_id}/tasks/{task_id}/result")
 @api_response_wrapper
-async def get_result_of_dag_run(run_id: str, task_id: str, db: Session = Depends(get_db)):
+async def get_each_task_result(run_id: str, task_id: str, db: Session = Depends(get_db)):
     """
     DAG run 의 결과 데이터 조회
     """
