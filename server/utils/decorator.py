@@ -115,7 +115,7 @@ def file_decorator(inputs: List[Dict[str, Any]]):
                 print(f"‼️ 마지막 태스크 완료: {task_id} → output = {output}")
                 json_path = os.path.join(dag_data_dir, f"final_result.json")
                 pkl_path = os.path.join(dag_data_dir, f"final_result.pkl")
-                origin_pkl_path = os.path.join(base_dir, f"{task_id}.pkl")
+                origin_pkl_path = os.path.join(dag_data_dir, f"{task_id}.pkl")
 
                 with open(origin_pkl_path, "wb") as f:
                     pickle.dump(output, f)
