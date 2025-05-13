@@ -81,10 +81,11 @@ def get_task_by_id(flow_run: AirflowDagRunHistory, task_id: str) -> Task | None:
 def get_task_result_each_tasks(run_id: str, task_id: str, db: Session):
     flow_run = get_flow_run_history(run_id, db)
     task = get_task_by_id(flow_run, task_id)
-    dag_id = flow_run.dag_id
+    airflow_dag_id = flow_run.dag_id
+    airflow_run_id = flow_run.run_id
 
     shared_dir = os.path.abspath(Config.SHARED_DIR)
-    result_dir = os.path.join(shared_dir, f"dag_id={dag_id}/run_id={run_id}")
+    result_dir = os.path.join(shared_dir, f"dag_id={airflow_dag_id}/run_id={airflow_run_id}")
     pkl_path = os.path.join(result_dir, f"{task.variable_id}.pkl")
     if os.path.exists(pkl_path):
         try:
