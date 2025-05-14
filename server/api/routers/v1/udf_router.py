@@ -1,7 +1,9 @@
+import io
 import logging
 import os.path
 import shutil
 import uuid
+import zipfile
 from typing import List
 
 from fastapi import APIRouter, UploadFile, HTTPException, File, Depends, Form
@@ -26,11 +28,30 @@ router = APIRouter(
     tags=["Udf"],
 )
 
-ALLOWED_EXTENSIONS = ['py', 'txt']
+ALLOWED_EXTENSIONS = ['py', 'txt', 'zip']
 
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+def extract_zip_file(zip_file: UploadFile) -> List[UploadFile]:
+    # Implement ZIP file extraction logic here
+    # For example, you can use the `zipfile` library in Python
+    extracted_files = []
+    with zipfile.ZipFile(zip_file.file, 'r') as zip_ref:
+        for file_info in zip_ref.infolist():
+            if file_info.is_dir():
+                continue
+            if file_info.filename.endswith(".py") or file_info.filename.endswith(".txt"):
+                with zip_ref.open(file_info) as extracted:
+                    file_bytes = extracted.read()
+                    file_size = len(file_bytes)
+                    file_like = io.BytesIO(file_bytes)
+                    file_like.seek(0)
+                    extracted_file = UploadFile(file=file_like, filename=file_info.filename, size=file_size)
+                    extracted_files.append(extracted_file)
+    return extracted_files
 
 
 @router.post("",
@@ -52,7 +73,17 @@ async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
         if not allowed_file(file.filename):
             raise HTTPException(status_code=400,
                                 detail=f"Only {', '.join(map(lambda x: f'.{x}', ALLOWED_EXTENSIONS))} files are allowed")
-        if file.filename.endswith(".py"):
+        if file.filename.endswith(".zip"):
+            try:
+                extracted = extract_zip_file(file)
+                for inner_file in extracted:
+                    if inner_file.filename.endswith(".py"):
+                        python_files.append(inner_file)
+                    elif inner_file.filename.endswith(".txt") and requirements_file is None:
+                        requirements_file = inner_file
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Invalid ZIP file: {e}")
+        elif file.filename.endswith(".py"):
             python_files.append(file)
         elif file.filename.endswith(".txt"):
             requirements_file = file
@@ -68,6 +99,7 @@ async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
         is_validate_udf = False
         for python_file in python_files:
             file_path = os.path.join(file_dir, python_file.filename)
+            os.makedirs(os.path.dirname(file_path), exist_ok=True, mode=0o777)
             with open(file_path, "wb") as f:
                 shutil.copyfileobj(python_file.file, f)
                 logger.info(f"✅ 파일 저장 완료: {file_path}")
