@@ -1,14 +1,15 @@
 {% set requirements_file = task.function.path ~ '/' ~ task.function.dependencies -%}
 
+{% set module_path = task.function.main_filename | replace('/', '.') %}
 {{ task.variable_id }} = PythonVirtualenvOperator(
     task_id='{{ task.variable_id }}',
     dag=dag,
     {%- if task.decorator %}
     python_callable=wrapped_callable,
     {% else %}
-    python_callable={{ task.function.main_filename }}_{{ task.function.function }}},
+    python_callable={{ module_path }}_{{ task.function.function }}},
     {% endif -%}
-    op_args=["{{ task.function.name }}", "{{ task.function.main_filename }}", "{{ task.function.function }}"],
+    op_args=["{{ task.function.name }}", "{{ module_path }}", "{{ task.function.function }}"],
     op_kwargs={
         {% for inp in task.inputs -%}
         "{{ inp.key }}": {% if inp.type == "string" %}"{{ inp.value }}"{% else %}{{ inp.value }}{% endif %},

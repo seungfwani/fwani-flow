@@ -40,7 +40,8 @@ import os
 import json
 
 from utils.decorator import file_decorator
-from {{ task.function.name }}.{{ task.function.main_filename }} import {{ task.function.function }}
+{% set module_path = task.function.main_filename | replace('/', '.') %}
+from {{ task.function.name }}.{{ module_path }} import {{ task.function.function }}
 
 
 inputs = json.loads(os.getenv("input_schema"))

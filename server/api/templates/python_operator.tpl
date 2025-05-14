@@ -1,4 +1,5 @@
-from {{ task.function.name }}.{{ task.function.main_filename }} import {{ task.function.function }} as {{ task.function.name }}_{{ task.function.main_filename }}_{{ task.function.function }}
+{% set module_path = task.function.main_filename | replace('/', '.') %}
+from {{ task.function.name }}.{{ module_path }} import {{ task.function.function }} as {{ task.function.name }}_{{ task.function.main_filename }}_{{ task.function.function }}
 
 
 {{ task.variable_id }} = PythonOperator(
@@ -11,9 +12,9 @@ from {{ task.function.name }}.{{ task.function.main_filename }} import {{ task.f
             {"name": "{{ inp.name }}", "type": "{{ inp.type }}"},
         {% endfor -%}
         ]
-    )({{ task.function.name }}_{{ task.function.main_filename }}_{{ task.function.function }}),
+    )({{ task.function.name }}_{{ module_path }}_{{ task.function.function }}),
     {% else %}
-    python_callable={{ task.function.name }}_{{ task.function.main_filename }}_{{ task.function.function }},
+    python_callable={{ task.function.name }}_{{ module_path }}_{{ task.function.function }},
     {% endif -%}
     op_kwargs={
         {% for inp in task.inputs -%}
