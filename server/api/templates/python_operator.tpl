@@ -1,3 +1,4 @@
+sys.path.append(os.path.join("{{ container_mount_udf_target_path }}", "{{ task.function.name }}"))
 {% set module_path = task.function.main_filename | replace('/', '.') %}
 from {{ task.function.name }}.{{ module_path }} import {{ task.function.function }} as {{ task.function.name }}_{{ task.function.main_filename }}_{{ task.function.function }}
 

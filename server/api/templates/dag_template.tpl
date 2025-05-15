@@ -23,6 +23,9 @@ from airflow.operators.python import PythonVirtualenvOperator
 from utils.decorator import wrapped_callable
 {% endif %}
 {% if "python" in operator_types -%}
+import os
+import sys
+
 from airflow.operators.python import PythonOperator
 from utils.decorator import file_decorator
 {% endif %}

@@ -130,20 +130,19 @@ def delete_flow(flow_id: str, db: Session) -> Flow:
 
 def delete_flow_version(flow_id: str, db: Session, version: int = 0, is_draft=False):
     try:
-        flow_version = get_flow_version(db, flow_id, version=version, is_draft=is_draft, eager_load=False)
+        flow_version = get_flow_version(db, flow_id, version=version, is_draft=is_draft, eager_load=True)
         if not flow_version:
             raise ValueError(f"DAG {flow_id} version {version} draft {is_draft} not found")
-        copied_flow_version = copy.deepcopy(flow_version)
         db.delete(flow_version)
-        logger.info(f"⚠️ Delete DAG {flow_id} version {version}")
+        logger.info(f"⚠️ Delete DAG {flow_id} version {flow_version.version} draft {is_draft}")
         dag_file_path = os.path.join(Config.DAG_DIR, flow_id, "draft.py" if is_draft else f"v{version}.py")
         if os.path.exists(dag_file_path):
             os.remove(dag_file_path)
             logger.info(f"🗑️ Delete DAG file {dag_file_path}")
         db.commit()
-        return copied_flow_version
+        return flow_version
     except Exception as e:
-        logger.error(f"Failed to delete DAG version {flow_id}__{version} due to {e}", e)
+        logger.error(f"Failed to delete DAG {flow_id} version {version} draft {is_draft} due to {e}", e)
         db.rollback()
 
 

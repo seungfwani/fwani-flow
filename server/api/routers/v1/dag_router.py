@@ -85,7 +85,7 @@ async def delete_dag_draft_dag(dag_id: str, db: Session = Depends(get_db)):
     """
     DAG 의 draft 버전 삭제
     """
-    return DAGResponse.from_dag(delete_flow_version(dag_id, db, 0, True))
+    return DAGResponse.from_dag(delete_flow_version(dag_id, db, is_draft=True))
 
 
 @router.get("",
