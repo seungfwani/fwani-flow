@@ -18,6 +18,6 @@ class Task(Base):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     flow_version = relationship("FlowVersion", back_populates="tasks")
-    inputs = relationship("TaskInput", back_populates="task")
+    inputs = relationship("TaskInput", back_populates="task", cascade="all, delete-orphan")
     function = relationship("FunctionLibrary", uselist=False)
     task_ui = relationship("TaskUI", back_populates="task", uselist=False, cascade="all, delete-orphan")
