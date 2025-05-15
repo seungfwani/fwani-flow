@@ -62,6 +62,10 @@ services:
       - DAG_DIR=/app/dags
       - UDF_DIR=/app/udfs
       - SHARED_DIR=/app/shared
+      - AIRFLOW_HOST=airflow
+      - AIRFLOW_PORT=8080
+      - AIRFLOW_USER=admin
+      - AIRFLOW_PASSWORD=admin
     volumes:
       - ./docker/workflow.entrypoint.sh:/entrypoint.sh
       - ./server/data/dags:/app/dags
