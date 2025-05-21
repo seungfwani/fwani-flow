@@ -251,3 +251,13 @@ async def get_udf_list(db: Session = Depends(get_db)):
     logger.info(f"▶️ udf 리스트 조회")
     return [UDFResponse.from_function_library(udf_data)
             for udf_data in db.query(FunctionLibrary).all()]
+
+
+@router.get("/{udf_id}",
+            response_model=APIResponse[UDFResponse],
+            )
+@api_response_wrapper
+async def get_udf(udf_id: str, db: Session = Depends(get_db)):
+    if not (udf_data := db.query(FunctionLibrary).filter(FunctionLibrary.id == udf_id).first()):
+        return {"message": f"UDF {udf_id} not found"}
+    return UDFResponse.from_function_library(udf_data)
