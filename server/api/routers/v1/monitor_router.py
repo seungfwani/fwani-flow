@@ -1,7 +1,7 @@
 import logging
 import math
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 
 from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
@@ -55,11 +55,21 @@ class EventLogs(BaseModel):
         )
 
 
+def parse_comma_separated_ids(
+        selected_dag_ids: Optional[str] = Query(None, description="comma-separated dag_ids")
+) -> Optional[List[str]]:
+    if selected_dag_ids is None:
+        return None
+    return [v.strip() for v in selected_dag_ids.split(",") if v.strip()]
+
+
 @router.get("/event-logs")
 @api_response_wrapper
 async def get_event_log(
         limit: Optional[int] = Query(10, ge=1, le=100, description="페이지 내 limit"),
         page: Optional[int] = Query(1, ge=1, description="페이지 번호"),
+        selected_dag_ids: Optional[List[str]] = Depends(parse_comma_separated_ids),
+        event_type: Optional[str] = Query(None, description="event 타입"),
         airflow_client: AirflowClient = Depends(get_airflow_client),
         db: Session = Depends(get_db)
 ):
@@ -68,14 +78,20 @@ async def get_event_log(
     """
     offset = (page - 1) * limit
     uri = f"eventLogs?limit={limit}&offset={offset}&order_by=-when"
+    if event_type:
+        uri += f"&event={event_type}"
     result = airflow_client.get(uri)
     logs = []
     for row in result.get("event_logs", []):
         if dag_id := row.get("dag_id"):
             flow_id, version, is_draft = split_airflow_dag_id_to_flow_and_version(dag_id)
+            if flow_id not in selected_dag_ids:  # selected_dag_ids 에 해당 X
+                continue
             flow_version = get_flow_version(db, flow_id, version, is_draft)
             logs.append(EventLogs.from_json(row, flow_version))
         else:
+            if selected_dag_ids:  # dag 관련 X, len(selected_dag_ids) > 0
+                continue
             logs.append(EventLogs.from_json(row))
 
     logger.info(logs)
