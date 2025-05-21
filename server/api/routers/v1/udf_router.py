@@ -198,7 +198,7 @@ async def update_udf(udf_id: str, udf_metadata: UDFUploadRequest = Form(...),
                 (python_files[0].filename if udf_metadata.main_filename is None else udf_metadata.main_filename).rsplit(
                     ".")[0]
             udf_data.function = udf_metadata.function_name
-            save_udf_files(python_files, requirements_file, udf_data.path, udf_data.name, udf_data.function_name)
+            save_udf_files(python_files, requirements_file, udf_data.path, udf_data.name, udf_data.function)
         udf_data = set_input_output(udf_data, udf_metadata)
         db.add(udf_data)
         db.commit()
