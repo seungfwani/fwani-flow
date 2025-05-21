@@ -85,12 +85,12 @@ async def get_event_log(
     for row in result.get("event_logs", []):
         if dag_id := row.get("dag_id"):
             flow_id, version, is_draft = split_airflow_dag_id_to_flow_and_version(dag_id)
-            if flow_id not in selected_dag_ids:  # selected_dag_ids 에 해당 X
+            if len(selected_dag_ids) > 0 and flow_id not in selected_dag_ids:  # selected_dag_ids 에 해당 X
                 continue
             flow_version = get_flow_version(db, flow_id, version, is_draft)
             logs.append(EventLogs.from_json(row, flow_version))
         else:
-            if selected_dag_ids:  # dag 관련 X, len(selected_dag_ids) > 0
+            if len(selected_dag_ids) > 0:  # dag 관련 X, len(selected_dag_ids) > 0
                 continue
             logs.append(EventLogs.from_json(row))
 
