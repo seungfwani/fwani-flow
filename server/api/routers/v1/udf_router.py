@@ -191,7 +191,7 @@ async def update_udf(udf_id: str, udf_metadata: UDFUploadRequest = Form(...),
         udf_data.description = udf_metadata.description
         udf_data.operator_type = udf_metadata.operator_type
         udf_data.docker_image_tag = udf_metadata.docker_image
-        if len(files) > 0:
+        if files and len(files) > 0:
             python_files, requirements_file = get_python_files_and_requirements(files)
             udf_data.main_filename = \
                 (python_files[0].filename if udf_metadata.main_filename is None else udf_metadata.main_filename).rsplit(
