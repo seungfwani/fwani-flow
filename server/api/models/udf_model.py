@@ -23,7 +23,7 @@ class UDFOutputSchema(BaseModel):
 
 class UDFUploadRequest(BaseModel):
     name: str = Field(..., description="UDF Name", examples=["UDF Name"])
-    description: Optional[str] = Field(..., description="udf 설명", examples=["udf description"])
+    description: Optional[str] = Field(None, description="udf 설명", examples=["udf description"])
     main_filename: Optional[str] = Field(None, description="UDF main file name (default: first python file of request)", examples=["main_python_file_name"])
     function_name: str = Field("run", description="main function name (default: run)", examples=["run"])
     operator_type: str = Field("python", description="operator type [python, python_virtual, docker]", examples=["python", "python_virtual", "docker"])
