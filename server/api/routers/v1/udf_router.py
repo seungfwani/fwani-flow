@@ -106,6 +106,7 @@ def save_udf_files(python_files, requirements_file, file_dir: str, udf_name: str
 
 
 def set_input_output(udf_data: FunctionLibrary, udf_metadata: UDFUploadRequest):
+    udf_data.inputs = []
     for i in udf_metadata.inputs:
         udf_data.inputs.append(FunctionInput(
             name=i.name,
