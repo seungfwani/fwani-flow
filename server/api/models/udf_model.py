@@ -23,6 +23,7 @@ class UDFOutputSchema(BaseModel):
 
 class UDFUploadRequest(BaseModel):
     name: str = Field(..., description="UDF Name", examples=["UDF Name"])
+    description: Optional[str] = Field(..., description="udf 설명", examples=["udf description"])
     main_filename: Optional[str] = Field(None, description="UDF main file name (default: first python file of request)", examples=["main_python_file_name"])
     function_name: str = Field("run", description="main function name (default: run)", examples=["run"])
     operator_type: str = Field("python", description="operator type [python, python_virtual, docker]", examples=["python", "python_virtual", "docker"])
@@ -52,6 +53,11 @@ class UDFResponse(BaseModel):
     id: str = Field(..., description="Generated UDF id", examples=["00000000-0000-4000-9000-000000000000"])
     name: str = Field(..., description="UDF name", examples=["UDF name"])
     description: Optional[str] = Field(..., description="UDF description", examples=["UDF description"])
+    main_filename: Optional[str] = Field(None, description="UDF main file name (default: first python file of request)", examples=["main_python_file_name"])
+    function_name: str = Field("run", description="main function name (default: run)", examples=["run"])
+    operator_type: str = Field("python", description="operator type [python, python_virtual, docker]", examples=["python", "python_virtual", "docker"])
+    docker_image: Optional[str] = Field(..., description="docker image name", examples=["python:latest"])
+
     inputs: List[UDFInputSchema]
     output: UDFOutputSchema
 
@@ -61,6 +67,10 @@ class UDFResponse(BaseModel):
             id=function_library.id,
             name=function_library.name,
             description=function_library.description,
+            main_filename=function_library.main_filename,
+            function_name=function_library.function,
+            operator_type=function_library.operator_type,
+            docker_image=function_library.docker_image_tag,
             inputs=[UDFInputSchema(
                 name=inp.name,
                 type=inp.type,

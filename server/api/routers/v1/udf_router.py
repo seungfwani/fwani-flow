@@ -149,6 +149,7 @@ async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
         udf_data = FunctionLibrary(
             id=udf_id,
             name=udf_name,
+            description=udf_metadata.description,
             main_filename=main_filename,
             path=file_dir,
             function=udf_metadata.function_name,
@@ -187,7 +188,7 @@ async def update_udf(udf_id: str, udf_metadata: UDFUploadRequest = Form(...),
     if not (udf_data := db.query(FunctionLibrary).filter(FunctionLibrary.id == udf_id).first()):
         raise Exception(f"Udf({udf_id}) not found")
     try:
-        udf_data.name = generate_udf_filename(udf_metadata.name)
+        udf_data.description = udf_metadata.description
         udf_data.operator_type = udf_metadata.operator_type
         udf_data.docker_image_tag = udf_metadata.docker_image
         if len(files) > 0:
