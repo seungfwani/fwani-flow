@@ -59,7 +59,7 @@ def parse_comma_separated_ids(
         selected_dag_ids: Optional[str] = Query(None, description="comma-separated dag_ids")
 ) -> Optional[List[str]]:
     if selected_dag_ids is None:
-        return None
+        return []
     return [v.strip() for v in selected_dag_ids.split(",") if v.strip()]
 
 
