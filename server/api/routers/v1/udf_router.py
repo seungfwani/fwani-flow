@@ -4,7 +4,7 @@ import os.path
 import shutil
 import uuid
 import zipfile
-from typing import List
+from typing import List, Optional
 
 from fastapi import APIRouter, UploadFile, HTTPException, File, Depends, Form
 from sqlalchemy.orm import Session
@@ -54,19 +54,7 @@ def extract_zip_file(zip_file: UploadFile) -> List[UploadFile]:
     return extracted_files
 
 
-@router.post("",
-             response_model=APIResponse[UDFResponse],
-             )
-@api_response_wrapper
-async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
-                     files: List[UploadFile] = File(...),
-                     db: Session = Depends(get_db)):
-    """
-    UDF 업로드
-    """
-    if not files:
-        raise HTTPException(status_code=404, detail="No files uploaded")
-    logger.info(f"Request to upload UDF; {udf_metadata}")
+def get_python_files_and_requirements(files: List[UploadFile]):
     python_files = []
     requirements_file = None
     for file in files:
@@ -87,34 +75,76 @@ async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
             python_files.append(file)
         elif file.filename.endswith(".txt"):
             requirements_file = file
+    return python_files, requirements_file
 
+
+def save_udf_files(python_files, requirements_file, file_dir: str, udf_name: str, function_name: str, ):
+    if os.path.exists(file_dir):
+        shutil.rmtree(file_dir)
+        logger.info(f"🗑️ 저장된 파일 삭제: {file_dir}")
+
+    os.makedirs(file_dir, exist_ok=True, mode=0o777)
     udf_dir = os.path.abspath(Config.UDF_DIR)
+    is_validate_udf = False
+    for python_file in python_files:
+        file_path = os.path.join(file_dir, python_file.filename)
+        os.makedirs(os.path.dirname(file_path), exist_ok=True, mode=0o777)
+        with open(file_path, "wb") as f:
+            shutil.copyfileobj(python_file.file, f)
+            logger.info(f"✅ 파일 저장 완료: {file_path}")
+        if not is_validate_udf and validate_udf(file_path, function_name):
+            is_validate_udf = True
+    if not is_validate_udf:
+        raise HTTPException(status_code=400, detail="UDF is not valid")
+
+    if requirements_file:
+        requirements_file_path = os.path.join(file_dir, "requirements.txt")
+        with open(requirements_file_path, "wb") as f:
+            shutil.copyfileobj(requirements_file.file, f)
+            logger.info(f"✅ 파일 저장 완료: {requirements_file_path}")
+    zip_executable_udf(udf_dir, udf_name)
+
+
+def set_input_output(udf_data: FunctionLibrary, udf_metadata: UDFUploadRequest):
+    for i in udf_metadata.inputs:
+        udf_data.inputs.append(FunctionInput(
+            name=i.name,
+            type=i.type,
+            required=i.required,
+            default_value=i.default_value,
+            description=i.description,
+        ))
+
+    udf_data.output = FunctionOutput(
+        name=udf_metadata.output.name,
+        type=udf_metadata.output.type,
+        description=udf_metadata.output.description,
+    )
+    return udf_data
+
+
+@router.post("",
+             response_model=APIResponse[UDFResponse],
+             )
+@api_response_wrapper
+async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
+                     files: List[UploadFile] = File(...),
+                     db: Session = Depends(get_db)):
+    """
+    UDF 업로드
+    """
+    if not files:
+        raise HTTPException(status_code=404, detail="No files uploaded")
+    logger.info(f"Request to upload UDF; {udf_metadata}")
+    python_files, requirements_file = get_python_files_and_requirements(files)
+
     udf_name = generate_udf_filename(udf_metadata.name)
     file_dir = os.path.join(os.path.abspath(Config.UDF_DIR), udf_name)
     try:
-        os.makedirs(file_dir, exist_ok=True, mode=0o777)
+        save_udf_files(python_files, requirements_file, file_dir, udf_name, udf_metadata.function_name)
         main_filename = \
             (python_files[0].filename if udf_metadata.main_filename is None else udf_metadata.main_filename).rsplit(
                 ".")[0]
-        is_validate_udf = False
-        for python_file in python_files:
-            file_path = os.path.join(file_dir, python_file.filename)
-            os.makedirs(os.path.dirname(file_path), exist_ok=True, mode=0o777)
-            with open(file_path, "wb") as f:
-                shutil.copyfileobj(python_file.file, f)
-                logger.info(f"✅ 파일 저장 완료: {file_path}")
-            if not is_validate_udf and validate_udf(file_path, udf_metadata.function_name):
-                is_validate_udf = True
-        if not is_validate_udf:
-            raise HTTPException(status_code=400, detail="UDF is not valid")
-
-        if requirements_file:
-            requirements_file_path = os.path.join(file_dir, "requirements.txt")
-            with open(requirements_file_path, "wb") as f:
-                shutil.copyfileobj(requirements_file.file, f)
-                logger.info(f"✅ 파일 저장 완료: {requirements_file_path}")
-        zip_executable_udf(udf_dir, udf_name)
-
         udf_id = str(uuid.uuid4())
         udf_data = FunctionLibrary(
             id=udf_id,
@@ -126,21 +156,7 @@ async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
             docker_image_tag=udf_metadata.docker_image,
             dependencies="requirements.txt",
         )
-
-        for i in udf_metadata.inputs:
-            udf_data.inputs.append(FunctionInput(
-                name=i.name,
-                type=i.type,
-                required=i.required,
-                default_value=i.default_value,
-                description=i.description,
-            ))
-
-        udf_data.output = FunctionOutput(
-            name=udf_metadata.output.name,
-            type=udf_metadata.output.type,
-            description=udf_metadata.output.description,
-        )
+        udf_data = set_input_output(udf_data, udf_metadata)
         db.add(udf_data)
         db.commit()
         db.refresh(udf_data)
@@ -157,6 +173,45 @@ async def upload_udf(udf_metadata: UDFUploadRequest = Form(...),
         if os.path.exists(file_dir):
             shutil.rmtree(file_dir)
             logger.info(f"🗑️ 저장된 파일 삭제: {file_dir}")
+
+        raise
+
+
+@router.patch("/{udf_id}",
+              response_model=APIResponse[UDFResponse],
+              )
+@api_response_wrapper
+async def update_udf(udf_id: str, udf_metadata: UDFUploadRequest = Form(...),
+                     files: Optional[List[UploadFile]] = File(None),
+                     db: Session = Depends(get_db)):
+    if not (udf_data := db.query(FunctionLibrary).filter(FunctionLibrary.id == udf_id).first()):
+        raise Exception(f"Udf({udf_id}) not found")
+    try:
+        udf_data.name = generate_udf_filename(udf_metadata.name)
+        udf_data.operator_type = udf_metadata.operator_type
+        udf_data.docker_image_tag = udf_metadata.docker_image
+        if len(files) > 0:
+            python_files, requirements_file = get_python_files_and_requirements(files)
+            udf_data.main_filename = \
+                (python_files[0].filename if udf_metadata.main_filename is None else udf_metadata.main_filename).rsplit(
+                    ".")[0]
+            udf_data.function = udf_metadata.function_name
+            save_udf_files(python_files, requirements_file, udf_data.path, udf_data.name, udf_data.function_name)
+        udf_data = set_input_output(udf_data, udf_metadata)
+        db.add(udf_data)
+        db.commit()
+        db.refresh(udf_data)
+        logger.info(f"✅ 메타데이터 저장 완료: {udf_data}")
+        return UDFResponse.from_function_library(udf_data)
+    except Exception as e:
+        logger.error(f"❌ 오류 발생: {e}")
+        db.rollback()
+        logger.info(f"🔄 메타데이터 롤백")
+
+        # ✅ 파일 저장 후 DB 실패 시 파일 삭제
+        if os.path.exists(udf_data.path):
+            shutil.rmtree(udf_data.path)
+            logger.info(f"🗑️ 저장된 파일 삭제: {udf_data.path}")
 
         raise
 
