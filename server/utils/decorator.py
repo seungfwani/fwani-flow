@@ -2,7 +2,7 @@ import os
 import pickle
 import zipfile
 from functools import wraps
-from typing import Dict, List, Any, Tuple
+from typing import Dict, List, Any
 
 
 def xcom_decorator(inputs: List[Dict[str, Any]]):
@@ -95,7 +95,7 @@ def file_decorator(inputs: List[Dict[str, Any]]):
                 variable_args = [inp for inp in inputs if inp.get('type') == 'variable_args']
                 normal_args = [inp for inp in inputs if inp.get('type') != 'variable_args']
                 if variable_args:  # 무조건 1개 or 0개
-                    validated_args = tuple(before_task_outputs)
+                    validated_args = before_task_outputs
                     for inp in normal_args:
                         key = inp["name"]
                         validated_kwargs[key] = kwargs.get(key)
@@ -168,7 +168,7 @@ def file_decorator(inputs: List[Dict[str, Any]]):
 
             run_id = kwargs.pop("run_id")
             validated_args, validated_kwargs = get_input_data(dag_id, run_id, task_id, is_first_task, **kwargs)
-            func_args = args + validated_args
+            func_args = list(args) + validated_args
             # ✅ 실제 UDF 실행
             result = func(*func_args, **validated_kwargs)
             file_path = write_output_data(dag_id, run_id, task_id, is_last_task, result)
