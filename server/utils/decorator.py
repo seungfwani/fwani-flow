@@ -2,7 +2,7 @@ import os
 import pickle
 import zipfile
 from functools import wraps
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Tuple
 
 
 def xcom_decorator(inputs: List[Dict[str, Any]]):
@@ -95,7 +95,7 @@ def file_decorator(inputs: List[Dict[str, Any]]):
                 variable_args = [inp for inp in inputs if inp.get('type') == 'variable_args']
                 normal_args = [inp for inp in inputs if inp.get('type') != 'variable_args']
                 if variable_args:  # 무조건 1개 or 0개
-                    validated_args = before_task_outputs
+                    validated_args = tuple(before_task_outputs)
                     for inp in normal_args:
                         key = inp["name"]
                         validated_kwargs[key] = kwargs.get(key)
