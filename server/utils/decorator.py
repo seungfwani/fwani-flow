@@ -70,8 +70,9 @@ def file_decorator(inputs: List[Dict[str, Any]]):
         base_dir = "/app/shared"
         os.makedirs(base_dir, exist_ok=True, mode=0o777)
 
-        def get_input_data(dag_id, run_id, task_id, is_first_task, **kwargs):
-            validated_inputs = {}
+        def get_input_data(dag_id, run_id, task_id, is_first_task, **kwargs) -> (List, Dict):
+            validated_args = []
+            validated_kwargs = {}
             if is_first_task:
                 print(f"‼️ 처음 태스크 실행: {dag_id} {run_id}- {task_id}")
                 # 정의된 inpput 정리
@@ -79,7 +80,7 @@ def file_decorator(inputs: List[Dict[str, Any]]):
                     key = inp["name"]
                     expected_type = inp["type"]
                     value = kwargs.get(key)
-                    validated_inputs[key] = value
+                    validated_kwargs[key] = value
             else:
                 print(f"📥 {task_id} → 이전 Task 데이터 로드 중...")
                 before_task_outputs = []
@@ -91,14 +92,22 @@ def file_decorator(inputs: List[Dict[str, Any]]):
                             before_task_outputs.append(pickle.load(f))
                     else:
                         print(f"⚠️ {prev_file_path} 파일 없음. 이전 Task 실행이 완료되지 않았을 수 있음.")
-                for i, inp in enumerate(inputs):
-                    key = inp["name"]
-                    if i < len(before_task_outputs):  # 데이터를 순서대로 매핑
-                        validated_inputs[key] = before_task_outputs[i]
-                    else:
-                        validated_inputs[key] = kwargs.get(key)
-            print(f"validated_inputs: {validated_inputs}")
-            return validated_inputs
+                variable_args = [inp for inp in inputs if inp.get('type') == 'variable_args']
+                normal_args = [inp for inp in inputs if inp.get('type') != 'variable_args']
+                if variable_args:  # 무조건 1개 or 0개
+                    validated_args = before_task_outputs
+                    for inp in normal_args:
+                        key = inp["name"]
+                        validated_kwargs[key] = kwargs.get(key)
+                else:  # variable_args == 0
+                    for i, inp in enumerate(normal_args):
+                        key = inp["name"]
+                        if i < len(before_task_outputs):  # 데이터를 순서대로 매핑
+                            validated_kwargs[key] = before_task_outputs[i]
+                        else:
+                            validated_kwargs[key] = kwargs.get(key)
+            print(f"validated_args: {validated_args}, validated_kwargs: {validated_kwargs}")
+            return validated_args, validated_kwargs
 
         def write_output_data(dag_id, run_id, task_id, is_last_task, output):
             import json
@@ -158,9 +167,10 @@ def file_decorator(inputs: List[Dict[str, Any]]):
                 is_last_task = kwargs.pop("is_last_task", "True") == "True"
 
             run_id = kwargs.pop("run_id")
-            input_data = get_input_data(dag_id, run_id, task_id, is_first_task, **kwargs)
+            validated_args, validated_kwargs = get_input_data(dag_id, run_id, task_id, is_first_task, **kwargs)
+            func_args = args + validated_args
             # ✅ 실제 UDF 실행
-            result = func(*args, **input_data)
+            result = func(*func_args, **validated_kwargs)
             file_path = write_output_data(dag_id, run_id, task_id, is_last_task, result)
 
             return file_path

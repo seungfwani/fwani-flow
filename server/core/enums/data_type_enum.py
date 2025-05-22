@@ -8,3 +8,4 @@ class DataType(str, Enum):
     BOOL = "bool"
     DICT = "dict"
     LIST = "list"
+    VARIABLE_ARGS = "variable_args"
