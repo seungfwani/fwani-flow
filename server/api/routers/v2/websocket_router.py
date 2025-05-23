@@ -57,7 +57,7 @@ async def websocket_dag_history(websocket: WebSocket,
                     with next(get_airflow_client()) as airflow_client:
                         with SessionLocal() as db:
                             airflow_dag_run_history, tasks = get_all_tasks_by_run_id(current_run_id, airflow_client, db)
-                        tasks_data = TaskInstanceResponse.from_data(airflow_dag_run_history, tasks)
+                            tasks_data = TaskInstanceResponse.from_data(airflow_dag_run_history, tasks)
                         if tasks_data != old_tasks_data:
                             logger.info(f"🙆 Have a different tasks of run_id: {current_run_id}")
 
@@ -77,7 +77,7 @@ async def websocket_dag_history(websocket: WebSocket,
             logger.info(f"🔄 Check dag runs of dag_id: {dag_id}")
             with SessionLocal() as db:
                 dag_runs = get_all_dag_runs_of_all_versions(dag_id, db)
-            dag_runs_data = [AirflowDagRunModel.from_orm(data) for data in dag_runs]
+                dag_runs_data = [AirflowDagRunModel.from_orm(data) for data in dag_runs]
             if old_dag_runs == dag_runs_data:
                 logger.info(f"🤷 Nothing to different dag runs of dag_id: {dag_id}")
                 await asyncio.sleep(3)
