@@ -1,4 +1,4 @@
-import copy
+import json
 import json
 import logging
 import os
@@ -245,6 +245,11 @@ def is_flow_changed(new_dag: DAGRequest, latest_version_id: str, db: Session) ->
     return len(old_edges) != normalized_new_dag.get("edge_count")
 
 
+def is_flow_changed_by_hash(old_hash: str, new_dag: DAGRequest) -> bool:
+    new_hash = calculate_dag_hash(new_dag)
+    return old_hash != new_hash
+
+
 def write_dag_file(flow_version: FlowVersion):
     dag_dir_path = os.path.join(Config.DAG_DIR, flow_version.flow_id)
     os.makedirs(dag_dir_path, exist_ok=True)
@@ -318,7 +323,7 @@ def create_update_draft_dag(dag: DAGRequest, db: Session) -> FlowVersion:
                 return new_draft
         else:  # draft X
             last_fv = get_flow_last_version(flow_id, db)  # check last publish
-            if last_fv and not is_flow_changed(dag, last_fv.id, db):  # last O, 변경 X
+            if last_fv and not is_flow_changed_by_hash(last_fv.hash, dag):  # last O, 변경 X
                 return last_fv
             flow = last_fv.flow if last_fv else create_flow(dag)
             next_version = (last_fv.version + 1) if last_fv else 1
