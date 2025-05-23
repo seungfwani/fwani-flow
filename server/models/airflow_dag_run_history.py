@@ -33,6 +33,18 @@ class AirflowDagRunHistory(Base):
     snapshot_edges = relationship("AirflowDagRunSnapshotEdge", back_populates="dag_run_history",
                                   cascade="all, delete-orphan")
 
+    def __eq__(self, other):
+        if not isinstance(other, AirflowDagRunHistory):
+            return False
+        return (
+                self.flow_version_id == other.flow_version_id and
+                self.run_id == other.run_id and
+                self.state == other.state
+        )
+
+    def __hash__(self):
+        return hash((self.flow_version_id, self.run_id, self.state))
+
     @classmethod
     def from_json(cls, flow_version: FlowVersion, data: dict) -> "AirflowDagRunHistory":
         dag_run_history = AirflowDagRunHistory(
