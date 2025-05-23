@@ -31,7 +31,7 @@ async def websocket_dag_history(websocket: WebSocket,
     logger.info(f"🔌 WebSocket connected from IP: {client_ip}, dag_id: {dag_id}, user_id: {user_id}")
 
     old_dag_runs = []
-    old_task_info = []
+    old_tasks_data = None
     current_run_id = None
 
     try:
@@ -56,16 +56,17 @@ async def websocket_dag_history(websocket: WebSocket,
                 try:
                     with next(get_airflow_client()) as airflow_client:
                         airflow_dag_run_history, tasks = get_all_tasks_by_run_id(current_run_id, airflow_client, db)
-                        if tasks != old_task_info:
+                        tasks_data = TaskInstanceResponse.from_data(airflow_dag_run_history, tasks)
+                        if tasks_data != old_tasks_data:
                             logger.info(f"🙆 Have a different tasks of run_id: {current_run_id}")
-                            old_task_info = tasks
 
                             async def get_tasks():
-                                return TaskInstanceResponse.from_data(airflow_dag_run_history, tasks)
+                                return tasks_data
 
                             task_response = (await api_response_wrapper(get_tasks)()).model_dump()
                             task_response["type"] = "tasks"
                             await websocket.send_json(jsonable_encoder(task_response))
+                            old_tasks_data = tasks_data
                         else:
                             logger.info(f"🤷 Nothing to different tasks of run_id: {current_run_id}")
                 except Exception as e:

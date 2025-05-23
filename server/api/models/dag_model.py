@@ -36,6 +36,17 @@ class AirflowTaskInstanceModel(BaseModel):
             status=data.get("state"),
         )
 
+    def __eq__(self, other):
+        if not isinstance(other, AirflowTaskInstanceModel):
+            return False
+        return (
+                self.task_id == other.task_id and
+                self.status == other.status
+        )
+
+    def __hash__(self):
+        return hash((self.task_id, self.status))
+
 
 # DAG 데이터 모델 정의
 class DAGNodeData(BaseModel):
@@ -44,6 +55,17 @@ class DAGNodeData(BaseModel):
     label: Optional[str] = Field("", examples=["function name"])
 
     extra_data: Optional[AirflowTaskInstanceModel] = Field(default_factory=lambda: None)
+
+    def __eq__(self, other):
+        if not isinstance(other, DAGNodeData):
+            return False
+        return (
+                self.function_id == other.function_id and
+                self.extra_data == other.extra_data
+        )
+
+    def __hash__(self):
+        return hash((self.function_id, self.extra_data))
 
 
 class DAGNode(BaseModel):
@@ -55,6 +77,17 @@ class DAGNode(BaseModel):
     style: Optional[dict[str, Any]] = Field({}, examples=[{"key1": "value1", "key2": "value2"}])
 
     model_config = ConfigDict(extra="ignore")
+
+    def __eq__(self, other):
+        if not isinstance(other, DAGNode):
+            return False
+        return (
+                self.id == other.id and
+                self.data == other.data
+        )
+
+    def __hash__(self):
+        return hash((self.id, self.data))
 
     @model_validator(mode="before")
     @classmethod
@@ -108,6 +141,18 @@ class DAGEdge(BaseModel):
     style: Optional[dict[str, Any]] = Field({})
 
     model_config = ConfigDict(extra="ignore")
+
+    def __eq__(self, other):
+        if not isinstance(other, DAGEdge):
+            return False
+        return (
+                self.id == other.id and
+                self.source == other.source and
+                self.target == other.target
+        )
+
+    def __hash__(self):
+        return hash((self.id, self.source, self.target))
 
 
 class DAGRequest(BaseModel):
@@ -203,6 +248,18 @@ class TaskInstanceResponse(BaseModel):
     version: Optional[int]
     nodes: List[DAGNode]
     edges: List[DAGEdge]
+
+    def __eq__(self, other):
+        if not isinstance(other, TaskInstanceResponse):
+            return False
+        return (
+                self.id == other.id and
+                self.nodes == other.nodes and
+                self.edges == other.edges
+        )
+
+    def __hash__(self):
+        return hash((self.id, self.nodes, self.edges))
 
     @classmethod
     def from_data(cls, airflow_dag_run_history: AirflowDagRunHistory,
