@@ -39,11 +39,11 @@ class AirflowDagRunHistory(Base):
         return (
                 self.flow_version_id == other.flow_version_id and
                 self.run_id == other.run_id and
-                self.state == other.state
+                self.status == other.status
         )
 
     def __hash__(self):
-        return hash((self.flow_version_id, self.run_id, self.state))
+        return hash((self.flow_version_id, self.run_id, self.status))
 
     @classmethod
     def from_json(cls, flow_version: FlowVersion, data: dict) -> "AirflowDagRunHistory":
