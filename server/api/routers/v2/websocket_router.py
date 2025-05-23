@@ -42,6 +42,7 @@ async def websocket_dag_history(websocket: WebSocket,
                 if isinstance(data, dict):
                     if "run_id" in data:
                         current_run_id = data["run_id"]
+                        old_tasks_data = None
                         if current_run_id is None:
                             logger.info("🔕 Task streaming disabled by client."
                                         f" IP: {client_ip}, dag_id: {dag_id}, user_id: {user_id}")
