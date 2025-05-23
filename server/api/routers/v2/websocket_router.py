@@ -57,6 +57,7 @@ async def websocket_dag_history(websocket: WebSocket,
                     with next(get_airflow_client()) as airflow_client:
                         airflow_dag_run_history, tasks = get_all_tasks_by_run_id(current_run_id, airflow_client, db)
                         if tasks != old_task_info:
+                            logger.info(f"🙆 Have a different tasks of run_id: {current_run_id}")
                             old_task_info = tasks
 
                             async def get_tasks():
@@ -65,6 +66,8 @@ async def websocket_dag_history(websocket: WebSocket,
                             task_response = (await api_response_wrapper(get_tasks)()).model_dump()
                             task_response["type"] = "tasks"
                             await websocket.send_json(jsonable_encoder(task_response))
+                        else:
+                            logger.info(f"🤷 Nothing to different tasks of run_id: {current_run_id}")
                 except Exception as e:
                     logger.warning(f"🚫 Failed to fetch task info: {e}")
 
@@ -87,7 +90,7 @@ async def websocket_dag_history(websocket: WebSocket,
             old_dag_runs = dag_runs
             # 일정 시간 대기 후 반복 (원한다면 주기적 push도 가능)
 
-            await asyncio.sleep(3)
+            await asyncio.sleep(5)
 
     except WebSocketDisconnect:
         logger.info(f"⛓️‍💥 Client disconnected from IP: {client_ip}, dag_id: {dag_id}, user_id: {user_id}")
