@@ -221,6 +221,18 @@ class AirflowDagRunModel(BaseModel):
     conf: Optional[dict] = {}  # JSON 문자열을 dict로 역직렬화
     source: Optional[str] = "airflow"
 
+    def __eq__(self, other):
+        if not isinstance(other, AirflowDagRunModel):
+            return False
+        return (
+                self.id == other.id and
+                self.run_id == other.run_id and
+                self.status == other.status
+        )
+
+    def __hash__(self):
+        return hash((self.id, self.run_id, self.status))
+
     @classmethod
     def from_orm(cls, data: AirflowDagRunHistory):
         return cls(

@@ -76,21 +76,21 @@ async def websocket_dag_history(websocket: WebSocket,
             # DAG 실행 이력 조회
             logger.info(f"🔄 Check dag runs of dag_id: {dag_id}")
             dag_runs = get_all_dag_runs_of_all_versions(dag_id, db)
-            if old_dag_runs == dag_runs:
+            dag_runs_data = [AirflowDagRunModel.from_orm(data) for data in dag_runs]
+            if old_dag_runs == dag_runs_data:
                 logger.info(f"🤷 Nothing to different dag runs of dag_id: {dag_id}")
                 await asyncio.sleep(3)
                 continue
             logger.info(f"🙆 Have a different dag runs of dag_id: {dag_id}")
 
-            response_data = [AirflowDagRunModel.from_orm(data) for data in dag_runs]
             async def get_dag_runs():
-                return response_data
+                return dag_runs_data
 
             # 클라이언트에게 전송
             response = (await api_response_wrapper(get_dag_runs)()).model_dump()
             response["type"] = "dag_runs"
             await websocket.send_json(jsonable_encoder(response))
-            old_dag_runs = dag_runs
+            old_dag_runs = dag_runs_data
             # 일정 시간 대기 후 반복 (원한다면 주기적 push도 가능)
 
             await asyncio.sleep(5)
