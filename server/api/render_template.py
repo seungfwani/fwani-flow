@@ -10,7 +10,7 @@ from utils.functions import get_udf_requirements
 logger = logging.getLogger()
 
 
-def render_dag_script(dag_id, tasks, edges):
+def render_dag_script(dag_id, tasks, edges, tags=None):
     logger.info(f"render dag with {dag_id}, {tasks}, {edges}")
     base_directory = os.path.dirname(os.path.abspath(__file__))
     template_directory = os.path.join(base_directory, "templates")
@@ -32,4 +32,5 @@ def render_dag_script(dag_id, tasks, edges):
         container_mount_udf_target_path="/opt/airflow/udfs",
         container_mount_shared_source_path=os.path.abspath(Config.SHARED_DIR),
         container_mount_shared_target_path="/app/shared",
+        tags=tags,
     )

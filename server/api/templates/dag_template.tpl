@@ -41,6 +41,7 @@ dag = DAG(
     default_args=default_args,
     schedule_interval=None,
     catchup=False,
+    tags={{ tags }}
 )
 {% for task in tasks -%}
 {% if task.function.operator_type == 'docker' -%}

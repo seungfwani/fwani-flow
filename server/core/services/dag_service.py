@@ -259,7 +259,8 @@ def write_dag_file(flow_version: FlowVersion):
         # write dag
         file_contents = render_dag_script(f"{flow_version.flow_id}__{dag_version}",
                                           flow_version.tasks,
-                                          flow_version.edges)
+                                          flow_version.edges,
+                                          tags=[flow_version.flow_id, dag_version])
         with open(dag_file_path + ".py", 'w') as dag_file:
             dag_file.write(file_contents)
         flow_version.file_hash = get_hash(file_contents)
