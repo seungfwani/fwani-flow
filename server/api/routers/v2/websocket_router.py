@@ -2,13 +2,12 @@ import asyncio
 import json
 import logging
 
-from fastapi import APIRouter, WebSocket, Depends, Query, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, Query, WebSocketDisconnect
 from fastapi.encoders import jsonable_encoder
-from sqlalchemy.orm import Session
 
 from api.models.api_model import api_response_wrapper
 from api.models.dag_model import AirflowDagRunModel, TaskInstanceResponse
-from core.database import get_db
+from core.database import SessionLocal
 from core.services.dag_run_service import get_all_tasks_by_run_id
 from core.services.dag_service import get_all_dag_runs_of_all_versions
 from utils.airflow_client import get_airflow_client
@@ -25,7 +24,7 @@ router = APIRouter(
 async def websocket_dag_history(websocket: WebSocket,
                                 dag_id: str = Query(...),
                                 user_id: str = Query("anonymous"),
-                                db: Session = Depends(get_db)):
+                                ):
     await websocket.accept()
     client_ip = websocket.client.host
     logger.info(f"🔌 WebSocket connected from IP: {client_ip}, dag_id: {dag_id}, user_id: {user_id}")
@@ -56,7 +55,8 @@ async def websocket_dag_history(websocket: WebSocket,
             if current_run_id:
                 try:
                     with next(get_airflow_client()) as airflow_client:
-                        airflow_dag_run_history, tasks = get_all_tasks_by_run_id(current_run_id, airflow_client, db)
+                        with SessionLocal() as db:
+                            airflow_dag_run_history, tasks = get_all_tasks_by_run_id(current_run_id, airflow_client, db)
                         tasks_data = TaskInstanceResponse.from_data(airflow_dag_run_history, tasks)
                         if tasks_data != old_tasks_data:
                             logger.info(f"🙆 Have a different tasks of run_id: {current_run_id}")
@@ -75,7 +75,8 @@ async def websocket_dag_history(websocket: WebSocket,
 
             # DAG 실행 이력 조회
             logger.info(f"🔄 Check dag runs of dag_id: {dag_id}")
-            dag_runs = get_all_dag_runs_of_all_versions(dag_id, db)
+            with SessionLocal() as db:
+                dag_runs = get_all_dag_runs_of_all_versions(dag_id, db)
             dag_runs_data = [AirflowDagRunModel.from_orm(data) for data in dag_runs]
             if old_dag_runs == dag_runs_data:
                 logger.info(f"🤷 Nothing to different dag runs of dag_id: {dag_id}")
