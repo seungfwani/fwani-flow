@@ -11,7 +11,7 @@ from api.models.dag_model import AirflowDagRunModel, TaskInstanceResponse, DAGNo
 from config import Config
 from core.database import get_db
 from core.services.dag_run_service import kill_flow_run, get_flow_run_history, get_all_tasks_by_run_id, \
-    get_task_in_run_id, get_task_result_each_tasks
+    get_task_in_run_id, get_task_result_each_tasks, get_task_logs
 from utils.airflow_client import AirflowClient, get_airflow_client
 
 logger = logging.getLogger()
@@ -114,3 +114,16 @@ async def get_each_task_result(run_id: str, task_id: str, db: Session = Depends(
     DAG run 의 결과 데이터 조회
     """
     return get_task_result_each_tasks(run_id, task_id, db)
+
+
+@router.get("/{run_id}/tasks/{task_id}/logs/{try_number}")
+@api_response_wrapper
+async def get_task_logs_api(run_id: str,
+                            task_id: str,
+                            try_number: int,
+                            airflow_client: AirflowClient = Depends(get_airflow_client),
+                            db: Session = Depends(get_db)):
+    """
+    Task 의 Log 조회
+    """
+    return get_task_logs(run_id, task_id, try_number, airflow_client, db)

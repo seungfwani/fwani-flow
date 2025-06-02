@@ -22,6 +22,7 @@ class AirflowTaskInstanceModel(BaseModel):
     operator: Optional[str]
     queued_when: Optional[datetime]
     status: Optional[str]
+    try_number: Optional[int]
 
     @classmethod
     def from_json(cls, data: dict):
@@ -34,6 +35,7 @@ class AirflowTaskInstanceModel(BaseModel):
             operator=data.get("operator"),
             queued_when=string2datetime(data.get("queued_when")),
             status=data.get("state"),
+            try_number=data.get("try_number"),
         )
 
     def __eq__(self, other):
