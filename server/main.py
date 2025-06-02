@@ -1,13 +1,14 @@
 import logging
 import os
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
-from alembic import command
 from alembic.config import Config as AlembicConfig
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
+from alembic import command
 from api.routers import v1_routers, v2_routers
 from config import Config
 from core.log import LOG_CONFIG, setup_logging
@@ -31,10 +32,12 @@ def run_migrations():
 # Flask 애플리케이션 생성
 def init_app():
     # FastAPI 애플리케이션 생성
+    description_text = Path("docs/swagger_description.md").read_text(encoding="utf-8")
     app = FastAPI(
         title="Workflow Management API",
         debug=Config.DEBUG,
         lifespan=lifespan,
+        description=description_text
     )
     # API 라우트 등록
     for router in v1_routers:
