@@ -112,5 +112,5 @@ def get_task_logs(run_id: str, task_id: str, try_number: int, airflow_client: Ai
     airflow_run_id = flow_run.run_id
     airflow_task_id = task.variable_id
 
-    return airflow_client.get(
+    return airflow_client.get_content(
         f"dags/{airflow_dag_id}/dagRuns/{airflow_run_id}/taskInstances/{airflow_task_id}/logs/{try_number}")
