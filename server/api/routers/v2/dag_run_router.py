@@ -126,4 +126,8 @@ async def get_task_logs_api(run_id: str,
     """
     Task 의 Log 조회
     """
-    return get_task_logs(run_id, task_id, try_number, airflow_client, db)
+    status, log = get_task_logs(run_id, task_id, try_number, airflow_client, db)
+    return {
+        "status": status,
+        "log": log,
+    }

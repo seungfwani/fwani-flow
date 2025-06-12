@@ -105,12 +105,16 @@ def get_task_result_each_tasks(run_id: str, task_id: str, db: Session):
         raise HTTPException(status_code=404, detail="결과 파일이 존재하지 않습니다.")
 
 
-def get_task_logs(run_id: str, task_id: str, try_number: int, airflow_client: AirflowClient, db: Session) -> str:
+def get_task_logs(run_id: str, task_id: str, try_number: int, airflow_client: AirflowClient, db: Session) \
+        -> Tuple[str, str]:
     flow_run = get_flow_run_history(run_id, db)
     task, function_ = get_snapshot_task_by_id(task_id, db)
     airflow_dag_id = flow_run.dag_id
     airflow_run_id = flow_run.run_id
     airflow_task_id = task.variable_id
-
-    return airflow_client.get_content(
+    task_instance_try = airflow_client.get(
+        f"dags/{airflow_dag_id}/dagRuns/{airflow_run_id}/taskInstances/{airflow_task_id}/tries/{try_number}")
+    status = task_instance_try.get("state")
+    log = airflow_client.get_content(
         f"dags/{airflow_dag_id}/dagRuns/{airflow_run_id}/taskInstances/{airflow_task_id}/logs/{try_number}")
+    return status, log
