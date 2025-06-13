@@ -35,6 +35,30 @@ async def draft_dag(dag: DAGRequest, db: Session = Depends(get_db)):
     DAG draft 버전 생성 및 수정.
 
     draft 버전은 수정 버전으로 배포된 버전과 다름
+
+    - 스케줄 설정 방법
+
+    ```
+    # 예약어
+    @once, @hourly, @daily, @weekly, @monthly, @quarterly, @yearly
+
+    # cron 표현
+    * * * * *
+    │ │ │ │ └──── 요일 (0=일요일 ~ 6=토요일)
+    │ │ │ └────── 월 (1~12)
+    │ │ └──────── 일 (1~31)
+    │ └────────── 시 (0~23)
+    └──────────── 분 (0~59)
+    ```
+    - 스케줄 표현식 예제
+
+    | 표현식          | 설명          |
+    |--------------|-------------|
+    | `0 8 * * *`    | 매일 오전 8시    |
+    | `*/15 * * * *` | 15분마다       |
+    | `0 9 * * 1-5`  | 평일 오전 9시    |
+    | `0 0 1 * *`    | 매월 1일 자정    |
+    | `@daily`       | 매일 자정 (예약어) |
     """
     logger.info(f"Request Data: {dag}")
     return DAGResponse.from_dag(create_update_draft_dag(dag, db))
@@ -45,6 +69,33 @@ async def draft_dag(dag: DAGRequest, db: Session = Depends(get_db)):
               )
 @api_response_wrapper
 async def publish_dag(dag_id: str, dag: DAGRequest, db: Session = Depends(get_db)):
+    """
+    DAG 의 버전을 찍는 API (버전을 찍다 = is_draft=True -> False)
+
+    - 스케줄 설정 방법
+
+    ```
+    # 예약어
+    @once, @hourly, @daily, @weekly, @monthly, @quarterly, @yearly
+
+    # cron 표현
+    * * * * *
+    │ │ │ │ └──── 요일 (0=일요일 ~ 6=토요일)
+    │ │ │ └────── 월 (1~12)
+    │ │ └──────── 일 (1~31)
+    │ └────────── 시 (0~23)
+    └──────────── 분 (0~59)
+    ```
+    - 스케줄 표현식 예제
+
+    | 표현식          | 설명          |
+    |--------------|-------------|
+    | `0 8 * * *`    | 매일 오전 8시    |
+    | `*/15 * * * *` | 15분마다       |
+    | `0 9 * * 1-5`  | 평일 오전 9시    |
+    | `0 0 1 * *`    | 매월 1일 자정    |
+    | `@daily`       | 매일 자정 (예약어) |
+    """
     try:
         return DAGResponse.from_dag(publish_flow_version(dag_id, dag, db))
     except Exception as e:
