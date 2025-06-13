@@ -10,7 +10,7 @@ from utils.functions import get_udf_requirements
 logger = logging.getLogger()
 
 
-def render_dag_script(dag_id, tasks, edges, tags=None):
+def render_dag_script(dag_id, tasks, edges, tags=None, schedule=None):
     logger.info(f"render dag with {dag_id}, {tasks}, {edges}")
     base_directory = os.path.dirname(os.path.abspath(__file__))
     template_directory = os.path.join(base_directory, "templates")
@@ -26,6 +26,7 @@ def render_dag_script(dag_id, tasks, edges, tags=None):
 
     return dag_template.render(
         dag_id=dag_id,
+        schedule=schedule,
         tasks=tasks,
         edges=edges,
         container_mount_udf_source_path=os.path.abspath(Config.UDF_DIR),

@@ -1,9 +1,10 @@
 import json
 import logging
+import re
 from datetime import datetime
 from typing import List, Any, Optional, Tuple
 
-from pydantic import BaseModel, Field, model_validator, ConfigDict
+from pydantic import BaseModel, Field, model_validator, ConfigDict, field_validator
 
 from models.airflow_dag_run_history import AirflowDagRunHistory, AirflowDagRunSnapshotTask
 from models.flow_version import FlowVersion
@@ -11,6 +12,48 @@ from models.task import Task
 from utils.functions import string2datetime
 
 logger = logging.getLogger()
+
+# * * * * *
+# │ │ │ │ └──── 요일 (0=일요일 ~ 6=토요일)
+# │ │ │ └────── 월 (1~12)
+# │ │ └──────── 일 (1~31)
+# │ └────────── 시 (0~23)
+# └──────────── 분 (0~59)
+# 표현식          | 설명
+# 0 8 * * *     | 매일 오전 8시
+# */15 * * * *  | 15분마다
+# 0 9 * * 1-5   | 평일 오전 9시
+# 0 0 1 * *     | 매월 1일 자정
+# @daily        | 매일 자정 (예약어)
+SCHEDULE_KEYWORDS = ["once", "hourly", "daily", "weekly", "monthly", "quarterly", "yearly"]
+SCHEDULE_KEYWORDS_EXP = r"@(" + "|".join(SCHEDULE_KEYWORDS) + ")"
+MINUTE_UNIT = r"[0-5]?\d"
+HOUR_UNIT = r"[01]?\d|2[0-3]"
+DAY_UNIT = r"[1-9]|[12]\d|3[01]"
+MONTH_UNIT = r"0?[1-9]|1[0-2]"
+DAY_OF_WEEK_UNIT = r"[0-6]"
+
+SLASH_FORMAT = "{0}/{1}"
+RANGE_FORMAT = "{0}-{1}"
+MULTIPLE_FORMAT = "{0},{1}"
+
+CRON_EXP_FORMAT = r"(\*|{0}|{0}-{0})(/{0})?"
+MINUTE_EXP = CRON_EXP_FORMAT.format(MINUTE_UNIT)
+HOUR_EXP = CRON_EXP_FORMAT.format(HOUR_UNIT)
+DAY_EXP = CRON_EXP_FORMAT.format(DAY_UNIT)
+MONTH_EXP = CRON_EXP_FORMAT.format(MONTH_UNIT)
+DAY_OF_WEEK_EXP = CRON_EXP_FORMAT.format(DAY_OF_WEEK_UNIT)
+CRON_REGEX = (r"^("
+              + SCHEDULE_KEYWORDS_EXP
+              + "|"
+              + "("
+              + rf"{MINUTE_EXP}(,{MINUTE_UNIT})*\s+"
+              + rf"{HOUR_EXP}(,{HOUR_EXP})*\s+"
+              + rf"{DAY_EXP}(,{DAY_EXP})*\s+"
+              + rf"{MONTH_EXP}(,{MONTH_EXP})*\s+"
+              + rf"{DAY_OF_WEEK_EXP}(,{DAY_OF_WEEK_EXP})*"
+              + r")"
+              + r")$")
 
 
 class AirflowTaskInstanceModel(BaseModel):
@@ -163,6 +206,18 @@ class DAGRequest(BaseModel):
     owner: Optional[str] = Field(None, description="DAG Owner", examples=["DAG Owner"])
     nodes: List[DAGNode]
     edges: List[DAGEdge]
+    schedule: Optional[str] = Field(None, description="DAG schedule", examples=["0 9 * * *"])
+
+    @field_validator("schedule")
+    @classmethod
+    def check_docker_image_required(cls, v):
+        if v is None:
+            return v
+        if re.match(CRON_REGEX, v):
+            return v
+        raise ValueError(
+            f"Invalid schedule format: '{v}'"
+            f" — must be a cron expression or one of {["@" + kw for kw in SCHEDULE_KEYWORDS]}")
 
 
 class DAGResponse(BaseModel):
@@ -173,6 +228,7 @@ class DAGResponse(BaseModel):
     version: Optional[int]
     nodes: List[DAGNode]
     edges: List[DAGEdge]
+    schedule: Optional[str] = Field(None, description="DAG schedule", examples=["0 9 * * *"])
 
     @classmethod
     def from_dag(cls, flow_version: FlowVersion):
@@ -205,6 +261,7 @@ class DAGResponse(BaseModel):
             version=flow_version.version,
             nodes=nodes,
             edges=edges,
+            schedule=flow_version.schedule,
         )
 
 

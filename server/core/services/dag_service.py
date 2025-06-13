@@ -1,5 +1,4 @@
 import json
-import json
 import logging
 import os
 import traceback
@@ -260,7 +259,8 @@ def write_dag_file(flow_version: FlowVersion):
         file_contents = render_dag_script(f"{flow_version.flow_id}__{dag_version}",
                                           flow_version.tasks,
                                           flow_version.edges,
-                                          tags=[flow_version.flow_id, dag_version])
+                                          tags=[flow_version.flow_id, dag_version],
+                                          schedule=None if flow_version.is_draft else flow_version.schedule)
         with open(dag_file_path + ".py", 'w') as dag_file:
             dag_file.write(file_contents)
         flow_version.file_hash = get_hash(file_contents)
@@ -280,6 +280,7 @@ def create_draft_version(dag: DAGRequest, flow: Flow, db: Session, version=1) ->
                           is_draft=True,
                           version=version,
                           hash=calculate_dag_hash(dag),
+                          schedule=dag.schedule,
                           flow=flow)
 
     tasks = create_tasks(dag, db)
@@ -305,6 +306,7 @@ def update_draft_version(version: FlowVersion, dag: DAGRequest, db: Session) -> 
 
     version.set_tasks(list(tasks.values()))
     version.set_edges(edges)
+    version.schedule = dag.schedule
     return version
 
 
@@ -362,6 +364,7 @@ def publish_flow_version(flow_id: str, dag: DAGRequest, db: Session) -> FlowVers
 
     # 2. draft → publish 전환
     draft.is_draft = False
+    draft.schedule = dag.schedule
     db.flush()
 
     write_dag_file(draft)

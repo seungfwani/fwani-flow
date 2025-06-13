@@ -39,7 +39,7 @@ default_args = {
 dag = DAG(
     dag_id='{{ dag_id }}',
     default_args=default_args,
-    schedule_interval=None,
+    schedule_interval={% if schedule is string %}"{{ schedule }}"{% else %}{{ schedule }}{% endif %},
     catchup=False,
     tags={{ tags }}
 )
