@@ -25,7 +25,7 @@ logger = logging.getLogger()
 # 0 9 * * 1-5   | 평일 오전 9시
 # 0 0 1 * *     | 매월 1일 자정
 # @daily        | 매일 자정 (예약어)
-SCHEDULE_KEYWORDS = ["once", "hourly", "daily", "weekly", "monthly", "quarterly", "yearly"]
+SCHEDULE_KEYWORDS = ["once", "hourly", "daily", "weekly", "monthly", "yearly"]
 SCHEDULE_KEYWORDS_EXP = r"@(" + "|".join(SCHEDULE_KEYWORDS) + ")"
 MINUTE_UNIT = r"[0-5]?\d"
 HOUR_UNIT = r"[01]?\d|2[0-3]"

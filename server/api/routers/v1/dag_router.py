@@ -40,7 +40,7 @@ async def draft_dag(dag: DAGRequest, db: Session = Depends(get_db)):
 
     ```
     # 예약어
-    @once, @hourly, @daily, @weekly, @monthly, @quarterly, @yearly
+    @once, @hourly, @daily, @weekly, @monthly, @yearly
 
     # cron 표현
     * * * * *
@@ -76,7 +76,7 @@ async def publish_dag(dag_id: str, dag: DAGRequest, db: Session = Depends(get_db
 
     ```
     # 예약어
-    @once, @hourly, @daily, @weekly, @monthly, @quarterly, @yearly
+    @once, @hourly, @daily, @weekly, @monthly, @yearly
 
     # cron 표현
     * * * * *
