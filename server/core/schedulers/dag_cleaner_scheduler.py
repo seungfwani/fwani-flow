@@ -58,7 +58,7 @@ def make_paused_old_version_dag(db: Session):
                     .filter(FlowVersion.is_draft != True)
                     .order_by(desc(FlowVersion.version))
                     .all())
-    old_versions = all_versions[:-1]
+    old_versions = all_versions[1:]
     for version in old_versions:
         airflow_dag_id = get_airflow_dag_id(version)
         active_result = airflow_client.patch(f"dags/{airflow_dag_id}",
