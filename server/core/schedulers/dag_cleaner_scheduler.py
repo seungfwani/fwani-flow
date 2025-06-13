@@ -1,12 +1,16 @@
 import glob
+import json
 import logging
 import os
 
+from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from config import Config
 from core.database import SessionLocal
 from models.flow_version import FlowVersion
+from utils.airflow_client import AirflowClient
+from utils.functions import get_airflow_dag_id
 
 logger = logging.getLogger()
 
@@ -41,9 +45,31 @@ def clean_orphan_dag_files(db: Session):
     logger.info("✅ DAG 디렉토리 정리 완료.")
 
 
+def make_paused_old_version_dag(db: Session):
+    logger.info("🔄 오래된 버전의 DAG pause 시작.")
+
+    airflow_client = AirflowClient(
+        host=Config.AIRFLOW_HOST,
+        port=Config.AIRFLOW_PORT,
+        username=Config.AIRFLOW_USER,
+        password=Config.AIRFLOW_PASSWORD,
+    )
+    all_versions = (db.query(FlowVersion)
+                    .filter(FlowVersion.is_draft != True)
+                    .order_by(desc(FlowVersion.version))
+                    .all())
+    old_versions = all_versions[:-1]
+    for version in old_versions:
+        airflow_dag_id = get_airflow_dag_id(version)
+        active_result = airflow_client.patch(f"dags/{airflow_dag_id}",
+                                             json_data=json.dumps({"is_paused": True}))
+        logger.info(f"DAG {airflow_dag_id} is unactivated. {active_result}")
+
+
 def dag_cleaner_job():
     db = SessionLocal()
     try:
         clean_orphan_dag_files(db)
+        make_paused_old_version_dag(db)
     finally:
         db.close()
