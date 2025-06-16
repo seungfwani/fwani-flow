@@ -33,7 +33,6 @@ from utils.decorator import file_decorator
 
 default_args = {
     'owner': 'code_generator',
-    'start_date': datetime.now(),
     'start_date': days_ago(1),
     'retries': 1,
 }
