@@ -4,6 +4,7 @@ template 을 통해 만들어진 DAG 입니다.
 from datetime import datetime
 
 from airflow import DAG
+from airflow.utils.dates import days_ago
 
 {% set operator_types = [] -%}
 
@@ -33,6 +34,7 @@ from utils.decorator import file_decorator
 default_args = {
     'owner': 'code_generator',
     'start_date': datetime.now(),
+    'start_date': days_ago(1),
     'retries': 1,
 }
 
