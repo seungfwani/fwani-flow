@@ -228,9 +228,11 @@ def create_flow(dag: DAGRequest):
     )
 
 
-def is_flow_changed(new_dag: DAGRequest, latest_version_id: str, db: Session) -> bool:
-    old_nodes = db.query(Task).filter(Task.flow_version_id == latest_version_id).all()
-    old_edges = db.query(Edge).filter(Edge.flow_version_id == latest_version_id).all()
+def is_flow_changed(new_dag: DAGRequest, latest_version: FlowVersion, db: Session) -> bool:
+    if new_dag.schedule != latest_version.schedule:
+        return True
+    old_nodes = db.query(Task).filter(Task.flow_version_id == latest_version.id).all()
+    old_edges = db.query(Edge).filter(Edge.flow_version_id == latest_version.id).all()
 
     normalized_new_dag = normalize_dag(new_dag)
 
@@ -315,7 +317,7 @@ def create_update_draft_dag(dag: DAGRequest, db: Session) -> FlowVersion:
     try:
         existing_draft = get_flow_version(db, flow_id, is_draft=True)
         if existing_draft:  # draft O
-            if not is_flow_changed(dag, existing_draft.id, db):  # 변경 X -> 기존 draft
+            if not is_flow_changed(dag, existing_draft, db):  # 변경 X -> 기존 draft
                 logger.info("⚠️ No draft version change")
                 return existing_draft
             else:  # 변경 O -> update draft
@@ -357,7 +359,7 @@ def publish_flow_version(flow_id: str, dag: DAGRequest, db: Session) -> FlowVers
                 draft = create_draft_version(dag, flow, db, 1)
             else:
                 last_flow_version = sorted(flow.versions, key=lambda v: v.version, reverse=True)[0]
-                if not is_flow_changed(dag, last_flow_version.id, db):
+                if not is_flow_changed(dag, last_flow_version, db):
                     logger.warning("✅ DAG 내용이 변경되지 않아 publish 생략")
                     return last_flow_version
                 draft = create_draft_version(dag, flow, db, last_flow_version.version + 1)
