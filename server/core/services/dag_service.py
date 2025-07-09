@@ -345,6 +345,16 @@ def create_update_draft_dag(dag: DAGRequest, db: Session) -> FlowVersion:
         logger.warning(f"🔄 메타데이터 롤백")
         raise HTTPException(status_code=500, detail=f"DAG creation failed. {e}")
 
+def update_draft_dag(draft: FlowVersion, dag: DAGRequest, db: Session) -> FlowVersion:
+    if not is_flow_changed(dag, draft, db):  # 변경 X -> 기존 draft
+        logger.info("⚠️ No draft version change")
+        return draft
+    else:  # 변경 O -> update draft
+        logger.info("🔄 Draft version changed")
+        new_draft = update_draft_version(draft, dag, db)
+        write_dag_file(new_draft)
+        db.commit()
+        return new_draft
 
 def publish_flow_version(flow_id: str, dag: DAGRequest, db: Session) -> FlowVersion:
     # 1. draft version 찾기
@@ -363,7 +373,8 @@ def publish_flow_version(flow_id: str, dag: DAGRequest, db: Session) -> FlowVers
                     logger.warning("✅ DAG 내용이 변경되지 않아 publish 생략")
                     return last_flow_version
                 draft = create_draft_version(dag, flow, db, last_flow_version.version + 1)
-
+    else:
+        draft = update_draft_dag(draft, dag, db)
     # 2. draft → publish 전환
     draft.is_draft = False
     draft.schedule = dag.schedule
