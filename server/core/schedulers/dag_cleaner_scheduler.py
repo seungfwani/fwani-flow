@@ -7,7 +7,7 @@ from sqlalchemy import desc
 from sqlalchemy.orm import Session
 
 from config import Config
-from core.database import SessionLocal
+from core.database import SessionLocalBaseDB
 from models.flow_version import FlowVersion
 from utils.airflow_client import AirflowClient
 from utils.functions import get_airflow_dag_id
@@ -67,7 +67,7 @@ def make_paused_old_version_dag(db: Session):
 
 
 def dag_cleaner_job():
-    db = SessionLocal()
+    db = SessionLocalBaseDB()
     try:
         clean_orphan_dag_files(db)
         make_paused_old_version_dag(db)

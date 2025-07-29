@@ -3,10 +3,10 @@ import uuid
 from sqlalchemy import Column, String, ForeignKey
 from sqlalchemy.orm import relationship
 
-from core.database import Base
+from core.database import BaseDB
 
 
-class TaskInput(Base):
+class TaskInput(BaseDB):
     __tablename__ = "task_input"
 
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))

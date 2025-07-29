@@ -4,12 +4,12 @@ import uuid
 from sqlalchemy import Column, String, DateTime, Boolean, func, ForeignKey, JSON, Numeric
 from sqlalchemy.orm import relationship
 
-from core.database import Base
+from core.database import BaseDB
 from models.flow_version import FlowVersion
 from utils.functions import string2datetime
 
 
-class AirflowDagRunHistory(Base):
+class AirflowDagRunHistory(BaseDB):
     __tablename__ = "airflow_dag_run_history"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -92,7 +92,7 @@ class AirflowDagRunHistory(Base):
         return dag_run_history
 
 
-class AirflowDagRunSnapshotTask(Base):
+class AirflowDagRunSnapshotTask(BaseDB):
     __tablename__ = "airflow_dag_run_snapshot_task"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     dag_run_history_id = Column(String, ForeignKey("airflow_dag_run_history.id", ondelete="CASCADE"), nullable=False)
@@ -109,7 +109,7 @@ class AirflowDagRunSnapshotTask(Base):
     dag_run_history = relationship("AirflowDagRunHistory", back_populates="snapshot_tasks")
 
 
-class AirflowDagRunSnapshotEdge(Base):
+class AirflowDagRunSnapshotEdge(BaseDB):
     __tablename__ = "airflow_dag_run_snapshot_edge"
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     dag_run_history_id = Column(String, ForeignKey("airflow_dag_run_history.id", ondelete="CASCADE"), nullable=False)

@@ -12,6 +12,7 @@ class Config:
     DB_ENGINE = os.getenv("DB_ENGINE", "sqlite")
     DB_NAME = os.getenv("DB_NAME", "workflow.db")
     DB_URI = os.getenv("DB_URI", f"sqlite:///{DB_NAME}")
+    AIRFLOW_DB_URI = os.getenv("AIRFLOW_DB_URI", f"sqlite:///airflow.db")
 
     # Docker 설정
     DOCKER_HOST = os.getenv("DOCKER_HOST", "unix:///var/run/docker.sock")

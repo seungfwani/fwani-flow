@@ -3,10 +3,10 @@ import uuid
 from sqlalchemy import Column, String, ForeignKey, JSON
 from sqlalchemy.orm import relationship
 
-from core.database import Base
+from core.database import BaseDB
 
 
-class TaskUI(Base):
+class TaskUI(BaseDB):
     __tablename__ = "task_ui"
 
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))

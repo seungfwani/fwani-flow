@@ -7,7 +7,7 @@ from fastapi.encoders import jsonable_encoder
 
 from api.models.api_model import api_response_wrapper
 from api.models.dag_model import AirflowDagRunModel, TaskInstanceResponse
-from core.database import SessionLocal
+from core.database import SessionLocalBaseDB
 from core.services.dag_run_service import get_all_tasks_by_run_id
 from core.services.dag_service import get_all_dag_runs_of_all_versions
 from utils.airflow_client import get_airflow_client
@@ -55,7 +55,7 @@ async def websocket_dag_history(websocket: WebSocket,
             if current_run_id:
                 try:
                     with next(get_airflow_client()) as airflow_client:
-                        with SessionLocal() as db:
+                        with SessionLocalBaseDB() as db:
                             airflow_dag_run_history, tasks = get_all_tasks_by_run_id(current_run_id, airflow_client, db)
                             tasks_data = TaskInstanceResponse.from_data(airflow_dag_run_history, tasks)
                         if tasks_data != old_tasks_data:
@@ -75,7 +75,7 @@ async def websocket_dag_history(websocket: WebSocket,
 
             # DAG 실행 이력 조회
             logger.info(f"🔄 Check dag runs of dag_id: {dag_id}")
-            with SessionLocal() as db:
+            with SessionLocalBaseDB() as db:
                 dag_runs = get_all_dag_runs_of_all_versions(dag_id, db)
                 dag_runs_data = [AirflowDagRunModel.from_orm(data) for data in dag_runs]
             if old_dag_runs == dag_runs_data:

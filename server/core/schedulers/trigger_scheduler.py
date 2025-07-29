@@ -6,7 +6,7 @@ from typing import List
 from sqlalchemy.orm import Session
 
 from config import Config
-from core.database import SessionLocal
+from core.database import SessionLocalBaseDB
 from core.services.dag_service import get_flow_version
 from models.airflow_dag_run_history import AirflowDagRunHistory
 from models.flow_trigger_queue import FlowTriggerQueue
@@ -80,7 +80,7 @@ def process_trigger_queue(db: Session):
 
 
 def trigger_job():
-    db = SessionLocal()
+    db = SessionLocalBaseDB()
     try:
         process_trigger_queue(db)
     finally:

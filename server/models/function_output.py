@@ -3,10 +3,10 @@ import uuid
 from sqlalchemy import Column, String, Text, ForeignKey
 from sqlalchemy.orm import relationship
 
-from core.database import Base
+from core.database import BaseDB
 
 
-class FunctionOutput(Base):
+class FunctionOutput(BaseDB):
     __tablename__ = "function_output"
 
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))

@@ -3,10 +3,10 @@ import uuid
 from sqlalchemy import Column, String, Text, DateTime, func
 from sqlalchemy.orm import relationship
 
-from core.database import Base
+from core.database import BaseDB
 
 
-class FunctionLibrary(Base):
+class FunctionLibrary(BaseDB):
     __tablename__ = "function_library"
 
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))

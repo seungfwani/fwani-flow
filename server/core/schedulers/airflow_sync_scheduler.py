@@ -3,7 +3,7 @@ import datetime
 from sqlalchemy.orm import Session
 
 from config import Config
-from core.database import SessionLocal
+from core.database import SessionLocalBaseDB
 from core.services.dag_service import get_flow_version
 from models.airflow_dag_run_history import AirflowDagRunHistory
 from models.flow_version import FlowVersion
@@ -47,7 +47,7 @@ def sync_dag_runs_from_airflow(dag_id: str, db: Session):
 
 
 def trigger_sync_job():
-    db = SessionLocal()
+    db = SessionLocalBaseDB()
     try:
         all_fv = db.query(FlowVersion).distinct()
         for fv in all_fv:

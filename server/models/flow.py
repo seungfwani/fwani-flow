@@ -3,10 +3,10 @@ import uuid
 from sqlalchemy import Column, String, Text, DateTime, func, Integer, ForeignKey
 from sqlalchemy.orm import relationship
 
-from core.database import Base
+from core.database import BaseDB
 
 
-class Flow(Base):
+class Flow(BaseDB):
     __tablename__ = "flow"
 
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
