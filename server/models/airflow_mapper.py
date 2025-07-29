@@ -1,7 +1,7 @@
 import json
 import uuid
 
-from sqlalchemy import Column, String, DateTime, Boolean, func, ForeignKey, JSON, Numeric, BIGINT
+from sqlalchemy import Column, String, DateTime, Boolean, func, ForeignKey, JSON, Numeric, BIGINT, Integer, Float
 from sqlalchemy.orm import relationship
 
 from core.database import BaseDB, AirflowDB
@@ -10,28 +10,27 @@ from utils.functions import string2datetime
 
 
 class AirflowDagCode(AirflowDB):
-    __tablename__ = "airflow_dag_run_history"
+    __tablename__ = "dag_code"
 
-    fileloc_hash = Column(BIGINT, primary_key=True, default=lambda: str(uuid.uuid4()))
-    flow_version_id = Column(String, ForeignKey("flow_version.id", ondelete="CASCADE"), nullable=False)
-    dag_id = Column(String, nullable=False)
-    run_id = Column(String, nullable=False)
-    execution_date = Column(DateTime)
+    fileloc_hash = Column(BIGINT, primary_key=True)
+    fileloc = Column(String, nullable=False)
+    last_updated = Column(DateTime, nullable=False)
+    source_code = Column(String, nullable=False)
+
+
+class AirflowTaskInstance(AirflowDB):
+    __tablename__ = "task_instance"
+
+    task_id = Column(String, primary_key=True)
+    dag_id = Column(String, primary_key=True)
+    run_id = Column(String, primary_key=True)
+    map_index = Column(Integer, primary_key=True)
     start_date = Column(DateTime)
     end_date = Column(DateTime)
-    status = Column(String)  # e.g., 'success', 'failed'
-    external_trigger = Column(Boolean, default=True)
-    run_type = Column(String)  # e.g., 'manual', 'scheduled'
-    conf = Column(String)
-    source = Column(String, nullable=True)  # e.g. 'ui', 'api', 'cli'
-    created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now())
-
-    flow_version = relationship("FlowVersion", back_populates="airflow_dag_run_histories")
-    snapshot_tasks = relationship("AirflowDagRunSnapshotTask", back_populates="dag_run_history",
-                                  cascade="all, delete-orphan")
-    snapshot_edges = relationship("AirflowDagRunSnapshotEdge", back_populates="dag_run_history",
-                                  cascade="all, delete-orphan")
+    duration = Column(Float)
+    state = Column(String)
+    try_number = Column(Integer)
+    updated_at = Column(DateTime)
 
     # def __eq__(self, other):
     #     if not isinstance(other, AirflowDagRunHistory):
