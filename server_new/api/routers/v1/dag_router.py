@@ -1,4 +1,5 @@
 import logging
+from typing import List
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -25,5 +26,30 @@ async def save_dag(dag: DAGRequest, db: Session = Depends(get_db), airflow: Sess
     """
     DAG 저장 api
     """
-    dag_service = DagService(dag, db, airflow)
-    return dag_service.save_dag()
+    dag_service = DagService(db, airflow)
+    return dag_service.save_dag(dag)
+
+
+@router.patch("/{dag_id}",
+              response_model=APIResponse[DAGResponse],
+              )
+@api_response_wrapper
+async def update_dag(dag_id: str, dag: DAGRequest, db: Session = Depends(get_db),
+                     airflow: Session = Depends(get_airflow)):
+    """
+    DAG 저장 api
+    """
+    dag_service = DagService(db, airflow)
+    return dag_service.update_dag(dag_id, dag)
+
+
+@router.get("",
+            response_model=APIResponse[List[DAGResponse]],
+            )
+@api_response_wrapper
+async def get_dag_list(db: Session = Depends(get_db), airflow: Session = Depends(get_airflow)):
+    """
+    모든 이용가능한 DAG 리스트를 조회
+    """
+    dag_service = DagService(db, airflow)
+    return dag_service.get_dag_list()

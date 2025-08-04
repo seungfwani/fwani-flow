@@ -1,8 +1,8 @@
 """Initial migration
 
-Revision ID: 4a012f9d24b5
+Revision ID: f4738e427055
 Revises: 
-Create Date: 2025-08-01 17:52:51.767140
+Create Date: 2025-08-04 17:12:47.681247
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '4a012f9d24b5'
+revision: str = 'f4738e427055'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -44,6 +44,7 @@ def upgrade() -> None:
     op.create_table('flow',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('name', sa.String(), nullable=True),
+    sa.Column('dag_id', sa.String(), nullable=True),
     sa.Column('description', sa.Text(), nullable=True),
     sa.Column('owner_id', sa.String(), nullable=True),
     sa.Column('hash', sa.String(), nullable=True),
@@ -55,6 +56,7 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['owner_id'], ['user.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_index(op.f('ix_flow_dag_id'), 'flow', ['dag_id'], unique=True)
     op.create_index(op.f('ix_flow_id'), 'flow', ['id'], unique=False)
     op.create_index(op.f('ix_flow_name'), 'flow', ['name'], unique=True)
     op.create_table('flow_version',
@@ -68,6 +70,26 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_flow_version_id'), 'flow_version', ['id'], unique=False)
+    op.create_table('task',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('flow_id', sa.String(), nullable=False),
+    sa.Column('variable_id', sa.String(), nullable=False),
+    sa.Column('python_libraries', sa.JSON(), nullable=True),
+    sa.Column('code_string', sa.Text(), nullable=True),
+    sa.Column('code_hash', sa.String(), nullable=True),
+    sa.Column('input_meta_type', sa.JSON(), nullable=True),
+    sa.Column('output_meta_type', sa.JSON(), nullable=True),
+    sa.Column('ui_type', sa.String(), nullable=True),
+    sa.Column('ui_label', sa.String(), nullable=True),
+    sa.Column('ui_position', sa.JSON(), nullable=True),
+    sa.Column('ui_style', sa.JSON(), nullable=True),
+    sa.Column('ui_extra_data', sa.JSON(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['flow_id'], ['flow.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_task_id'), 'task', ['id'], unique=False)
     op.create_table('airflow_dag_run_history',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('flow_version_id', sa.String(), nullable=False),
@@ -86,6 +108,24 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['flow_version_id'], ['flow_version.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_table('edge',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('flow_id', sa.String(), nullable=False),
+    sa.Column('from_task_id', sa.String(), nullable=True),
+    sa.Column('to_task_id', sa.String(), nullable=True),
+    sa.Column('ui_type', sa.String(), nullable=True),
+    sa.Column('ui_label', sa.String(), nullable=True),
+    sa.Column('ui_labelStyle', sa.JSON(), nullable=True),
+    sa.Column('ui_labelBgStyle', sa.JSON(), nullable=True),
+    sa.Column('ui_labelBgPadding', sa.JSON(), nullable=True),
+    sa.Column('ui_labelBgBorderRadius', sa.Numeric(), nullable=True),
+    sa.Column('ui_style', sa.JSON(), nullable=True),
+    sa.ForeignKeyConstraint(['flow_id'], ['flow.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['from_task_id'], ['task.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['to_task_id'], ['task.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_edge_id'), 'edge', ['id'], unique=False)
     op.create_table('flow_trigger_queue',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('flow_version_id', sa.String(), nullable=False),
@@ -101,24 +141,16 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_flow_trigger_queue_id'), 'flow_trigger_queue', ['id'], unique=False)
-    op.create_table('task',
+    op.create_table('task_input',
     sa.Column('id', sa.String(), nullable=False),
-    sa.Column('flow_version_id', sa.String(), nullable=False),
-    sa.Column('variable_id', sa.String(), nullable=False),
-    sa.Column('python_libraries', sa.JSON(), nullable=True),
-    sa.Column('code_string', sa.Text(), nullable=True),
-    sa.Column('code_hash', sa.String(), nullable=True),
-    sa.Column('ui_type', sa.String(), nullable=True),
-    sa.Column('ui_label', sa.String(), nullable=True),
-    sa.Column('ui_position', sa.JSON(), nullable=True),
-    sa.Column('ui_style', sa.JSON(), nullable=True),
-    sa.Column('ui_extra_data', sa.JSON(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['flow_version_id'], ['flow_version.id'], ondelete='CASCADE'),
+    sa.Column('task_id', sa.String(), nullable=False),
+    sa.Column('key', sa.String(), nullable=False),
+    sa.Column('type', sa.String(), server_default='string', nullable=False),
+    sa.Column('value', sa.String(), nullable=True),
+    sa.ForeignKeyConstraint(['task_id'], ['task.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index(op.f('ix_task_id'), 'task', ['id'], unique=False)
+    op.create_index(op.f('ix_task_input_id'), 'task_input', ['id'], unique=False)
     op.create_table('airflow_dag_run_snapshot_edge',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('dag_run_history_id', sa.String(), nullable=False),
@@ -149,55 +181,28 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['dag_run_history_id'], ['airflow_dag_run_history.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_table('edge',
-    sa.Column('id', sa.String(), nullable=False),
-    sa.Column('flow_version_id', sa.String(), nullable=False),
-    sa.Column('from_task_id', sa.String(), nullable=True),
-    sa.Column('to_task_id', sa.String(), nullable=True),
-    sa.Column('ui_type', sa.String(), nullable=True),
-    sa.Column('ui_label', sa.String(), nullable=True),
-    sa.Column('ui_labelStyle', sa.JSON(), nullable=True),
-    sa.Column('ui_labelBgStyle', sa.JSON(), nullable=True),
-    sa.Column('ui_labelBgPadding', sa.JSON(), nullable=True),
-    sa.Column('ui_labelBgBorderRadius', sa.Numeric(), nullable=True),
-    sa.Column('ui_style', sa.JSON(), nullable=True),
-    sa.ForeignKeyConstraint(['flow_version_id'], ['flow_version.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['from_task_id'], ['task.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['to_task_id'], ['task.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_edge_id'), 'edge', ['id'], unique=False)
-    op.create_table('task_input',
-    sa.Column('id', sa.String(), nullable=False),
-    sa.Column('task_id', sa.String(), nullable=False),
-    sa.Column('key', sa.String(), nullable=False),
-    sa.Column('type', sa.String(), server_default='string', nullable=False),
-    sa.Column('value', sa.String(), nullable=True),
-    sa.ForeignKeyConstraint(['task_id'], ['task.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_task_input_id'), 'task_input', ['id'], unique=False)
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_index(op.f('ix_task_input_id'), table_name='task_input')
-    op.drop_table('task_input')
-    op.drop_index(op.f('ix_edge_id'), table_name='edge')
-    op.drop_table('edge')
     op.drop_table('airflow_dag_run_snapshot_task')
     op.drop_table('airflow_dag_run_snapshot_edge')
-    op.drop_index(op.f('ix_task_id'), table_name='task')
-    op.drop_table('task')
+    op.drop_index(op.f('ix_task_input_id'), table_name='task_input')
+    op.drop_table('task_input')
     op.drop_index(op.f('ix_flow_trigger_queue_id'), table_name='flow_trigger_queue')
     op.drop_table('flow_trigger_queue')
+    op.drop_index(op.f('ix_edge_id'), table_name='edge')
+    op.drop_table('edge')
     op.drop_table('airflow_dag_run_history')
+    op.drop_index(op.f('ix_task_id'), table_name='task')
+    op.drop_table('task')
     op.drop_index(op.f('ix_flow_version_id'), table_name='flow_version')
     op.drop_table('flow_version')
     op.drop_index(op.f('ix_flow_name'), table_name='flow')
     op.drop_index(op.f('ix_flow_id'), table_name='flow')
+    op.drop_index(op.f('ix_flow_dag_id'), table_name='flow')
     op.drop_table('flow')
     op.drop_index(op.f('ix_user_id'), table_name='user')
     op.drop_table('user')

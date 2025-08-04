@@ -1,16 +1,18 @@
 import uuid
 
 from sqlalchemy import Column, String, Text, DateTime, func, Integer, ForeignKey, Boolean
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, validates
 
 from core.database import BaseDB
+from utils.functions import make_flow_id_by_name
 
 
-class FlowModel(BaseDB):
+class Flow(BaseDB):
     __tablename__ = "flow"
 
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, unique=True, index=True)
+    dag_id = Column(String, unique=True, index=True)
     description = Column(Text)
     owner_id = Column(String, ForeignKey("user.id"))
     hash = Column(String)  # node + edge
@@ -22,8 +24,8 @@ class FlowModel(BaseDB):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     owner = relationship("User", back_populates="flows")
-    tasks = relationship("Task", back_populates="flow_version", cascade="all, delete-orphan", passive_deletes=True)
-    edges = relationship("Edge", back_populates="flow_version", cascade="all, delete-orphan", passive_deletes=True)
+    tasks = relationship("Task", back_populates="flow", cascade="all, delete-orphan", passive_deletes=True)
+    edges = relationship("Edge", back_populates="flow", cascade="all, delete-orphan", passive_deletes=True)
 
     def __repr__(self):
         return (f"<Flow ("
@@ -33,7 +35,7 @@ class FlowModel(BaseDB):
                 f")>")
 
     def __eq__(self, other):
-        if not isinstance(other, FlowModel):
+        if not isinstance(other, Flow):
             return False
         return all([
             self.name == other.name,
@@ -54,6 +56,11 @@ class FlowModel(BaseDB):
             tuple(self.edges),
         ))
 
+    @validates("name")
+    def _update_dag_id(self, key, name):
+        self.dag_id = make_flow_id_by_name(name)
+        return name
+
 
 class FlowVersion(BaseDB):
     __tablename__ = "flow_version"
@@ -65,7 +72,6 @@ class FlowVersion(BaseDB):
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
-    flow = relationship("Flow", back_populates="versions")
     flow_trigger_queues = relationship("FlowTriggerQueue", back_populates="flow_version", cascade="all, delete-orphan",
                                        passive_deletes=True)
     airflow_dag_run_histories = relationship("AirflowDagRunHistory", back_populates="flow_version",

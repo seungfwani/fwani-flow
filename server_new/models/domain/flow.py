@@ -1,13 +1,15 @@
 import hashlib
 import logging
 import os
-from datetime import datetime
-from typing import List, Any
+import uuid
+from datetime import datetime, timezone
+from typing import Any
 
 from api.render_template import render_dag_script
 from config import Config
 from errors import WorkflowError
-from models.api.dag_model import DAGNode, DAGEdge
+from models.api.dag_model import DAGNode, DAGEdge, DAGRequest, DAGResponse
+from models.db.flow import Flow as DBFlow
 from utils.functions import make_flow_id_by_name
 
 logger = logging.getLogger()
@@ -15,8 +17,8 @@ logger = logging.getLogger()
 
 class Task:
     def __init__(self,
-                 id,
-                 index,
+                 id_,
+                 variable_id,
                  python_libraries,
                  code,
                  ui_type,
@@ -27,8 +29,8 @@ class Task:
                  output_meta_type: dict[str, Any],
                  inputs: dict[str, Any],
                  ):
-        self.id = id
-        self.variable_id = f"task_{index}"
+        self.id = id_
+        self.variable_id = variable_id
         self.python_libraries = python_libraries
         self.code = code
         self.code_hash = get_hash(code)
@@ -70,7 +72,7 @@ class Edge:
                  ui_label_style,
                  ui_label_bg_style,
                  ui_label_bg_padding,
-                 ui_label_bg_borderRadius,
+                 ui_label_bg_border_radius,
                  ui_style,
                  ):
         self.source = source
@@ -80,7 +82,7 @@ class Edge:
         self.ui_label_style = ui_label_style
         self.ui_label_bg_style = ui_label_bg_style
         self.ui_label_bg_padding = ui_label_bg_padding
-        self.ui_label_bg_borderRadius = ui_label_bg_borderRadius
+        self.ui_label_bg_border_radius = ui_label_bg_border_radius
         self.ui_style = ui_style
 
     def __eq__(self, other):
@@ -90,15 +92,15 @@ class Edge:
 
     def __hash__(self):
         return hash((
-            self.source,
-            self.target,
+            hash(self.source),
+            hash(self.target),
             self.ui_type,
             self.ui_label,
-            self.ui_label_style,
-            self.ui_label_bg_style,
-            self.ui_label_bg_padding,
-            self.ui_label_bg_borderRadius,
-            self.ui_style,
+            tuple(self.ui_label_style),
+            tuple(self.ui_label_bg_style),
+            tuple(self.ui_label_bg_padding),
+            self.ui_label_bg_border_radius,
+            tuple(self.ui_style),
         ))
 
 
@@ -108,18 +110,20 @@ class Flow:
                  description: str,
                  owner: str,
                  scheduled: str,
-                 tasks: list[DAGNode],
-                 edges: list[DAGEdge],
+                 tasks: list[Task],
+                 edges: list[Edge],
+                 _id: str = None,
                  ):
-        self.id = make_flow_id_by_name(name)
+        self.id = _id if _id else str(uuid.uuid4())
         self.name = name
+        self.dag_id = make_flow_id_by_name(name)
         self.description = description
         self.owner = owner
         self.scheduled = scheduled
-        self.tasks = convert_tasks(tasks)
-        self.edges = convert_edges(edges, tasks)
+        self.tasks = tasks
+        self.edges = edges
         file_contents = self.write_file()
-        self.write_time = datetime.now()
+        self.write_time = datetime.now(timezone.utc)
         self.file_hash = get_hash(file_contents)
 
     def __eq__(self, other):
@@ -137,16 +141,75 @@ class Flow:
             tuple(self.edges),
         ))
 
+    def to_dag_response(self):
+        return DAGResponse(
+            id = self.id,
+            name=self.name,
+            description=self.description,
+            owner =self.owner,
+            scheduled=self.scheduled,
+            # TODO: task, edge 변환
+            nodes=[self.tasks],
+            edges=[self.edges],
+        )
+
+    @staticmethod
+    def from_dag_request(dag: DAGRequest):
+        tasks = convert_tasks(dag.nodes)
+        return Flow(
+            dag.name,
+            dag.description,
+            dag.owner,
+            dag.schedule,
+            tasks,
+            convert_edges(dag.edges, tasks),
+        )
+
+    @staticmethod
+    def from_db_flow(flow: DBFlow):
+        tasks_cache: dict[str, Task] = {task.id: Task(
+            task.id,
+            task.variable_id,
+            task.python_libraries,
+            task.code_string,
+            task.ui_type,
+            task.ui_label,
+            task.ui_position,
+            task.ui_style,
+            task.input_meta_type,
+            task.output_meta_type,
+            {inp.key: inp.value for inp in task.inputs},
+        ) for task in flow.tasks}
+        return Flow(
+            flow.name,
+            flow.description,
+            flow.owner_id,
+            flow.schedule,
+            list(tasks_cache.values()),
+            [Edge(
+                tasks_cache[edge.from_task_id],
+                tasks_cache[edge.to_task_id],
+                edge.ui_type,
+                edge.ui_label,
+                edge.ui_labelStyle,
+                edge.ui_labelBgStyle,
+                edge.ui_labelBgPadding,
+                edge.ui_labelBgBorderRadius,
+                edge.ui_style,
+            ) for edge in flow.edges],
+            flow.id
+        )
+
     def write_file(self):
-        dag_dir_path = os.path.join(Config.DAG_DIR, self.id)
+        dag_dir_path = os.path.join(Config.DAG_DIR, self.dag_id)
         os.makedirs(dag_dir_path, exist_ok=True)
         dag_file_path = os.path.join(dag_dir_path, "dag.py")
         try:
             # write dag
-            file_contents = render_dag_script(self.id,
+            file_contents = render_dag_script(self.dag_id,
                                               self.tasks,
                                               self.edges,
-                                              tags=[self.id, "generated"],
+                                              tags=[self.dag_id, "generated"],
                                               schedule=self.scheduled)
             with open(dag_file_path, 'w') as dag_file:
                 dag_file.write(file_contents)
@@ -160,9 +223,9 @@ class Flow:
             raise WorkflowError(msg)
 
 
-def convert_tasks(tasks: [DAGNode]) -> List[Task]:
+def convert_tasks(tasks: [DAGNode]) -> list[Task]:
     return [Task(task.id,
-                 i,
+                 f"task_{i}",
                  task.data.python_libraries,
                  task.data.code,
                  task.type,

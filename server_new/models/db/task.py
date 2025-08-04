@@ -10,12 +10,15 @@ class Task(BaseDB):
     __tablename__ = "task"
 
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
-    flow_version_id = Column(String, ForeignKey("flow_version.id", ondelete="CASCADE"), nullable=False)
+    flow_id = Column(String, ForeignKey("flow.id", ondelete="CASCADE"), nullable=False)
     variable_id = Column(String, nullable=False)
 
     python_libraries = Column(JSON)
     code_string = Column(Text)
     code_hash = Column(String)
+
+    input_meta_type = Column(JSON)
+    output_meta_type = Column(JSON)
 
     # ui node data
     ui_type = Column(String, nullable=True, default="default")
@@ -27,7 +30,7 @@ class Task(BaseDB):
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
-    flow_version = relationship("FlowVersion", back_populates="tasks")
+    flow = relationship("Flow", back_populates="tasks")
     inputs = relationship("TaskInput", back_populates="task", cascade="all, delete-orphan")
 
 
