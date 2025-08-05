@@ -12,7 +12,7 @@ class AirflowDagRunHistory(BaseDB):
     __tablename__ = "airflow_dag_run_history"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    flow_version_id = Column(String, ForeignKey("flow_version.id", ondelete="CASCADE"), nullable=False)
+    flow_id = Column(String, ForeignKey("flow.id", ondelete="CASCADE"), nullable=False)
     dag_id = Column(String, nullable=False)
     run_id = Column(String, nullable=False)
     execution_date = Column(DateTime)
@@ -26,7 +26,7 @@ class AirflowDagRunHistory(BaseDB):
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now())
 
-    flow_version = relationship("FlowVersion", back_populates="airflow_dag_run_histories")
+    flow = relationship("Flow", back_populates="airflow_dag_run_histories")
     snapshot_tasks = relationship("AirflowDagRunSnapshotTask", back_populates="dag_run_history",
                                   cascade="all, delete-orphan")
     snapshot_edges = relationship("AirflowDagRunSnapshotEdge", back_populates="dag_run_history",

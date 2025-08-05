@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Generator
 from urllib.parse import urljoin
@@ -63,7 +64,8 @@ class AirflowClient:
     def _make_url(self, endpoint: str):
         return urljoin(self.base_url, endpoint.lstrip("/"))
 
-    def get(self, endpoint, params=None):
+    def _get(self, endpoint, params=None):
+        logger.info(f"[AirflowClient] Requesting GET {endpoint}, params={params}")
         url = self._make_url(endpoint)
         response = self._request_with_reconnect("GET", url, params=params)
         return response.json()
@@ -73,12 +75,14 @@ class AirflowClient:
         response = self._request_with_reconnect("GET", url, params=params)
         return response.content
 
-    def post(self, endpoint, json_data=None):
+    def _post(self, endpoint, json_data=None):
+        logger.info(f"[AirflowClient] Requesting POST {endpoint}, json={json_data}")
         url = self._make_url(endpoint)
         response = self._request_with_reconnect("POST", url, data=json_data)
         return response.json()
 
-    def patch(self, endpoint, json_data=None):
+    def _patch(self, endpoint, json_data=None):
+        logger.info(f"[AirflowClient] Requesting PATCH {endpoint}, json={json_data}")
         url = self._make_url(endpoint)
         response = self._request_with_reconnect("PATCH", url, data=json_data)
         return response.json()
@@ -88,10 +92,34 @@ class AirflowClient:
         response = self._request_with_reconnect("DELETE", url)
         return response.status_code == 204 or response.json()
 
-    @staticmethod
-    def _check_response(response):
-        if not response.ok:
-            raise Exception(f"Airflow API call failed, {response.status_code}: {response.text}")
+    def run_dag(self, dag_id: str, data: dict = None) -> str:
+        """
+        DAG 실행 후 run_id 반환
+        :param data:
+        :param dag_id:
+        :return:
+        """
+        check_dag_of_airflow = self._get(f"dags/{dag_id}")
+        if check_dag_of_airflow.get("is_paused"):
+            logger.info(f"[AirflowClient] DAG {dag_id} paused. Request activate")
+            active_result = self._patch(f"dags/{dag_id}",
+                                        json_data=json.dumps({
+                                            "is_paused": False
+                                        }))
+            logger.info(f"[AirflowClient] DAG {dag_id} is activated. {active_result}")
+        response = self._post(f"dags/{dag_id}/dagRuns", json.dumps(data))
+        return response["dag_run_id"]
+
+    def get_status(self, dag_id: str, run_id: str):
+        response = self._get(f"dags/{dag_id}/dagRuns/{run_id}")
+        return response["state"]
+
+    def kill(self, dag_id: str, run_id: str):
+        response = self._patch(f"dags/{dag_id}/dagRuns/{run_id}",
+                               json_data=json.dumps({
+                                   "state": "failed",
+                               }))
+        return response["state"]
 
 
 def get_airflow_client() -> Generator[AirflowClient, None, None]:

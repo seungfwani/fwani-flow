@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from config import Config
 from core.database import SessionLocalBaseDB
-from core.services.dag_service import get_flow_version
+from core.services.flow_definition_service import get_flow_version
 from models.airflow_dag_run_history import AirflowDagRunHistory
 from models.flow_trigger_queue import FlowTriggerQueue
 from utils.airflow_client import AirflowClient

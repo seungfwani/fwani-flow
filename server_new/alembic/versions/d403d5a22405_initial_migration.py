@@ -1,8 +1,8 @@
 """Initial migration
 
-Revision ID: f4738e427055
+Revision ID: d403d5a22405
 Revises: 
-Create Date: 2025-08-04 17:12:47.681247
+Create Date: 2025-08-05 16:26:22.159208
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'f4738e427055'
+revision: str = 'd403d5a22405'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -51,6 +51,7 @@ def upgrade() -> None:
     sa.Column('file_hash', sa.String(), nullable=True),
     sa.Column('is_loaded_by_airflow', sa.Boolean(), nullable=True),
     sa.Column('schedule', sa.String(), nullable=True),
+    sa.Column('is_deleted', sa.Boolean(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['owner_id'], ['user.id'], ),
@@ -59,17 +60,41 @@ def upgrade() -> None:
     op.create_index(op.f('ix_flow_dag_id'), 'flow', ['dag_id'], unique=True)
     op.create_index(op.f('ix_flow_id'), 'flow', ['id'], unique=False)
     op.create_index(op.f('ix_flow_name'), 'flow', ['name'], unique=True)
-    op.create_table('flow_version',
+    op.create_table('airflow_dag_run_history',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('flow_id', sa.String(), nullable=False),
-    sa.Column('version', sa.Integer(), nullable=True),
-    sa.Column('is_draft', sa.Boolean(), nullable=True),
+    sa.Column('dag_id', sa.String(), nullable=False),
+    sa.Column('run_id', sa.String(), nullable=False),
+    sa.Column('execution_date', sa.DateTime(), nullable=True),
+    sa.Column('start_date', sa.DateTime(), nullable=True),
+    sa.Column('end_date', sa.DateTime(), nullable=True),
+    sa.Column('status', sa.String(), nullable=True),
+    sa.Column('external_trigger', sa.Boolean(), nullable=True),
+    sa.Column('run_type', sa.String(), nullable=True),
+    sa.Column('conf', sa.String(), nullable=True),
+    sa.Column('source', sa.String(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['flow_id'], ['flow.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
-    op.create_index(op.f('ix_flow_version_id'), 'flow_version', ['id'], unique=False)
+    op.create_table('flow_execution_queue',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('flow_id', sa.String(), nullable=False),
+    sa.Column('dag_id', sa.String(), nullable=True),
+    sa.Column('run_id', sa.String(), nullable=True),
+    sa.Column('status', sa.String(), nullable=True),
+    sa.Column('scheduled_time', sa.DateTime(), nullable=True),
+    sa.Column('triggered_time', sa.DateTime(), nullable=True),
+    sa.Column('data', sa.JSON(), nullable=True),
+    sa.Column('try_count', sa.Integer(), nullable=True),
+    sa.Column('file_hash', sa.String(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['flow_id'], ['flow.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_flow_execution_queue_id'), 'flow_execution_queue', ['id'], unique=False)
     op.create_table('task',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('flow_id', sa.String(), nullable=False),
@@ -90,67 +115,6 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_task_id'), 'task', ['id'], unique=False)
-    op.create_table('airflow_dag_run_history',
-    sa.Column('id', sa.String(), nullable=False),
-    sa.Column('flow_version_id', sa.String(), nullable=False),
-    sa.Column('dag_id', sa.String(), nullable=False),
-    sa.Column('run_id', sa.String(), nullable=False),
-    sa.Column('execution_date', sa.DateTime(), nullable=True),
-    sa.Column('start_date', sa.DateTime(), nullable=True),
-    sa.Column('end_date', sa.DateTime(), nullable=True),
-    sa.Column('status', sa.String(), nullable=True),
-    sa.Column('external_trigger', sa.Boolean(), nullable=True),
-    sa.Column('run_type', sa.String(), nullable=True),
-    sa.Column('conf', sa.String(), nullable=True),
-    sa.Column('source', sa.String(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['flow_version_id'], ['flow_version.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_table('edge',
-    sa.Column('id', sa.String(), nullable=False),
-    sa.Column('flow_id', sa.String(), nullable=False),
-    sa.Column('from_task_id', sa.String(), nullable=True),
-    sa.Column('to_task_id', sa.String(), nullable=True),
-    sa.Column('ui_type', sa.String(), nullable=True),
-    sa.Column('ui_label', sa.String(), nullable=True),
-    sa.Column('ui_labelStyle', sa.JSON(), nullable=True),
-    sa.Column('ui_labelBgStyle', sa.JSON(), nullable=True),
-    sa.Column('ui_labelBgPadding', sa.JSON(), nullable=True),
-    sa.Column('ui_labelBgBorderRadius', sa.Numeric(), nullable=True),
-    sa.Column('ui_style', sa.JSON(), nullable=True),
-    sa.ForeignKeyConstraint(['flow_id'], ['flow.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['from_task_id'], ['task.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['to_task_id'], ['task.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_edge_id'), 'edge', ['id'], unique=False)
-    op.create_table('flow_trigger_queue',
-    sa.Column('id', sa.String(), nullable=False),
-    sa.Column('flow_version_id', sa.String(), nullable=False),
-    sa.Column('dag_id', sa.String(), nullable=True),
-    sa.Column('run_id', sa.String(), nullable=True),
-    sa.Column('status', sa.String(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=True),
-    sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.Column('data', sa.String(), nullable=True),
-    sa.Column('try_count', sa.Integer(), nullable=True),
-    sa.Column('file_hash', sa.String(), nullable=True),
-    sa.ForeignKeyConstraint(['flow_version_id'], ['flow_version.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_flow_trigger_queue_id'), 'flow_trigger_queue', ['id'], unique=False)
-    op.create_table('task_input',
-    sa.Column('id', sa.String(), nullable=False),
-    sa.Column('task_id', sa.String(), nullable=False),
-    sa.Column('key', sa.String(), nullable=False),
-    sa.Column('type', sa.String(), server_default='string', nullable=False),
-    sa.Column('value', sa.String(), nullable=True),
-    sa.ForeignKeyConstraint(['task_id'], ['task.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_task_input_id'), 'task_input', ['id'], unique=False)
     op.create_table('airflow_dag_run_snapshot_edge',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('dag_run_history_id', sa.String(), nullable=False),
@@ -181,25 +145,51 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['dag_run_history_id'], ['airflow_dag_run_history.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_table('edge',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('flow_id', sa.String(), nullable=False),
+    sa.Column('from_task_id', sa.String(), nullable=True),
+    sa.Column('to_task_id', sa.String(), nullable=True),
+    sa.Column('ui_type', sa.String(), nullable=True),
+    sa.Column('ui_label', sa.String(), nullable=True),
+    sa.Column('ui_labelStyle', sa.JSON(), nullable=True),
+    sa.Column('ui_labelBgStyle', sa.JSON(), nullable=True),
+    sa.Column('ui_labelBgPadding', sa.JSON(), nullable=True),
+    sa.Column('ui_labelBgBorderRadius', sa.Numeric(), nullable=True),
+    sa.Column('ui_style', sa.JSON(), nullable=True),
+    sa.ForeignKeyConstraint(['flow_id'], ['flow.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['from_task_id'], ['task.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['to_task_id'], ['task.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_edge_id'), 'edge', ['id'], unique=False)
+    op.create_table('task_input',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('task_id', sa.String(), nullable=False),
+    sa.Column('key', sa.String(), nullable=False),
+    sa.Column('type', sa.String(), server_default='string', nullable=False),
+    sa.Column('value', sa.String(), nullable=True),
+    sa.ForeignKeyConstraint(['task_id'], ['task.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_task_input_id'), 'task_input', ['id'], unique=False)
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_table('airflow_dag_run_snapshot_task')
-    op.drop_table('airflow_dag_run_snapshot_edge')
     op.drop_index(op.f('ix_task_input_id'), table_name='task_input')
     op.drop_table('task_input')
-    op.drop_index(op.f('ix_flow_trigger_queue_id'), table_name='flow_trigger_queue')
-    op.drop_table('flow_trigger_queue')
     op.drop_index(op.f('ix_edge_id'), table_name='edge')
     op.drop_table('edge')
-    op.drop_table('airflow_dag_run_history')
+    op.drop_table('airflow_dag_run_snapshot_task')
+    op.drop_table('airflow_dag_run_snapshot_edge')
     op.drop_index(op.f('ix_task_id'), table_name='task')
     op.drop_table('task')
-    op.drop_index(op.f('ix_flow_version_id'), table_name='flow_version')
-    op.drop_table('flow_version')
+    op.drop_index(op.f('ix_flow_execution_queue_id'), table_name='flow_execution_queue')
+    op.drop_table('flow_execution_queue')
+    op.drop_table('airflow_dag_run_history')
     op.drop_index(op.f('ix_flow_name'), table_name='flow')
     op.drop_index(op.f('ix_flow_id'), table_name='flow')
     op.drop_index(op.f('ix_flow_dag_id'), table_name='flow')

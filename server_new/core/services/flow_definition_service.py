@@ -5,15 +5,15 @@ from sqlalchemy.orm import Session
 from errors import WorkflowError
 from models.api.dag_model import DAGRequest
 from models.db.flow import Flow as DBFlow
-from models.domain.flow import delete_dag_file
+from models.domain.models import delete_dag_file
 from models.domain.mapper import flow_api2domain, flow_db2domain, flow_domain2db, task_edge_domain2db, flow_domain2api
 
 logger = logging.getLogger()
 
 
-class DagService:
-    def __init__(self, domain_db: Session, airflow_db: Session):
-        self.meta_db = domain_db
+class FlowDefinitionService:
+    def __init__(self, meta_db: Session, airflow_db: Session):
+        self.meta_db = meta_db
         self.airflow_db = airflow_db
 
     def find_existing_flow(self, dag: DAGRequest):

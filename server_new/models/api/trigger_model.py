@@ -2,7 +2,7 @@ from typing import Optional
 
 from pydantic import BaseModel, Field
 
-from models.flow_trigger_queue import FlowTriggerQueue
+from models.db.flow_execution_queue import FlowExecutionQueue
 
 
 class TriggerResponse(BaseModel):
@@ -13,7 +13,7 @@ class TriggerResponse(BaseModel):
     data: Optional[str]
 
     @classmethod
-    def from_flow_trigger_queue(cls, ftq: FlowTriggerQueue):
+    def from_flow_trigger_queue(cls, ftq: FlowExecutionQueue):
         return cls(
             id=ftq.id,
             flow_version_id=ftq.flow_version_id,

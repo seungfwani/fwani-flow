@@ -5,7 +5,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from core.database import get_db, get_airflow
-from core.services.dag_service import DagService
+from core.services.flow_definition_service import FlowDefinitionService
 from models.api.api_model import api_response_wrapper, APIResponse
 from models.api.dag_model import DAGResponse, DAGRequest
 
@@ -26,7 +26,7 @@ async def save_dag(dag: DAGRequest, db: Session = Depends(get_db), airflow: Sess
     """
     DAG 저장 api
     """
-    dag_service = DagService(db, airflow)
+    dag_service = FlowDefinitionService(db, airflow)
     return dag_service.save_dag(dag)
 
 
@@ -39,7 +39,7 @@ async def update_dag(dag_id: str, dag: DAGRequest, db: Session = Depends(get_db)
     """
     DAG 저장 api
     """
-    dag_service = DagService(db, airflow)
+    dag_service = FlowDefinitionService(db, airflow)
     return dag_service.update_dag(dag_id, dag)
 
 
@@ -53,7 +53,7 @@ async def get_dag_list(
     """
     모든 이용가능한 DAG 리스트를 조회
     """
-    dag_service = DagService(db, airflow)
+    dag_service = FlowDefinitionService(db, airflow)
     return dag_service.get_dag_list(is_deleted)
 
 
@@ -65,7 +65,7 @@ async def get_dag(dag_id: str, db: Session = Depends(get_db), airflow: Session =
     """
     DAG 의 상세 정보 조회
     """
-    dag_service = DagService(db, airflow)
+    dag_service = FlowDefinitionService(db, airflow)
     return dag_service.get_dag(dag_id)
 
 
@@ -79,7 +79,7 @@ async def delete_dag_permanently(dag_id: str, db: Session = Depends(get_db), air
 
     (주의!) 실행 기록도 삭제됩니다.
     """
-    dag_service = DagService(db, airflow)
+    dag_service = FlowDefinitionService(db, airflow)
     return dag_service.delete_dag_permanently(dag_id)
 
 
@@ -93,7 +93,7 @@ async def delete_dag_temporary(dag_id: str, db: Session = Depends(get_db), airfl
 
     (주의!) 실행 기록도 삭제됩니다.
     """
-    dag_service = DagService(db, airflow)
+    dag_service = FlowDefinitionService(db, airflow)
     return dag_service.delete_dag_temporary(dag_id)
 
 
@@ -107,5 +107,5 @@ async def restore_dag(dag_id: str, db: Session = Depends(get_db), airflow: Sessi
 
     (주의!) 실행 기록도 삭제됩니다.
     """
-    dag_service = DagService(db, airflow)
+    dag_service = FlowDefinitionService(db, airflow)
     return dag_service.restore_deleted_dag(dag_id)
