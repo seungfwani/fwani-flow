@@ -19,6 +19,7 @@ class Flow(BaseDB):
     file_hash = Column(String)
     is_loaded_by_airflow = Column(Boolean, default=False)
     schedule = Column(String, default=None)
+    is_deleted = Column(Boolean, default=False)
 
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

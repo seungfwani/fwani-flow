@@ -1,5 +1,5 @@
-from api.routers.v1 import dag_router
+from api.routers.v1 import dag_crud
 
 routers = [
-    dag_router.router,
+    dag_crud.router,
 ]

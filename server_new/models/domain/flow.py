@@ -1,6 +1,7 @@
 import hashlib
 import logging
 import os
+import shutil
 import uuid
 from datetime import datetime, timezone
 from typing import Any
@@ -8,8 +9,6 @@ from typing import Any
 from api.render_template import render_dag_script
 from config import Config
 from errors import WorkflowError
-from models.api.dag_model import DAGNode, DAGEdge, DAGRequest, DAGResponse
-from models.db.flow import Flow as DBFlow
 from utils.functions import make_flow_id_by_name
 
 logger = logging.getLogger()
@@ -17,7 +16,7 @@ logger = logging.getLogger()
 
 class Task:
     def __init__(self,
-                 id_,
+                 id_: str,
                  variable_id,
                  python_libraries,
                  code,
@@ -65,6 +64,7 @@ class Task:
 
 class Edge:
     def __init__(self,
+                 id_: str,
                  source: Task,
                  target: Task,
                  ui_type,
@@ -75,6 +75,7 @@ class Edge:
                  ui_label_bg_border_radius,
                  ui_style,
                  ):
+        self.id = id_
         self.source = source
         self.target = target
         self.ui_type = ui_type
@@ -122,9 +123,8 @@ class Flow:
         self.scheduled = scheduled
         self.tasks = tasks
         self.edges = edges
-        file_contents = self.write_file()
         self.write_time = datetime.now(timezone.utc)
-        self.file_hash = get_hash(file_contents)
+        self._file_hash = None
 
     def __eq__(self, other):
         if not isinstance(other, Flow):
@@ -141,64 +141,12 @@ class Flow:
             tuple(self.edges),
         ))
 
-    def to_dag_response(self):
-        return DAGResponse(
-            id = self.id,
-            name=self.name,
-            description=self.description,
-            owner =self.owner,
-            scheduled=self.scheduled,
-            # TODO: task, edge 변환
-            nodes=[self.tasks],
-            edges=[self.edges],
-        )
-
-    @staticmethod
-    def from_dag_request(dag: DAGRequest):
-        tasks = convert_tasks(dag.nodes)
-        return Flow(
-            dag.name,
-            dag.description,
-            dag.owner,
-            dag.schedule,
-            tasks,
-            convert_edges(dag.edges, tasks),
-        )
-
-    @staticmethod
-    def from_db_flow(flow: DBFlow):
-        tasks_cache: dict[str, Task] = {task.id: Task(
-            task.id,
-            task.variable_id,
-            task.python_libraries,
-            task.code_string,
-            task.ui_type,
-            task.ui_label,
-            task.ui_position,
-            task.ui_style,
-            task.input_meta_type,
-            task.output_meta_type,
-            {inp.key: inp.value for inp in task.inputs},
-        ) for task in flow.tasks}
-        return Flow(
-            flow.name,
-            flow.description,
-            flow.owner_id,
-            flow.schedule,
-            list(tasks_cache.values()),
-            [Edge(
-                tasks_cache[edge.from_task_id],
-                tasks_cache[edge.to_task_id],
-                edge.ui_type,
-                edge.ui_label,
-                edge.ui_labelStyle,
-                edge.ui_labelBgStyle,
-                edge.ui_labelBgPadding,
-                edge.ui_labelBgBorderRadius,
-                edge.ui_style,
-            ) for edge in flow.edges],
-            flow.id
-        )
+    @property
+    def file_hash(self):
+        if self._file_hash is None:
+            file_contents = self.write_file()
+            self._file_hash = get_hash(file_contents)
+        return self._file_hash
 
     def write_file(self):
         dag_dir_path = os.path.join(Config.DAG_DIR, self.dag_id)
@@ -223,34 +171,23 @@ class Flow:
             raise WorkflowError(msg)
 
 
-def convert_tasks(tasks: [DAGNode]) -> list[Task]:
-    return [Task(task.id,
-                 f"task_{i}",
-                 task.data.python_libraries,
-                 task.data.code,
-                 task.type,
-                 task.data.label,
-                 task.position,
-                 task.style,
-                 task.data.input_meta_type,
-                 task.data.output_meta_type,
-                 task.data.inputs,
-                 ) for i, task in enumerate(tasks)]
-
-
-def convert_edges(edges: list[DAGEdge], tasks: list[Task]) -> list[Edge]:
-    tasks_dict = {t.id: t for t in tasks}
-    return [Edge(tasks_dict[edge.source],
-                 tasks_dict[edge.target],
-                 edge.type,
-                 edge.label,
-                 edge.labelStyle,
-                 edge.labelBgStyle,
-                 edge.labelBgPadding,
-                 edge.labelBgBorderRadius,
-                 edge.style,
-                 ) for edge in edges if edge.source in tasks_dict and edge.target in tasks_dict]
-
-
 def get_hash(data: str) -> str:
     return hashlib.sha256(data.encode("utf-8")).hexdigest()
+
+
+def delete_dag_file(dag_id: str):
+    dag_dir_path = os.path.join(Config.DAG_DIR, dag_id)
+    dag_file_path = os.path.join(dag_dir_path, "dag.py")
+    if os.path.exists(dag_file_path):
+        os.remove(dag_file_path)
+        logger.info(f"🗑 DAG 파일 삭제됨: {dag_file_path}")
+    else:
+        logger.warning(f"⚠️ DAG 파일이 존재하지 않음: {dag_file_path}")
+    # 디렉토리 삭제 시도
+    try:
+        shutil.rmtree(dag_dir_path)
+        logger.info(f"📂 DAG 디렉토리 삭제됨: {dag_dir_path}")
+    except FileNotFoundError:
+        logger.warning(f"⚠️ DAG 디렉토리가 존재하지 않음: {dag_dir_path}")
+    except Exception as e:
+        logger.error(f"❌ DAG 디렉토리 삭제 실패: {e}")

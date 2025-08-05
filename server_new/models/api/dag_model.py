@@ -227,7 +227,6 @@ class DAGResponse(BaseModel):
     name: str = Field(..., description="DAG Name", examples=["DAG Name"])
     description: str = Field(..., description="DAG Description", examples=["DAG Description"])
     owner: str = Field(..., description="DAG Description", examples=["DAG Description"])
-    scheduled: str = Field(..., description="DAG Description", examples=["DAG Description"])
     nodes: List[DAGNode]
     edges: List[DAGEdge]
     schedule: Optional[str] = Field(None, description="DAG schedule", examples=["0 9 * * *"])
