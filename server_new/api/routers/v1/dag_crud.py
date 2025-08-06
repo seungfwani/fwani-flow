@@ -14,7 +14,7 @@ logger = logging.getLogger()
 # 워크플로우 블루프린트 생성
 router = APIRouter(
     prefix="/dag",
-    tags=["Dag"],
+    tags=["DagManagement"],
 )
 
 

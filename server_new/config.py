@@ -24,10 +24,10 @@ class Config:
     LOG_DIR = os.getenv("LOG_DIR", "./data/logs")
     LOG_LEVEL = os.getenv("LOG_LEVEL", "DEBUG")
 
-    WORKFLOW_DIR = os.getenv("WORKFLOW_DIR", "./data/workflows")
-    UDF_DIR = os.getenv("UDF_DIR", "./data/udfs")
-    DAG_DIR = os.getenv("DAG_DIR", "./data/dags")
-    SHARED_DIR = os.getenv("SHARED_DIR", "./data/shared")
+    WORKFLOW_DIR = os.getenv("WORKFLOW_DIR", "../server/data/workflows")
+    UDF_DIR = os.getenv("UDF_DIR", "../server/data/udfs")
+    DAG_DIR = os.getenv("DAG_DIR", "../server/data/dags")
+    SHARED_DIR = os.getenv("SHARED_DIR", "../server/data/shared")
 
     # airflow
     AIRFLOW_HOST = os.getenv("AIRFLOW_HOST", "localhost")

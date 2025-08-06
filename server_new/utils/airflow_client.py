@@ -64,16 +64,19 @@ class AirflowClient:
     def _make_url(self, endpoint: str):
         return urljoin(self.base_url, endpoint.lstrip("/"))
 
-    def _get(self, endpoint, params=None):
+    def _get(self, endpoint, params=None, return_content=False) -> dict | bytes | None:
         logger.info(f"[AirflowClient] Requesting GET {endpoint}, params={params}")
         url = self._make_url(endpoint)
         response = self._request_with_reconnect("GET", url, params=params)
-        return response.json()
+        if not return_content:
+            return response.json()
+        else:
+            return response.content
 
-    def get_content(self, endpoint, params=None):
-        url = self._make_url(endpoint)
-        response = self._request_with_reconnect("GET", url, params=params)
-        return response.content
+    # def get_content(self, endpoint, params=None):
+    #     url = self._make_url(endpoint)
+    #     response = self._request_with_reconnect("GET", url, params=params)
+    #     return response.content
 
     def _post(self, endpoint, json_data=None):
         logger.info(f"[AirflowClient] Requesting POST {endpoint}, json={json_data}")
@@ -120,6 +123,18 @@ class AirflowClient:
                                    "state": "failed",
                                }))
         return response["state"]
+
+    def get_task_log(self, dag_id: str, run_id: str, task_id: str, try_number: int):
+        if try_number < 1:
+            status = "error"
+            log = f"No log for try '{try_number}'"
+        else:
+            task_instance_try = self._get(
+                f"dags/{dag_id}/dagRuns/{run_id}/taskInstances/{task_id}/tries/{try_number}")
+            status = task_instance_try.get("state")
+            log = self._get(
+                f"dags/{dag_id}/dagRuns/{run_id}/taskInstances/{task_id}/logs/{try_number}", return_content=True)
+        return status, log
 
 
 def get_airflow_client() -> Generator[AirflowClient, None, None]:

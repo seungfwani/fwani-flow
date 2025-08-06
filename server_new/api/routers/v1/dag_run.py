@@ -1,7 +1,7 @@
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, Body
+from fastapi import APIRouter, Depends, Body, Query
 from sqlalchemy.orm import Session
 
 from core.database import get_db, get_airflow
@@ -16,7 +16,7 @@ logger = logging.getLogger()
 # 워크플로우 블루프린트 생성
 router = APIRouter(
     prefix="/dag-run",
-    tags=["Dag"],
+    tags=["Execution"],
 )
 
 
@@ -71,20 +71,54 @@ async def get_dag_run_status(execution_id: str,
     flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
     return flow_execution_service.get_execution_status(execution_id)
 
+
 @router.get("/{execution_id}/tasks",
-            response_model=APIResponse[str],
+            response_model=APIResponse[list[TaskExecutionModel]],
             )
 @api_response_wrapper
 async def get_all_task_instances(execution_id: str,
-                             db: Session = Depends(get_db),
-                             airflow: Session = Depends(get_airflow),
-                             airflow_client: AirflowClient = Depends(get_airflow_client)
-                             ):
+                                 db: Session = Depends(get_db),
+                                 airflow: Session = Depends(get_airflow),
+                                 airflow_client: AirflowClient = Depends(get_airflow_client)
+                                 ):
     """
     DAG 실행의 모든 태스크 상태 조회
     """
     flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
-    return [TaskExecutionModel.from_json(t) for t in flow_execution_service.get_all_task_instance(execution_id)]
+    return [TaskExecutionModel.from_data(t) for t in flow_execution_service.get_all_task_instance(execution_id)]
+
+
+@router.get("/{execution_id}/tasks/{task_id}/logs",
+            response_model=APIResponse[dict],
+            )
+@api_response_wrapper
+async def get_task_logs(execution_id: str,
+                                 task_id: str,
+                                 try_number: int = Query(None, description="확인하고 싶은 시도에 대한 log"),
+                                 db: Session = Depends(get_db),
+                                 airflow: Session = Depends(get_airflow),
+                                 airflow_client: AirflowClient = Depends(get_airflow_client)
+                                 ):
+    """
+    DAG 실행의 모든 태스크 상태 조회
+    """
+    flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
+    return flow_execution_service.get_task_log(execution_id, task_id, try_number)
+@router.get("/{execution_id}/tasks/{task_id}/result",
+            response_model=APIResponse[dict],
+            )
+@api_response_wrapper
+async def get_task_result(execution_id: str,
+                                 task_id: str,
+                                 db: Session = Depends(get_db),
+                                 airflow: Session = Depends(get_airflow),
+                                 airflow_client: AirflowClient = Depends(get_airflow_client)
+                                 ):
+    """
+    DAG 실행의 모든 태스크 상태 조회
+    """
+    flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
+    return flow_execution_service.get_task_result_data(execution_id, task_id)
 
 # @router.post("/{dag_id}/version/{version}/trigger",
 #              response_model=APIResponse[TriggerResponse],

@@ -77,6 +77,19 @@ class TaskExecutionModel(BaseModel):
             status=data.get("state"),
             try_number=data.get("try_number"),
         )
+    @classmethod
+    def from_data(cls, data):
+        return cls(
+            task_id=data.task_id,
+            execution_date=data.execution_date,
+            start_date=data.start_date,
+            end_date=data.end_date,
+            duration=data.duration,
+            operator=data.operator,
+            queued_when=data.queued_when,
+            status=data.status,
+            try_number=data.try_number,
+        )
 
     def __eq__(self, other):
         if not isinstance(other, TaskExecutionModel):

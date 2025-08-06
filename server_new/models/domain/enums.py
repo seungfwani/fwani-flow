@@ -35,6 +35,7 @@ class FlowExecutionStatus(Enum):
             "deferred": cls.TRIGGERED,
             "removed": cls.CANCELED,
             "shutdown": cls.CANCELED,
+            "upstream_failed": cls.FAILED,
         }
         # 직접 매핑된 fallback 우선
         if value in fallback_map:
