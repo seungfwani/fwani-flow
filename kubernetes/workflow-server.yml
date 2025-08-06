@@ -1,0 +1,110 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: workflow-server
+  name: workflow-server
+  namespace: workflow4graphio
+spec:
+  selector:
+    matchLabels:
+      app: workflow-server
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: workflow-server
+    spec:
+      containers:
+        - name: workflow-server
+          image: workflow-server:latest
+          securityContext:
+            runAsGroup: 0
+            runAsUser: 1000
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              echo "📁 entrypoint.sh 복사 및 실행 권한 부여"
+              cp /entrypoint.sh /app/entrypoint.sh
+              chmod +x /app/entrypoint.sh
+              exec /app/entrypoint.sh
+          env:
+            - name: DEBUG
+              value: "True"
+            - name: DB_URI
+              value: "postgresql://workflow:workflow@postgres-svc:5432/workflow"
+            - name: AIRFLOW_DB_URI
+              value: "postgresql://airflow:airflow@postgres-svc:5432/airflow"
+            - name: LOG_DIR
+              value: "/app/logs"
+            - name: DAG_DIR
+              value: "/app/dags"
+            - name: SHARED_DIR
+              value: "/app/shared"
+            - name: AIRFLOW_HOST
+              value: "airflow-svc"
+            - name: AIRFLOW_PORT
+              value: "8080"
+            - name: AIRFLOW_USER
+              value: "admin"
+            - name: AIRFLOW_PASSWORD
+              value: "admin"
+          ports:
+            - containerPort: 5050
+              name: api-port
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /app/shared
+              name: ext-volume
+              subPath: airflow/shared
+            - mountPath: /app/logs
+              name: ext-volume
+              subPath: workflow/logs
+            - mountPath: /app/dags
+              name: ext-volume
+              subPath: airflow/dags
+            - mountPath: /entrypoint.sh
+              name: workflow-server
+              subPath: entrypoint.sh
+      volumes:
+        - name: ext-volume
+          persistentVolumeClaim:
+            claimName: pvc-workflow4graphio
+        - configMap:
+            defaultMode: 420
+            name: workflow-server
+          name: workflow-server
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: workflow-server
+  name: workflow-server-svc
+  namespace: workflow4graphio
+spec:
+  ports:
+  - name: api-port
+    port: 5050
+    protocol: TCP
+    targetPort: api-port
+  selector:
+    app: workflow-server
+  type: NodePort
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+      app: workflow-server
+  name: workflow-server
+  namespace: workflow4graphio
+data:
+  entrypoint.sh: |-
+    #!/bin/bash
+    
+    echo "💡 alembic 데이터베이스 설정..."
+    alembic upgrade head
+    
+    echo "🚀 Workflow 서버 실행..."
+    python /app/main.py

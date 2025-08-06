@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Column, String, Text, DateTime, func, Integer, ForeignKey, Boolean
+from sqlalchemy import Column, String, Text, DateTime, func, Boolean
 from sqlalchemy.orm import relationship, validates
 
 from core.database import BaseDB
@@ -14,7 +14,7 @@ class Flow(BaseDB):
     name = Column(String, unique=True, index=True)
     dag_id = Column(String, unique=True, index=True)
     description = Column(Text)
-    owner_id = Column(String, ForeignKey("user.id"))
+    owner_id = Column(String)
     hash = Column(String)  # node + edge
     file_hash = Column(String)
     is_loaded_by_airflow = Column(Boolean, default=False)
@@ -24,7 +24,6 @@ class Flow(BaseDB):
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
-    owner = relationship("User", back_populates="flows")
     tasks = relationship("Task", back_populates="flow", cascade="all, delete-orphan", passive_deletes=True)
     edges = relationship("Edge", back_populates="flow", cascade="all, delete-orphan", passive_deletes=True)
 
@@ -67,7 +66,6 @@ class Flow(BaseDB):
     def _update_dag_id(self, key, name):
         self.dag_id = make_flow_id_by_name(name)
         return name
-
 
 # class FlowVersion(BaseDB):
 #     __tablename__ = "flow_version"

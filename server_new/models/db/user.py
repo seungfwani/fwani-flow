@@ -1,7 +1,6 @@
 import uuid
 
 from sqlalchemy import Column, String, DateTime, func, Boolean
-from sqlalchemy.orm import relationship
 
 from core.database import BaseDB
 
@@ -14,5 +13,3 @@ class User(BaseDB):
     hashed_password = Column(String)
     is_admin = Column(Boolean, default=False, server_default="false")
     created_at = Column(DateTime, default=func.now())
-
-    flows = relationship("Flow", back_populates="owner")

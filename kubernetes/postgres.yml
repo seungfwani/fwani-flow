@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+      app: postgres
+  name: postgres
+  namespace: workflow4graphio
+spec:
+  selector:
+    matchLabels:
+      app: postgres
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      securityContext:
+        fsGroup: 999
+      containers:
+        - name: postgres
+          image: postgres:17
+          env:
+            - name: POSTGRES_USER
+              value: "postgres"
+            - name: POSTGRES_PASSWORD
+              value: "postgres"
+            - name: POSTGRES_DB
+              value: "postgres"
+            - name: PGDATA
+              value: "/pgdata"
+          ports:
+            - containerPort: 5432
+              name: db-port
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /pgdata
+              name: ext-volume
+              subPath: postgres/data
+            - mountPath: /docker-entrypoint-initdb.d
+              name: postgres
+      volumes:
+        - name: ext-volume
+          persistentVolumeClaim:
+            claimName: pvc-workflow4graphio
+        - configMap:
+            defaultMode: 420
+            name: postgres
+          name: postgres
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: postgres
+  name: postgres-svc
+  namespace: workflow4graphio
+spec:
+  ports:
+  - name: db-port
+    port: 5432
+    protocol: TCP
+    targetPort: db-port
+  selector:
+    app: postgres
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+      app: postgres
+  name: postgres
+  namespace: workflow4graphio
+data:
+  init.sql: |-
+    -- Create users
+    CREATE USER airflow WITH PASSWORD 'airflow';
+    CREATE USER workflow WITH PASSWORD 'workflow';
+
+    -- Create databases
+    CREATE DATABASE airflow OWNER airflow;
+    CREATE DATABASE workflow OWNER workflow;
+
+    -- Optional: Grant privileges (redundant since owner)
+    GRANT ALL PRIVILEGES ON DATABASE airflow TO airflow;
+    GRANT ALL PRIVILEGES ON DATABASE workflow TO workflow;
