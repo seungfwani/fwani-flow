@@ -93,50 +93,31 @@ async def get_all_task_instances(execution_id: str,
             )
 @api_response_wrapper
 async def get_task_logs(execution_id: str,
-                                 task_id: str,
-                                 try_number: int = Query(None, description="확인하고 싶은 시도에 대한 log"),
-                                 db: Session = Depends(get_db),
-                                 airflow: Session = Depends(get_airflow),
-                                 airflow_client: AirflowClient = Depends(get_airflow_client)
-                                 ):
+                        task_id: str,
+                        try_number: int = Query(None, description="확인하고 싶은 시도에 대한 log"),
+                        db: Session = Depends(get_db),
+                        airflow: Session = Depends(get_airflow),
+                        airflow_client: AirflowClient = Depends(get_airflow_client)
+                        ):
     """
     DAG 실행의 모든 태스크 상태 조회
     """
     flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
     return flow_execution_service.get_task_log(execution_id, task_id, try_number)
+
+
 @router.get("/{execution_id}/tasks/{task_id}/result",
             response_model=APIResponse[dict],
             )
 @api_response_wrapper
 async def get_task_result(execution_id: str,
-                                 task_id: str,
-                                 db: Session = Depends(get_db),
-                                 airflow: Session = Depends(get_airflow),
-                                 airflow_client: AirflowClient = Depends(get_airflow_client)
-                                 ):
+                          task_id: str,
+                          db: Session = Depends(get_db),
+                          airflow: Session = Depends(get_airflow),
+                          airflow_client: AirflowClient = Depends(get_airflow_client)
+                          ):
     """
     DAG 실행의 모든 태스크 상태 조회
     """
     flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
     return flow_execution_service.get_task_result_data(execution_id, task_id)
-
-# @router.post("/{dag_id}/version/{version}/trigger",
-#              response_model=APIResponse[TriggerResponse],
-#              )
-# @api_response_wrapper
-# async def request_dag_trigger(dag_id: str, version: int,
-#                               db: Session = Depends(get_db)):
-#     """
-#     특정 DAG 버전을 실행
-#     """
-#     return TriggerResponse.from_flow_trigger_queue(register_trigger_specific_version(dag_id, version, db))
-#
-#
-# @router.get("/{dag_id}/dagRuns-history",
-#             response_model=APIResponse[List[AirflowDagRunModel]], )
-# @api_response_wrapper
-# async def get_history_of_dag(dag_id: str, db: Session = Depends(get_db)):
-#     """
-#     DAG Run 리스트 조회
-#     """
-#     return [AirflowDagRunModel.from_orm(data) for data in get_all_dag_runs_of_all_versions(dag_id, db)]

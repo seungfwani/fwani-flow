@@ -77,6 +77,7 @@ class TaskExecutionModel(BaseModel):
             status=data.get("state"),
             try_number=data.get("try_number"),
         )
+
     @classmethod
     def from_data(cls, data):
         return cls(
@@ -107,7 +108,7 @@ class TaskExecutionModel(BaseModel):
 class DAGNodeData(BaseModel):
     label: Optional[str] = Field("", examples=["node name"])
     python_libraries: List[str] = Field([], description="requirements.txt 에 작성하는 포멧",
-                                        examples=[['pandas==2.3.1', 'request==2.32.3']])
+                                        examples=[['pandas==2.3.1', 'requests==2.32.3']])
     code: Optional[str] = Field("", description="python code", examples=["import json\njson.dumps([])"])
     input_meta_type: Optional[dict] = Field({}, description="graphio input meta type")
     output_meta_type: Optional[dict] = Field({}, description="function output meta type")

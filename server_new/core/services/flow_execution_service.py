@@ -160,9 +160,11 @@ class FlowExecutionService:
                 task = t
                 break
 
-        shared_dir = os.path.abspath(Config.SHARED_DIR)
-        result_dir = os.path.join(shared_dir, f"dag_id={execution.dag_id}/run_id={execution.run_id}")
-        pkl_path = os.path.join(result_dir, f"{task.variable_id}.pkl")
+        pkl_path = os.path.join(Config.SHARED_DIR,
+                                f"dag_id={execution.dag_id}",
+                                f"run_id={execution.run_id}",
+                                f"task_id={task.variable_id}",
+                                "result.pkl")
         if os.path.exists(pkl_path):
             try:
                 logger.info(f"load pickle file: {pkl_path}")

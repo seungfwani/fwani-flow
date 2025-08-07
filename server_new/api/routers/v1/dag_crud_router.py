@@ -37,7 +37,7 @@ async def save_dag(dag: DAGRequest, db: Session = Depends(get_db), airflow: Sess
 async def update_dag(dag_id: str, dag: DAGRequest, db: Session = Depends(get_db),
                      airflow: Session = Depends(get_airflow)):
     """
-    DAG 저장 api
+    DAG 업데이트 api
     """
     dag_service = FlowDefinitionService(db, airflow)
     return dag_service.update_dag(dag_id, dag)

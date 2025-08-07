@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from typing import List
+import textwrap
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -28,10 +28,51 @@ def render_dag_script(dag_id, tasks, edges, tags=None, schedule=None):
     return dag_template.render(
         dag_id=dag_id,
         schedule=schedule,
+        tags=tags,
         tasks=tasks,
         edges=edges,
-        tags=tags,
+        base_dir=Config.SHARED_DIR,  # workflow, airflow 마운트 경로 똑같아야 함
     )
+
+
+def render_task_code_script(task_code: str):
+    logger.info(f"render task code {task_code}")
+    base_directory = os.path.dirname(os.path.abspath(__file__))
+    template_directory = os.path.join(base_directory, "templates")
+    env = Environment(loader=FileSystemLoader(template_directory))
+    task_code_template = env.get_template("task_code.tpl")
+    rendered = task_code_template.render(
+        # task_code=task_code,
+        task_code=textwrap.indent(task_code, "    "),
+    )
+    logger.info(f"rendered task_code:\n{rendered}")
+    return rendered
+
+
+def render_udf_code_block(params_count: int) -> str:
+    logger.info(f"render udf template: {params_count}")
+    base_directory = os.path.dirname(os.path.abspath(__file__))
+    template_directory = os.path.join(base_directory, "templates")
+    env = Environment(loader=FileSystemLoader(template_directory))
+    template = env.get_template("udf_code_block.tpl")
+    rendered = template.render(
+        params=', '.join([f"param_{i}" for i in range(params_count)]),
+    )
+    logger.info(f"rendered udf template: {rendered}")
+    return rendered
+
+
+def render_template_code_block(params_count: int) -> str:
+    logger.info(f"render udf template: {params_count}")
+    base_directory = os.path.dirname(os.path.abspath(__file__))
+    template_directory = os.path.join(base_directory, "templates")
+    env = Environment(loader=FileSystemLoader(template_directory))
+    template = env.get_template("udf_code_block.tpl")
+    rendered = template.render(
+        params=', '.join([f"param_{i}" for i in range(params_count)]),
+    )
+    logger.info(f"rendered udf template: {rendered}")
+    return rendered
 
 
 def render_test_dag_script(dag_id, tasks, edges, tags=None):

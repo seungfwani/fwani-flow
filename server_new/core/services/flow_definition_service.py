@@ -1,11 +1,13 @@
 import logging
+import os
+import shutil
 
 from sqlalchemy.orm import Session
 
+from config import Config
 from errors import WorkflowError
 from models.api.dag_model import DAGRequest
 from models.db.flow import Flow as DBFlow
-from models.domain.models import delete_dag_file
 from models.domain.mapper import flow_api2domain, flow_db2domain, flow_domain2db, task_edge_domain2db, flow_domain2api
 
 logger = logging.getLogger()
@@ -129,3 +131,21 @@ class FlowDefinitionService:
 
         self.meta_db.commit()
         logger.info(f"♻️ DAG 복구됨: {flow.name}")
+
+
+def delete_dag_file(dag_id: str):
+    dag_dir_path = os.path.join(Config.DAG_DIR, dag_id)
+    dag_file_path = os.path.join(dag_dir_path, "dag.py")
+    if os.path.exists(dag_file_path):
+        os.remove(dag_file_path)
+        logger.info(f"🗑 DAG 파일 삭제됨: {dag_file_path}")
+    else:
+        logger.warning(f"⚠️ DAG 파일이 존재하지 않음: {dag_file_path}")
+    # 디렉토리 삭제 시도
+    try:
+        shutil.rmtree(dag_dir_path)
+        logger.info(f"📂 DAG 디렉토리 삭제됨: {dag_dir_path}")
+    except FileNotFoundError:
+        logger.warning(f"⚠️ DAG 디렉토리가 존재하지 않음: {dag_dir_path}")
+    except Exception as e:
+        logger.error(f"❌ DAG 디렉토리 삭제 실패: {e}")

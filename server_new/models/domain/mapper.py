@@ -7,7 +7,7 @@ from models.db.airflow_mapper import AirflowDag
 from models.db.edge import Edge as DBEdge
 from models.db.flow import Flow as DBFlow
 from models.db.task import Task as DBTask
-from models.domain.models import Flow as DomainFlow, Edge as DomainEdge, Task as DomainTask
+from models.domain.flow import Flow as DomainFlow, Edge as DomainEdge, Task as DomainTask
 
 
 def edge_api2domain(edges: list[DAGEdge], tasks: dict[str, DomainTask]) -> list[DomainEdge]:
@@ -135,6 +135,8 @@ def task_edge_domain2db(flow: DBFlow, domain_edges: list[DomainEdge]):
             python_libraries=domain_task.python_libraries,
             code_string=domain_task.code,
             code_hash=domain_task.code_hash,
+            input_meta_type=domain_task.input_meta_type,
+            output_meta_type=domain_task.output_meta_type,
             ui_type=domain_task.ui_type,
             ui_label=domain_task.ui_label,
             ui_position=domain_task.ui_position,

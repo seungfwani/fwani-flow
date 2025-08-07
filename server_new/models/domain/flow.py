@@ -1,15 +1,13 @@
-import hashlib
 import logging
 import os
-import shutil
 import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from api.render_template import render_dag_script
+from api.render_template import render_dag_script, render_task_code_script
 from config import Config
 from errors import WorkflowError
-from utils.functions import make_flow_id_by_name
+from utils.functions import make_flow_id_by_name, get_hash
 
 logger = logging.getLogger()
 
@@ -151,6 +149,12 @@ class Flow:
     def write_file(self):
         dag_dir_path = os.path.join(Config.DAG_DIR, self.dag_id)
         os.makedirs(dag_dir_path, exist_ok=True)
+        # write dag
+        for task in self.tasks:
+            file_contents = render_task_code_script(task.code)
+            with open(os.path.join(dag_dir_path, f"func_{task.variable_id}.py"), 'w') as dag_file:
+                dag_file.write(file_contents)
+
         dag_file_path = os.path.join(dag_dir_path, "dag.py")
         try:
             # write dag
@@ -169,25 +173,3 @@ class Flow:
                 os.remove(dag_file_path)
                 logger.warning(f"🗑️ 저장된 파일 삭제: {dag_file_path}")
             raise WorkflowError(msg)
-
-
-def get_hash(data: str) -> str:
-    return hashlib.sha256(data.encode("utf-8")).hexdigest()
-
-
-def delete_dag_file(dag_id: str):
-    dag_dir_path = os.path.join(Config.DAG_DIR, dag_id)
-    dag_file_path = os.path.join(dag_dir_path, "dag.py")
-    if os.path.exists(dag_file_path):
-        os.remove(dag_file_path)
-        logger.info(f"🗑 DAG 파일 삭제됨: {dag_file_path}")
-    else:
-        logger.warning(f"⚠️ DAG 파일이 존재하지 않음: {dag_file_path}")
-    # 디렉토리 삭제 시도
-    try:
-        shutil.rmtree(dag_dir_path)
-        logger.info(f"📂 DAG 디렉토리 삭제됨: {dag_dir_path}")
-    except FileNotFoundError:
-        logger.warning(f"⚠️ DAG 디렉토리가 존재하지 않음: {dag_dir_path}")
-    except Exception as e:
-        logger.error(f"❌ DAG 디렉토리 삭제 실패: {e}")
