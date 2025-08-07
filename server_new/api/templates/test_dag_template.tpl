@@ -7,7 +7,6 @@ from airflow import DAG
 from airflow.utils.dates import days_ago
 
 from airflow.operators.python import PythonVirtualenvOperator
-from utils.decorator import wrapped_callable
 
 default_args = {
     'owner': 'code_generator',

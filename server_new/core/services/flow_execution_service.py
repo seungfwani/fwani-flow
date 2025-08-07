@@ -3,6 +3,7 @@ import logging
 import os
 import pickle
 
+from airflow.models import DagRun as AirflowDagRun
 from airflow.models import TaskInstance as AirflowTaskInstance
 from sqlalchemy import and_
 from sqlalchemy.orm import Session
@@ -99,9 +100,13 @@ class FlowExecutionService:
 
         if FlowExecutionStatus(execution.status) not in FlowExecutionStatus.get_terminal_states():
             # 아직 대기중/진행중 이므로, 상태 체크 후 반환
-            new_status = self.airflow_client.get_status(execution.dag_id, execution.run_id)
-            execution.status = FlowExecutionStatus.from_str(new_status).value
-            self.meta_db.commit()
+            airflow_dag_run = (self.airflow_db.query(AirflowDagRun)
+                               .filter(and_(AirflowDagRun.dag_id == execution.dag_id,
+                                            AirflowDagRun.run_id == execution.run_id))
+                               .first())
+            if airflow_dag_run:
+                execution.status = airflow_dag_run.state
+                self.meta_db.commit()
         return execution.status
 
     def get_all_task_instance(self, execution_id: str):
