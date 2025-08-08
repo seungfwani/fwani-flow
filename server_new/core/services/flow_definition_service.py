@@ -2,12 +2,15 @@ import logging
 import os
 import shutil
 
-from sqlalchemy.orm import Session
+from sqlalchemy import or_, and_, func
+from sqlalchemy.orm import Session, aliased
+from sqlalchemy.sql.operators import like_op
 
 from config import Config
 from errors import WorkflowError
 from models.api.dag_model import DAGRequest
 from models.db.flow import Flow as DBFlow
+from models.db.flow_execution_queue import FlowExecutionQueue
 from models.domain.mapper import flow_api2domain, flow_db2domain, flow_domain2db, task_edge_domain2db, flow_domain2api
 
 logger = logging.getLogger()
@@ -85,11 +88,40 @@ class FlowDefinitionService:
     def get_all_flows(self) -> list[DBFlow]:
         return self.meta_db.query(DBFlow).all()
 
-    def get_dag_list(self, is_deleted=False):
+    def get_dag_list(self,
+                     active_status: list[bool],
+                     execution_status: list[str],
+                     name: str,
+                     sort: list[str],
+                     offset: int = 0,
+                     limit: int = 10,
+                     is_deleted=False):
+        query = self.meta_db.query(DBFlow)
+        if execution_status:
+            FEQ1 = aliased(FlowExecutionQueue)
+            FEQ2 = aliased(FlowExecutionQueue)
+            subquery = (self.meta_db
+                        .query(FEQ1.flow_id.label("flow_id"),
+                               func.max(FEQ1.updated_at).label("updated_at"))
+                        .group_by(FEQ1.flow_id)
+                        .subquery())
+            query = (query.outerjoin(subquery, DBFlow.id == subquery.c.flow_id)
+             .outerjoin(FEQ2, and_(FEQ2.flow_id == subquery.c.flow_id,
+                                   FEQ2.updated_at == subquery.c.updated_at)))
+            filters = []
+            for es in execution_status:
+                filters.append(FEQ2.status == es)
+            query = query.filter(or_(*filters))
+        if active_status:
+            query = query.filter(or_(*[DBFlow.active_status == i for i in active_status]))
+        if name:
+            query = query.filter(like_op(DBFlow.name, f"%{name}%"))
+        # if sort:
+        #     [s.split("_") for s in sort]
         if is_deleted:
-            flows = self.get_all_flows()
+            flows = query.all()
         else:
-            flows = self.get_active_flows()
+            flows = query.filter(DBFlow.is_deleted == False)
         return [flow_domain2api(flow_db2domain(dbflow)) for dbflow in flows]
 
     def get_dag(self, dag_id):

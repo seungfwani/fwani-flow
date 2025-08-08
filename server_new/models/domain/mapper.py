@@ -2,12 +2,14 @@ import datetime
 
 from sqlalchemy.orm import Session
 
+from errors import WorkflowError
 from models.api.dag_model import DAGRequest, DAGNode, DAGEdge, DAGResponse, DAGNodeData
 from models.db.airflow_mapper import AirflowDag
 from models.db.edge import Edge as DBEdge
 from models.db.flow import Flow as DBFlow
 from models.db.task import Task as DBTask
 from models.domain.flow import Flow as DomainFlow, Edge as DomainEdge, Task as DomainTask
+from utils.code_validator import validate_user_code
 
 
 def edge_api2domain(edges: list[DAGEdge], tasks: dict[str, DomainTask]) -> list[DomainEdge]:
@@ -28,29 +30,38 @@ def edge_api2domain(edges: list[DAGEdge], tasks: dict[str, DomainTask]) -> list[
 
 
 def task_api2domain(tasks: [DAGNode]) -> dict[str, DomainTask]:
-    return {task.id: DomainTask(task.id,
-                                f"task_{i}",
-                                task.data.python_libraries,
-                                task.data.code,
-                                task.type,
-                                task.data.label,
-                                task.position,
-                                task.style,
-                                task.data.input_meta_type,
-                                task.data.output_meta_type,
-                                task.data.inputs,
-                                ) for i, task in enumerate(tasks)}
+    result = {}
+    errors = {}
+    for i, task in enumerate(tasks):
+        if error_list := validate_user_code(task.data.code):
+            errors[task.id] = error_list
+        result[task.id] = DomainTask(task.id,
+                                     f"task_{i}",
+                                     task.data.python_libraries,
+                                     task.data.code,
+                                     task.type,
+                                     task.data.label,
+                                     task.position,
+                                     task.style,
+                                     task.data.input_meta_type,
+                                     task.data.output_meta_type,
+                                     task.data.inputs,
+                                     )
+    if errors:
+        raise WorkflowError(errors)
+    return result
 
 
 def flow_api2domain(dag: DAGRequest):
     tasks = task_api2domain(dag.nodes)
     return DomainFlow(
-        dag.name,
-        dag.description,
-        dag.owner,
-        dag.schedule,
-        list(tasks.values()),
-        edge_api2domain(dag.edges, tasks),
+        name=dag.name,
+        description=dag.description,
+        owner=dag.owner,
+        scheduled=dag.schedule,
+        tasks=list(tasks.values()),
+        edges=edge_api2domain(dag.edges, tasks),
+        is_draft=dag.is_draft,
     )
 
 
@@ -69,12 +80,12 @@ def flow_db2domain(flow: DBFlow):
         {inp.key: inp.value for inp in task.inputs},
     ) for task in flow.tasks}
     return DomainFlow(
-        flow.name,
-        flow.description,
-        flow.owner_id,
-        flow.schedule,
-        list(tasks_cache.values()),
-        [DomainEdge(
+        name=flow.name,
+        description=flow.description,
+        owner=flow.owner_id,
+        scheduled=flow.schedule,
+        tasks=list(tasks_cache.values()),
+        edges=[DomainEdge(
             edge.id,
             tasks_cache[edge.from_task_id],
             tasks_cache[edge.to_task_id],
@@ -86,7 +97,11 @@ def flow_db2domain(flow: DBFlow):
             edge.ui_labelBgBorderRadius,
             edge.ui_style,
         ) for edge in flow.edges],
-        flow.id
+        is_draft=flow.is_draft,
+        _id=flow.id,
+        updated_at=flow.updated_at,
+        active_status=flow.active_status,
+        execution_status=flow.flow_execution_queues[0].status if flow.flow_execution_queues else None,
     )
 
 
@@ -124,6 +139,10 @@ def flow_domain2api(flow: DomainFlow):
             style=edge.ui_style,
         ) for edge in flow.edges],
         schedule=flow.scheduled,
+        updated_at=flow.updated_at,
+        active_status=flow.active_status,
+        execution_status=flow.execution_status,
+        is_draft=flow.is_draft,
     )
 
 

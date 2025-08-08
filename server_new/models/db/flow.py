@@ -12,6 +12,7 @@ class Flow(BaseDB):
 
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, unique=True, index=True)
+    is_draft = Column(Boolean, default=False)
     dag_id = Column(String, unique=True, index=True)
     description = Column(Text)
     owner_id = Column(String)
@@ -20,6 +21,7 @@ class Flow(BaseDB):
     is_loaded_by_airflow = Column(Boolean, default=False)
     schedule = Column(String, default=None)
     is_deleted = Column(Boolean, default=False)
+    active_status = Column(Boolean, default=False)
 
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
@@ -27,8 +29,11 @@ class Flow(BaseDB):
     tasks = relationship("Task", back_populates="flow", cascade="all, delete-orphan", passive_deletes=True)
     edges = relationship("Edge", back_populates="flow", cascade="all, delete-orphan", passive_deletes=True)
 
-    flow_execution_queues = relationship("FlowExecutionQueue", back_populates="flow", cascade="all, delete-orphan",
-                                         passive_deletes=True)
+    flow_execution_queues = relationship("FlowExecutionQueue",
+                                         back_populates="flow",
+                                         cascade="all, delete-orphan",
+                                         passive_deletes=True,
+                                         order_by="desc(FlowExecutionQueue.updated_at)",)
     airflow_dag_run_histories = relationship("AirflowDagRunHistory", back_populates="flow",
                                              cascade="all, delete-orphan",
                                              passive_deletes=True)

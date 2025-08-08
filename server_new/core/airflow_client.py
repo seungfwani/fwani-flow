@@ -1,5 +1,6 @@
 import json
 import logging
+from contextlib import contextmanager
 from typing import Generator
 from urllib.parse import urljoin
 
@@ -137,6 +138,7 @@ class AirflowClient:
         return status, log
 
 
+@contextmanager
 def get_airflow_client() -> Generator[AirflowClient, None, None]:
     logger.info("Connecting to airflow server...")
     _airflow = AirflowClient(

@@ -10,7 +10,7 @@ from sqlalchemy.orm import sessionmaker, scoped_session, Session
 
 from config import Config
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger()
 
 
 class ReadOnlySession(Session):

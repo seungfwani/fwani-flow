@@ -12,14 +12,14 @@ from alembic import command
 from api.routers import v1_routers
 from config import Config
 from core.log import LOG_CONFIG, setup_logging
-# from core.schedulers import start_scheduler
+from core.schedulers import start_scheduler
 
 logger = logging.getLogger()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # start_scheduler()
+    start_scheduler()
     yield
 
 

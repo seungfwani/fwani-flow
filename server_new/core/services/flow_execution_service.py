@@ -9,12 +9,13 @@ from sqlalchemy import and_
 from sqlalchemy.orm import Session
 
 from config import Config
+from core.airflow_client import AirflowClient
 from errors import WorkflowError
+from models.api.dag_model import ExecutionResponse
 from models.db.flow import Flow as DBFlow
 from models.db.flow_execution_queue import FlowExecutionQueue
 from models.domain.enums import FlowExecutionStatus
 from models.domain.task_instance import TaskInstance as DomainTaskInstance
-from utils.airflow_client import AirflowClient
 
 logger = logging.getLogger()
 
@@ -94,6 +95,16 @@ class FlowExecutionService:
 
         execution.status = FlowExecutionStatus.CANCELED.value
         self.meta_db.commit()
+
+    def get_execution_list(self):
+        executions = self.meta_db.query(FlowExecutionQueue).all()
+        return [ExecutionResponse(
+            id=execution.id,
+            flow_id=execution.flow_id,
+            status=execution.status,
+            scheduled_time=execution.scheduled_time,
+            triggered_time=execution.triggered_time,
+        ) for execution in executions]
 
     def get_execution_status(self, execution_id: str):
         execution = self._get_flow_execution(execution_id)

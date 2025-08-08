@@ -47,14 +47,25 @@ async def update_dag(dag_id: str, dag: DAGRequest, db: Session = Depends(get_db)
             response_model=APIResponse[List[DAGResponse]],
             )
 @api_response_wrapper
-async def get_dag_list(
-        is_deleted: bool = Query(False, description="삭제된 DAG 포함 여부"),
-        db: Session = Depends(get_db), airflow: Session = Depends(get_airflow)):
+async def get_dag_list(active_status: list[bool] = Query([], description="active status filter"),
+                       execution_status: list[str] = Query([], description="execution status filter"),
+                       name: str = Query(None, description="dag name filter"),
+                       sort: list[str] = Query([], description="dag sort filter"),
+                       offset: int = Query(0, description="dag list offset"),
+                       limit: int = Query(10, description="dag list limit"),
+                       is_deleted: bool = Query(False, description="삭제된 DAG 포함 여부"),
+                       db: Session = Depends(get_db), airflow: Session = Depends(get_airflow)):
     """
     모든 이용가능한 DAG 리스트를 조회
     """
     dag_service = FlowDefinitionService(db, airflow)
-    return dag_service.get_dag_list(is_deleted)
+    return dag_service.get_dag_list(active_status,
+                                    execution_status,
+                                    name,
+                                    sort,
+                                    offset,
+                                    limit,
+                                    is_deleted)
 
 
 @router.get("/{dag_id}",

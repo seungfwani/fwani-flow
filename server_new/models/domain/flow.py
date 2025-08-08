@@ -111,7 +111,11 @@ class Flow:
                  scheduled: str,
                  tasks: list[Task],
                  edges: list[Edge],
+                 is_draft: bool,
                  _id: str = None,
+                 updated_at: datetime | None = None,
+                 active_status: bool = False,
+                 execution_status: str | None = None,
                  ):
         self.id = _id if _id else str(uuid.uuid4())
         self.name = name
@@ -123,6 +127,10 @@ class Flow:
         self.edges = edges
         self.write_time = datetime.now(timezone.utc)
         self._file_hash = None
+        self.updated_at = updated_at
+        self.active_status = active_status
+        self.execution_status = execution_status
+        self.is_draft = is_draft
 
     def __eq__(self, other):
         if not isinstance(other, Flow):
@@ -132,11 +140,13 @@ class Flow:
     def __hash__(self):
         return hash((
             self.name,
+            self.is_draft,
             self.description,
             self.owner,
             self.scheduled,
             tuple(self.tasks),
             tuple(self.edges),
+            self.active_status,
         ))
 
     @property

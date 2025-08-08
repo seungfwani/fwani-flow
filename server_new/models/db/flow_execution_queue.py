@@ -20,6 +20,6 @@ class FlowExecutionQueue(BaseDB):
     try_count = Column(Integer, default=0)
     file_hash = Column(String)  # 트리거 시점의 파일 해쉬, 트리거 시점에 파일 해쉬가 다르면 실행 중지
     created_at = Column(DateTime, default=func.now())
-    updated_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     flow = relationship("Flow", back_populates="flow_execution_queues")

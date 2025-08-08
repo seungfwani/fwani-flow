@@ -1,12 +1,9 @@
-import json
 import logging
 import re
 from datetime import datetime
-from typing import List, Any, Optional, Tuple
+from typing import List, Any, Optional
 
-from pydantic import BaseModel, Field, model_validator, ConfigDict, field_validator
-
-from utils.functions import string2datetime
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 logger = logging.getLogger()
 
@@ -53,57 +50,6 @@ CRON_REGEX = (r"^("
               + r")$")
 
 
-class TaskExecutionModel(BaseModel):
-    task_id: str = Field("")
-    execution_date: Optional[datetime] = Field("")
-    start_date: Optional[datetime] = Field("")
-    end_date: Optional[datetime] = Field("")
-    duration: Optional[float] = Field(0)
-    operator: Optional[str] = Field("")
-    queued_when: Optional[datetime] = Field("")
-    status: Optional[str] = Field("")
-    try_number: Optional[int] = Field(0)
-
-    @classmethod
-    def from_json(cls, data: dict):
-        return cls(
-            task_id=data["task_id"],
-            execution_date=string2datetime(data.get("execution_date")),
-            start_date=string2datetime(data.get("start_date")),
-            end_date=string2datetime(data.get("end_date")),
-            duration=data.get("duration"),
-            operator=data.get("operator"),
-            queued_when=string2datetime(data.get("queued_when")),
-            status=data.get("state"),
-            try_number=data.get("try_number"),
-        )
-
-    @classmethod
-    def from_data(cls, data):
-        return cls(
-            task_id=data.task_id,
-            execution_date=data.execution_date,
-            start_date=data.start_date,
-            end_date=data.end_date,
-            duration=data.duration,
-            operator=data.operator,
-            queued_when=data.queued_when,
-            status=data.status,
-            try_number=data.try_number,
-        )
-
-    def __eq__(self, other):
-        if not isinstance(other, TaskExecutionModel):
-            return False
-        return (
-                self.task_id == other.task_id and
-                self.status == other.status
-        )
-
-    def __hash__(self):
-        return hash((self.task_id, self.status))
-
-
 # DAG 데이터 모델 정의
 class DAGNodeData(BaseModel):
     label: Optional[str] = Field("", examples=["node name"])
@@ -114,8 +60,6 @@ class DAGNodeData(BaseModel):
     output_meta_type: Optional[dict] = Field({}, description="function output meta type")
 
     inputs: dict[str, Any] = Field({}, description="code 실행시 input 값", examples=[{"key1": "value1", "key2": "value2"}])
-
-    execution_data: Optional[TaskExecutionModel] = Field(default_factory=lambda: None)
 
     def __eq__(self, other):
         if not isinstance(other, DAGNodeData):
@@ -149,44 +93,6 @@ class DAGNode(BaseModel):
 
     def __hash__(self):
         return hash((self.id, self.data))
-
-    @model_validator(mode="before")
-    @classmethod
-    def fill_defaults(cls, values):
-        # ✅ type 이 None 이거나 빈 문자열이면 "custom" 으로 세팅
-        if not values.get("label"):
-            values["label"] = ""
-        return values
-
-    @classmethod
-    def from_data(cls, task, ti: dict = None):
-        return cls(
-            id=task.id,
-            type=task.task_ui.type if task.task_ui else "custom",
-            position=task.task_ui.position if task.task_ui else {"x": 0, "y": 0},
-            style=task.task_ui.style if task.task_ui else {},
-            data=DAGNodeData(
-                function_id=task.function_id,
-                inputs={inp.key: inp.value for inp in task.inputs},
-                label=task.function.name if task.function else "",
-                extra_data=TaskExecutionModel.from_json(ti) if ti else None,
-            )
-        )
-
-    @classmethod
-    def from_data_with_ti_of_airflow(cls, task, ti: dict):
-        return cls(
-            id=task.task_id,
-            type=task.type,
-            position=task.position,
-            style=task.style,
-            data=DAGNodeData(
-                function_id=task.function_id,
-                inputs=task.inputs,
-                label=task.label,
-                extra_data=TaskExecutionModel.from_json(ti) if ti else None,
-            )
-        )
 
 
 class DAGEdge(BaseModel):
@@ -223,10 +129,11 @@ class DAGRequest(BaseModel):
     nodes: List[DAGNode]
     edges: List[DAGEdge]
     schedule: Optional[str] = Field(None, description="DAG schedule", examples=["0 9 * * *"])
+    is_draft: bool = Field(False, description="DAG Draft Status", examples=[True, False])
 
     @field_validator("schedule")
     @classmethod
-    def check_docker_image_required(cls, v):
+    def check_schedule_format(cls, v):
         if v is None:
             return v
         if re.match(CRON_REGEX, v):
@@ -244,141 +151,103 @@ class DAGResponse(BaseModel):
     nodes: List[DAGNode]
     edges: List[DAGEdge]
     schedule: Optional[str] = Field(None, description="DAG schedule", examples=["0 9 * * *"])
+    is_draft: bool = Field(False, description="DAG Draft Status", examples=[True, False])
+    updated_at: Optional[datetime] = Field(None, description="DAG Updated at", examples=["2020-10-18 00:00:00"])
+    active_status: bool = Field(False, description="DAG Active", examples=[True, False])
+    execution_status: Optional[str] = Field(None, description="DAG Last Execution Status",
+                                            examples=["waiting", "success", "failed"])
+
+
+class ExecutionResponse(BaseModel):
+    id: str = Field(..., description="Execution ID", examples=["00000000-0000-4000-9000-000000000000"])
+    flow_id: str = Field(..., description="Flow ID", examples=["00000000-0000-4000-9000-000000000000"])
+    status: str = Field(..., description="Execution Status", examples=["success", "failed"])
+    scheduled_time: Optional[datetime] = Field(..., description="Execution scheduled time")
+    triggered_time: Optional[datetime] = Field(..., description="Execution scheduled time")
+
+
+class TaskExecutionModel(BaseModel):
+    task_id: str = Field("")
+    execution_date: Optional[datetime] = Field("")
+    start_date: Optional[datetime] = Field("")
+    end_date: Optional[datetime] = Field("")
+    duration: Optional[float] = Field(0)
+    operator: Optional[str] = Field("")
+    queued_when: Optional[datetime] = Field("")
+    status: Optional[str] = Field("")
+    try_number: Optional[int] = Field(0)
 
     @classmethod
-    def from_dag(cls, flow_version):
-        if not flow_version:
-            return None
-        try:
-            nodes = [DAGNode.from_data(task) for task in flow_version.tasks]
-        except Exception as e:
-            logger.warning(e)
-            nodes = []
-
-        try:
-            edges = [DAGEdge(
-                id=edge.id,
-                type=edge.edge_ui.type if edge.edge_ui else "custom",
-                source=edge.from_task_id,
-                target=edge.to_task_id,
-                label=edge.edge_ui.label if edge.edge_ui else "",
-                style=edge.edge_ui.style if edge.edge_ui else {},
-            ) for edge in flow_version.edges]
-        except Exception as e:
-            logger.warning(e)
-            edges = []
-
+    def from_data(cls, data):
         return cls(
-            id=flow_version.flow.id,
-            name=flow_version.flow.name,
-            description=flow_version.flow.description,
-            is_draft=flow_version.is_draft,
-            version=flow_version.version,
-            nodes=nodes,
-            edges=edges,
-            schedule=flow_version.schedule,
+            task_id=data.task_id,
+            execution_date=data.execution_date,
+            start_date=data.start_date,
+            end_date=data.end_date,
+            duration=data.duration,
+            operator=data.operator,
+            queued_when=data.queued_when,
+            status=data.status,
+            try_number=data.try_number,
         )
 
-
-class AirflowDagRunModel(BaseModel):
-    id: str
-    dag_id: str
-    version: int
-    is_draft: bool
-    run_id: str
-    execution_date: Optional[datetime]
-    start_date: Optional[datetime]
-    end_date: Optional[datetime]
-    status: Optional[str]
-    external_trigger: Optional[bool] = True
-    run_type: Optional[str]
-    conf: Optional[dict] = {}  # JSON 문자열을 dict로 역직렬화
-    source: Optional[str] = "airflow"
-
     def __eq__(self, other):
-        if not isinstance(other, AirflowDagRunModel):
+        if not isinstance(other, TaskExecutionModel):
             return False
         return (
-                self.id == other.id and
-                self.run_id == other.run_id and
+                self.task_id == other.task_id and
                 self.status == other.status
         )
 
     def __hash__(self):
-        return hash((self.id, self.run_id, self.status))
+        return hash((self.task_id, self.status))
 
-    @classmethod
-    def from_orm(cls, data):
-        return cls(
-            id=data.id,
-            dag_id=data.flow_version.flow_id,
-            version=data.flow_version.version,
-            is_draft=data.flow_version.is_draft,
-            run_id=data.run_id,
-            execution_date=data.execution_date,
-            start_date=data.start_date,
-            end_date=data.end_date,
-            status=data.status,
-            external_trigger=data.external_trigger,
-            run_type=data.run_type,
-            conf=json.loads(data.conf),
-            source=data.source,
-        )
-
-
-class TaskInstanceResponse(BaseModel):
-    id: str = Field(..., description="Generated DAG ID", examples=["00000000-0000-4000-9000-000000000000"])
-    name: str = Field(..., description="DAG Name", examples=["DAG Name"])
-    description: str = Field(..., description="DAG Description", examples=["DAG Description"])
-    is_draft: bool
-    version: Optional[int]
-    nodes: List[DAGNode]
-    edges: List[DAGEdge]
-
-    def __eq__(self, other):
-        if not isinstance(other, TaskInstanceResponse):
-            return False
-        return (
-                self.id == other.id and
-                self.nodes == other.nodes and
-                self.edges == other.edges
-        )
-
-    def __hash__(self):
-        return hash((self.id, self.nodes, self.edges))
-
-    @classmethod
-    def from_data(cls, airflow_dag_run_history,
-                  data: List[Tuple[Any, dict]]):
-        try:
-            nodes = [DAGNode.from_data_with_ti_of_airflow(task, ti) for task, ti in data]
-        except Exception as e:
-            logger.warning(e)
-            nodes = []
-
-        try:
-            edges = [DAGEdge(
-                id=edge.edge_id,
-                type=edge.type,
-                source=edge.source,
-                target=edge.target,
-                label=edge.label,
-                labelStyle=edge.labelStyle,
-                labelBgStyle=edge.labelBgStyle,
-                labelBgPadding=edge.labelBgPadding,
-                labelBgBorderRadius=edge.labelBgBorderRadius,
-                style=edge.style,
-            ) for edge in airflow_dag_run_history.snapshot_edges]
-        except Exception as e:
-            logger.warning(e)
-            edges = []
-
-        return cls(
-            id=airflow_dag_run_history.flow_version.flow.id,
-            name=airflow_dag_run_history.flow_version.flow.name,
-            description=airflow_dag_run_history.flow_version.flow.description,
-            is_draft=airflow_dag_run_history.flow_version.is_draft,
-            version=airflow_dag_run_history.flow_version.version,
-            nodes=nodes,
-            edges=edges,
-        )
+#
+# class AirflowDagRunModel(BaseModel):
+#     id: str
+#     dag_id: str
+#     version: int
+#     is_draft: bool
+#     run_id: str
+#     execution_date: Optional[datetime]
+#     start_date: Optional[datetime]
+#     end_date: Optional[datetime]
+#     status: Optional[str]
+#     external_trigger: Optional[bool] = True
+#     run_type: Optional[str]
+#     conf: Optional[dict] = {}  # JSON 문자열을 dict로 역직렬화
+#     source: Optional[str] = "airflow"
+#
+#     def __eq__(self, other):
+#         if not isinstance(other, AirflowDagRunModel):
+#             return False
+#         return (
+#                 self.id == other.id and
+#                 self.run_id == other.run_id and
+#                 self.status == other.status
+#         )
+#
+#     def __hash__(self):
+#         return hash((self.id, self.run_id, self.status))
+#
+#
+# class TaskInstanceResponse(BaseModel):
+#     id: str = Field(..., description="Generated DAG ID", examples=["00000000-0000-4000-9000-000000000000"])
+#     name: str = Field(..., description="DAG Name", examples=["DAG Name"])
+#     description: str = Field(..., description="DAG Description", examples=["DAG Description"])
+#     is_draft: bool
+#     version: Optional[int]
+#     nodes: List[DAGNode]
+#     edges: List[DAGEdge]
+#
+#     def __eq__(self, other):
+#         if not isinstance(other, TaskInstanceResponse):
+#             return False
+#         return (
+#                 self.id == other.id and
+#                 self.nodes == other.nodes and
+#                 self.edges == other.edges
+#         )
+#
+#     def __hash__(self):
+#         return hash((self.id, self.nodes, self.edges))

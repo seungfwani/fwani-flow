@@ -9,7 +9,7 @@ from core.services.flow_definition_service import FlowDefinitionService
 from core.services.flow_execution_service import FlowExecutionService
 from models.api.api_model import api_response_wrapper, APIResponse
 from models.api.dag_model import DAGRequest, TaskExecutionModel
-from utils.airflow_client import AirflowClient, get_airflow_client
+from core.airflow_client import AirflowClient, get_airflow_client
 
 logger = logging.getLogger()
 
@@ -54,6 +54,20 @@ async def kill_dag_run(execution_id: str,
     """
     flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
     return flow_execution_service.kill_execution(execution_id)
+
+
+@router.get("")
+@api_response_wrapper
+async def get_dag_run_list(
+                           db: Session = Depends(get_db),
+                           airflow: Session = Depends(get_airflow),
+                           airflow_client: AirflowClient = Depends(get_airflow_client)
+                           ):
+    """
+    DAG run 중지
+    """
+    flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
+    return flow_execution_service.get_execution_list()
 
 
 @router.get("/{execution_id}/status",
