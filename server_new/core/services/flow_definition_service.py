@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, aliased
 from sqlalchemy.sql.operators import like_op
 
 from config import Config
+from core.airflow_client import AirflowClient
 from errors import WorkflowError
 from models.api.dag_model import DAGRequest
 from models.db.flow import Flow as DBFlow
@@ -17,9 +18,10 @@ logger = logging.getLogger()
 
 
 class FlowDefinitionService:
-    def __init__(self, meta_db: Session, airflow_db: Session | None):
+    def __init__(self, meta_db: Session, airflow_db: Session = None, airflow_client: AirflowClient = None):
         self.meta_db = meta_db
         self.airflow_db = airflow_db
+        self.airflow_client = airflow_client
 
     def _get_flow(self, dag_id: str) -> DBFlow:
         flow = self.meta_db.query(DBFlow).filter(DBFlow.id == dag_id).first()
@@ -93,6 +95,8 @@ class FlowDefinitionService:
 
     def update_dag_active_status(self, dag_id: str, active_status: bool) -> bool:
         flow = self._get_flow(dag_id)
+        result = self.airflow_client.update_pause(flow.dag_id, False if active_status else True)
+        logger.info(f"Update airflow is_paused to '{result}'")
         flow.active_status = active_status
         self.meta_db.commit()
         return True

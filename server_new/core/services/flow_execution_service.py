@@ -92,6 +92,7 @@ class FlowExecutionService:
         status = self.airflow_client.kill(execution.dag_id, execution.run_id)
         execution.status = FlowExecutionStatus.from_str(status)
         self.meta_db.commit()
+        return True
 
     def cancel_execution(self, execution_id: str):
         execution = self._get_flow_execution(execution_id)
@@ -100,6 +101,7 @@ class FlowExecutionService:
 
         execution.status = FlowExecutionStatus.CANCELED.value
         self.meta_db.commit()
+        return True
 
     def get_execution_list(self):
         executions = self.meta_db.query(FlowExecutionQueue).all()

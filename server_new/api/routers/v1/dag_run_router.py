@@ -9,7 +9,7 @@ from core.database import get_db, get_airflow
 from core.services.flow_definition_service import FlowDefinitionService
 from core.services.flow_execution_service import FlowExecutionService
 from models.api.api_model import api_response_wrapper, APIResponse
-from models.api.dag_model import DAGRequest, TaskExecutionModel
+from models.api.dag_model import DAGRequest, TaskExecutionModel, MultipleRunRequest
 
 logger = logging.getLogger()
 
@@ -43,24 +43,24 @@ async def run_dag_immediately(dag_id: str,
 
 
 @router.post("/dag",
-             response_model=APIResponse[str],
+             response_model=APIResponse[bool],
              )
 @api_response_wrapper
-async def run_dags(dag_ids: list[str] = Query([], description="실행 할 dag id list"),
+async def run_dags(dag_ids: MultipleRunRequest,
                    db: Session = Depends(get_db),
                    airflow: Session = Depends(get_airflow),
                    airflow_client: AirflowClient = Depends(get_airflow_client)
                    ):
     """
-    DAG 실행을 등록하는 API
-
-    dag 를 함께 주면, 해당 상태를 저장하고, 트리거를 요청
+    여러 dag 를 실행 요청 하는 API
     """
     flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
-    return flow_execution_service.register_executions(dag_ids)
+    return flow_execution_service.register_executions(dag_ids.ids)
 
 
-@router.delete("/execution/{execution_id}/kill")
+@router.delete("/execution/{execution_id}/kill",
+               response_model=APIResponse[bool],
+               )
 @api_response_wrapper
 async def kill_dag_run(execution_id: str,
                        db: Session = Depends(get_db),

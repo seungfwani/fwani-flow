@@ -4,7 +4,7 @@ from typing import List
 
 from sqlalchemy.orm import Session
 
-from core.airflow_client import get_airflow_client
+from core.airflow_client import get_airflow_client_context
 from core.database import SessionLocalBaseDB
 from errors import WorkflowError
 from models.db.flow_execution_queue import FlowExecutionQueue
@@ -18,7 +18,7 @@ def process_trigger_queue(db: Session):
                                                    .filter_by(status="waiting")
                                                    .all())
 
-    with get_airflow_client() as airflow_client:
+    with get_airflow_client_context() as airflow_client:
         for execution in waiting_execution:
             try:
                 if execution.status == FlowExecutionStatus.WAITING.value:

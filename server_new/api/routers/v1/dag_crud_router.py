@@ -4,6 +4,7 @@ from typing import List, Callable, Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from core.airflow_client import AirflowClient, get_airflow_client
 from core.database import get_db, get_airflow
 from core.services.flow_definition_service import FlowDefinitionService
 from models.api.api_model import api_response_wrapper, APIResponse
@@ -35,12 +36,11 @@ async def save_dag(dag: DAGRequest, db: Session = Depends(get_db), airflow: Sess
               response_model=APIResponse[dict[str, str]],
               )
 @api_response_wrapper
-async def update_dag(dag_id: str, dag: DAGRequest, db: Session = Depends(get_db),
-                     airflow: Session = Depends(get_airflow)):
+async def update_dag(dag_id: str, dag: DAGRequest, db: Session = Depends(get_db)):
     """
     DAG 업데이트 api
     """
-    dag_service = FlowDefinitionService(db, airflow)
+    dag_service = FlowDefinitionService(db)
     return {"id": dag_service.update_dag(dag_id, dag)}
 
 
@@ -48,13 +48,13 @@ async def update_dag(dag_id: str, dag: DAGRequest, db: Session = Depends(get_db)
               response_model=APIResponse[str],
               )
 @api_response_wrapper
-async def restore_dag(dag_id: str, db: Session = Depends(get_db), airflow: Session = Depends(get_airflow)):
+async def restore_dag(dag_id: str, db: Session = Depends(get_db)):
     """
     DAG 임시 삭제 (airflow 에서만 삭제)
 
     (주의!) 실행 기록도 삭제됩니다.
     """
-    dag_service = FlowDefinitionService(db, airflow)
+    dag_service = FlowDefinitionService(db)
     return dag_service.restore_deleted_dag(dag_id)
 
 
@@ -62,13 +62,15 @@ async def restore_dag(dag_id: str, db: Session = Depends(get_db), airflow: Sessi
               response_model=APIResponse[dict[str, bool]],
               )
 @api_response_wrapper
-async def get_dag_active_status(dag_id: str,
-                                request: ActiveStatusRequest,
-                                db: Session = Depends(get_db)):
+async def update_dag_active_status(dag_id: str,
+                                   request: ActiveStatusRequest,
+                                   db: Session = Depends(get_db),
+                                   airflow_client: AirflowClient = Depends(get_airflow_client)
+                                   ):
     """
-    DAG 업데이트 api
+    DAG active 상태 변경 api
     """
-    dag_service = FlowDefinitionService(db, None)
+    dag_service = FlowDefinitionService(db, airflow_client=airflow_client)
     return {"active_status": dag_service.update_dag_active_status(dag_id, request.active_status)}
 
 
@@ -76,13 +78,13 @@ async def get_dag_active_status(dag_id: str,
                response_model=APIResponse[dict[str, str]],
                )
 @api_response_wrapper
-async def delete_dag_permanently(dag_id: str, db: Session = Depends(get_db), airflow: Session = Depends(get_airflow)):
+async def delete_dag_permanently(dag_id: str, db: Session = Depends(get_db)):
     """
     DAG 영구 삭제
 
     (주의!) 실행 기록도 삭제됩니다.
     """
-    dag_service = FlowDefinitionService(db, airflow)
+    dag_service = FlowDefinitionService(db)
     return {"id": dag_service.delete_dag_permanently(dag_id)}
 
 
@@ -90,13 +92,13 @@ async def delete_dag_permanently(dag_id: str, db: Session = Depends(get_db), air
                response_model=APIResponse[dict[str, str]],
                )
 @api_response_wrapper
-async def delete_dag_temporary(dag_id: str, db: Session = Depends(get_db), airflow: Session = Depends(get_airflow)):
+async def delete_dag_temporary(dag_id: str, db: Session = Depends(get_db)):
     """
     DAG 임시 삭제 (airflow 에서만 삭제)
 
     (주의!) 실행 기록도 삭제됩니다.
     """
-    dag_service = FlowDefinitionService(db, airflow)
+    dag_service = FlowDefinitionService(db)
     return {"id": dag_service.delete_dag_temporary(dag_id)}
 
 
@@ -105,7 +107,7 @@ async def delete_dag_temporary(dag_id: str, db: Session = Depends(get_db), airfl
             )
 @api_response_wrapper
 async def get_total_workflow_count(db: Session = Depends(get_db)):
-    dag_service = FlowDefinitionService(db, None)
+    dag_service = FlowDefinitionService(db)
     return {"total_count": dag_service.get_dag_total_count()}
 
 
@@ -136,11 +138,11 @@ async def get_dag_list(
         offset: int = Query(0, description="dag list offset"),
         limit: int = Query(10, description="dag list limit"),
         include_deleted: bool = Query(False, description="삭제된 DAG 포함 여부"),
-        db: Session = Depends(get_db), airflow: Session = Depends(get_airflow)):
+        db: Session = Depends(get_db)):
     """
     모든 이용가능한 DAG 리스트를 조회
     """
-    dag_service = FlowDefinitionService(db, airflow)
+    dag_service = FlowDefinitionService(db)
     dag_list, filtered_count, total_count = dag_service.get_dag_list(active_status,
                                                                      execution_status,
                                                                      name,
@@ -159,11 +161,11 @@ async def get_dag_list(
             response_model=APIResponse[dict[str, DAGResponse | None]],
             )
 @api_response_wrapper
-async def get_dag(dag_id: str, db: Session = Depends(get_db), airflow: Session = Depends(get_airflow)):
+async def get_dag(dag_id: str, db: Session = Depends(get_db)):
     """
     DAG 의 상세 정보 조회
     """
-    dag_service = FlowDefinitionService(db, airflow)
+    dag_service = FlowDefinitionService(db)
     return {"origin": dag_service.get_dag(dag_id), "temp": None}
 
 
@@ -175,5 +177,5 @@ async def check_dag_name(name: str = Query(..., description="체크 할 dag name
     """
     DAG 이름 체크
     """
-    dag_service = FlowDefinitionService(db, None)
+    dag_service = FlowDefinitionService(db)
     return {"available": dag_service.check_available_dag_name(dag_name=name)}

@@ -96,6 +96,13 @@ class AirflowClient:
         response = self._request_with_reconnect("DELETE", url)
         return response.status_code == 204 or response.json()
 
+    def update_pause(self, dag_id: str, is_paused: bool):
+        active_result = self._patch(f"dags/{dag_id}",
+                                    json_data=json.dumps({
+                                        "is_paused": is_paused
+                                    }))
+        return active_result
+
     def run_dag(self, dag_id: str, data: dict = None) -> str:
         """
         DAG 실행 후 run_id 반환
@@ -106,10 +113,7 @@ class AirflowClient:
         check_dag_of_airflow = self._get(f"dags/{dag_id}")
         if check_dag_of_airflow.get("is_paused"):
             logger.info(f"[AirflowClient] DAG {dag_id} paused. Request activate")
-            active_result = self._patch(f"dags/{dag_id}",
-                                        json_data=json.dumps({
-                                            "is_paused": False
-                                        }))
+            active_result = self.update_pause(dag_id, False)
             logger.info(f"[AirflowClient] DAG {dag_id} is activated. {active_result}")
         response = self._post(f"dags/{dag_id}/dagRuns", json.dumps(data))
         return response["dag_run_id"]
@@ -138,8 +142,21 @@ class AirflowClient:
         return status, log
 
 
-@contextmanager
 def get_airflow_client() -> Generator[AirflowClient, None, None]:
+    logger.info("Connecting to airflow server...")
+    _airflow = AirflowClient(
+        host=Config.AIRFLOW_HOST,
+        port=Config.AIRFLOW_PORT,
+        username=Config.AIRFLOW_USER,
+        password=Config.AIRFLOW_PASSWORD,
+    )
+    try:
+        yield _airflow
+    finally:
+        _airflow.session.close()
+
+@contextmanager
+def get_airflow_client_context() -> Generator[AirflowClient, None, None]:
     logger.info("Connecting to airflow server...")
     _airflow = AirflowClient(
         host=Config.AIRFLOW_HOST,

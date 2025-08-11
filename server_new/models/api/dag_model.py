@@ -209,52 +209,7 @@ class TaskExecutionModel(BaseModel):
 
 class ActiveStatusRequest(BaseModel):
     active_status: bool = Field(False, description="DAG Active", examples=[True, False])
-#
-# class AirflowDagRunModel(BaseModel):
-#     id: str
-#     dag_id: str
-#     version: int
-#     is_draft: bool
-#     run_id: str
-#     execution_date: Optional[datetime]
-#     start_date: Optional[datetime]
-#     end_date: Optional[datetime]
-#     status: Optional[str]
-#     external_trigger: Optional[bool] = True
-#     run_type: Optional[str]
-#     conf: Optional[dict] = {}  # JSON 문자열을 dict로 역직렬화
-#     source: Optional[str] = "airflow"
-#
-#     def __eq__(self, other):
-#         if not isinstance(other, AirflowDagRunModel):
-#             return False
-#         return (
-#                 self.id == other.id and
-#                 self.run_id == other.run_id and
-#                 self.status == other.status
-#         )
-#
-#     def __hash__(self):
-#         return hash((self.id, self.run_id, self.status))
-#
-#
-# class TaskInstanceResponse(BaseModel):
-#     id: str = Field(..., description="Generated DAG ID", examples=["00000000-0000-4000-9000-000000000000"])
-#     name: str = Field(..., description="DAG Name", examples=["DAG Name"])
-#     description: str = Field(..., description="DAG Description", examples=["DAG Description"])
-#     is_draft: bool
-#     version: Optional[int]
-#     nodes: List[DAGNode]
-#     edges: List[DAGEdge]
-#
-#     def __eq__(self, other):
-#         if not isinstance(other, TaskInstanceResponse):
-#             return False
-#         return (
-#                 self.id == other.id and
-#                 self.nodes == other.nodes and
-#                 self.edges == other.edges
-#         )
-#
-#     def __hash__(self):
-#         return hash((self.id, self.nodes, self.edges))
+
+
+class MultipleRunRequest(BaseModel):
+    ids: list[str] = Field([], description="실행 할 dag id list")
