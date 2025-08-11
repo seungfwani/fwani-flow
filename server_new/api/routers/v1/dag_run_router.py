@@ -66,7 +66,7 @@ async def run_dag_for_test(dag: DAGRequest,
     dag_service = FlowDefinitionService(db, airflow)
     dag_id = dag_service.save_dag(dag)
     flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
-    return flow_execution_service.run_execution(dag_id)
+    return flow_execution_service.register_executions([dag_id])
 
 
 @router.delete("/execution/{execution_id}/kill",
