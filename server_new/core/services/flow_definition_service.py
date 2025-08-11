@@ -107,8 +107,8 @@ class FlowDefinitionService:
         return self.meta_db.query(DBFlow).all()
 
     def get_dag_list(self,
-                     active_status: list[bool],
-                     execution_status: list[str],
+                     active_status: set[bool],
+                     execution_status: set[str],
                      name: str,
                      sort: str,
                      offset: int = 0,

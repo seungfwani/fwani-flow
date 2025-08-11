@@ -1,5 +1,5 @@
 import logging
-from typing import List
+from typing import List, Callable, Optional
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
@@ -8,6 +8,7 @@ from core.database import get_db, get_airflow
 from core.services.flow_definition_service import FlowDefinitionService
 from models.api.api_model import api_response_wrapper, APIResponse
 from models.api.dag_model import DAGResponse, DAGRequest, ActiveStatusRequest
+from utils.functions import to_bool
 
 logger = logging.getLogger()
 
@@ -108,18 +109,34 @@ async def get_total_workflow_count(db: Session = Depends(get_db)):
     return {"total_count": dag_service.get_dag_total_count()}
 
 
+def parse_comma_query(default: None, alias: str, description: str, cast: Callable[[str], object]):
+    def dep(value: Optional[str] = Query(default, alias=alias, description=description)) -> set[object]:
+        if not value:
+            return set()
+        return {cast(v.strip()) for v in value.split(",") if v.strip()}
+
+    return dep
+
+
 @router.get("/dag",
             response_model=APIResponse[dict[str, List[DAGResponse] | int]],
             )
 @api_response_wrapper
-async def get_dag_list(active_status: list[bool] = Query([], description="active status filter"),
-                       execution_status: list[str] = Query([], description="execution status filter"),
-                       name: str = Query(None, description="dag name filter"),
-                       sort: str = Query(None, description="dag sort filter"),
-                       offset: int = Query(0, description="dag list offset"),
-                       limit: int = Query(10, description="dag list limit"),
-                       include_deleted: bool = Query(False, description="삭제된 DAG 포함 여부"),
-                       db: Session = Depends(get_db), airflow: Session = Depends(get_airflow)):
+async def get_dag_list(
+        active_status: set[bool] = Depends(parse_comma_query(None,
+                                                             "active_status",
+                                                             "active status filter (ex. true,false)",
+                                                             to_bool)),
+        execution_status: set[str] = Depends(parse_comma_query(None,
+                                                               "execution_status",
+                                                               "execution status filter (ex. success,failed)",
+                                                               str)),
+        name: str = Query(None, description="dag name filter"),
+        sort: str = Query(None, description="dag sort filter"),
+        offset: int = Query(0, description="dag list offset"),
+        limit: int = Query(10, description="dag list limit"),
+        include_deleted: bool = Query(False, description="삭제된 DAG 포함 여부"),
+        db: Session = Depends(get_db), airflow: Session = Depends(get_airflow)):
     """
     모든 이용가능한 DAG 리스트를 조회
     """
