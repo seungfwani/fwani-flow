@@ -60,7 +60,8 @@ class DAGNodeData(BaseModel):
     input_meta_type: Optional[dict] = Field({}, description="graphio input meta type")
     output_meta_type: Optional[dict] = Field({}, description="function output meta type")
 
-    inputs: dict[str, Any] = Field({}, description="system, meta 의 code 실행시 필요한 input 값", examples=[{"key1": "value1", "key2": "value2"}])
+    inputs: dict[str, Any] = Field({}, description="system, meta 의 code 실행시 필요한 input 값",
+                                   examples=[{"key1": "value1", "key2": "value2"}])
 
     def __eq__(self, other):
         if not isinstance(other, DAGNodeData):
@@ -205,6 +206,9 @@ class TaskExecutionModel(BaseModel):
     def __hash__(self):
         return hash((self.task_id, self.status))
 
+
+class ActiveStatusRequest(BaseModel):
+    active_status: bool = Field(False, description="DAG Active", examples=[True, False])
 #
 # class AirflowDagRunModel(BaseModel):
 #     id: str

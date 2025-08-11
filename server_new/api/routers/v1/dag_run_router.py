@@ -4,12 +4,12 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Body, Query
 from sqlalchemy.orm import Session
 
+from core.airflow_client import AirflowClient, get_airflow_client
 from core.database import get_db, get_airflow
 from core.services.flow_definition_service import FlowDefinitionService
 from core.services.flow_execution_service import FlowExecutionService
 from models.api.api_model import api_response_wrapper, APIResponse
 from models.api.dag_model import DAGRequest, TaskExecutionModel
-from core.airflow_client import AirflowClient, get_airflow_client
 
 logger = logging.getLogger()
 
@@ -20,7 +20,7 @@ router = APIRouter(
 )
 
 
-@router.post("/{dag_id}/run-now",
+@router.post("/dag/{dag_id}/run-now",
              response_model=APIResponse[str],
              )
 @api_response_wrapper
@@ -42,7 +42,25 @@ async def run_dag_immediately(dag_id: str,
     return flow_execution_service.run_execution(dag_id)
 
 
-@router.delete("/{execution_id}/kill")
+@router.post("/dag",
+             response_model=APIResponse[str],
+             )
+@api_response_wrapper
+async def run_dags(dag_ids: list[str] = Query([], description="실행 할 dag id list"),
+                   db: Session = Depends(get_db),
+                   airflow: Session = Depends(get_airflow),
+                   airflow_client: AirflowClient = Depends(get_airflow_client)
+                   ):
+    """
+    DAG 실행을 등록하는 API
+
+    dag 를 함께 주면, 해당 상태를 저장하고, 트리거를 요청
+    """
+    flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
+    return flow_execution_service.register_executions(dag_ids)
+
+
+@router.delete("/execution/{execution_id}/kill")
 @api_response_wrapper
 async def kill_dag_run(execution_id: str,
                        db: Session = Depends(get_db),
@@ -56,13 +74,13 @@ async def kill_dag_run(execution_id: str,
     return flow_execution_service.kill_execution(execution_id)
 
 
-@router.get("")
+@router.get("/execution")
 @api_response_wrapper
 async def get_dag_run_list(
-                           db: Session = Depends(get_db),
-                           airflow: Session = Depends(get_airflow),
-                           airflow_client: AirflowClient = Depends(get_airflow_client)
-                           ):
+        db: Session = Depends(get_db),
+        airflow: Session = Depends(get_airflow),
+        airflow_client: AirflowClient = Depends(get_airflow_client)
+):
     """
     DAG run 중지
     """
@@ -70,7 +88,7 @@ async def get_dag_run_list(
     return flow_execution_service.get_execution_list()
 
 
-@router.get("/{execution_id}/status",
+@router.get("/execution/{execution_id}/status",
             response_model=APIResponse[str],
             )
 @api_response_wrapper
@@ -86,7 +104,7 @@ async def get_dag_run_status(execution_id: str,
     return flow_execution_service.get_execution_status(execution_id)
 
 
-@router.get("/{execution_id}/tasks",
+@router.get("/execution/{execution_id}/tasks",
             response_model=APIResponse[list[TaskExecutionModel]],
             )
 @api_response_wrapper
@@ -102,7 +120,7 @@ async def get_all_task_instances(execution_id: str,
     return [TaskExecutionModel.from_data(t) for t in flow_execution_service.get_all_task_instance(execution_id)]
 
 
-@router.get("/{execution_id}/tasks/{task_id}/logs",
+@router.get("/execution/{execution_id}/tasks/{task_id}/logs",
             response_model=APIResponse[dict],
             )
 @api_response_wrapper
@@ -120,7 +138,7 @@ async def get_task_logs(execution_id: str,
     return flow_execution_service.get_task_log(execution_id, task_id, try_number)
 
 
-@router.get("/{execution_id}/tasks/{task_id}/result",
+@router.get("/execution/{execution_id}/tasks/{task_id}/result",
             response_model=APIResponse[dict],
             )
 @api_response_wrapper

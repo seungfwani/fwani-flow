@@ -81,6 +81,11 @@ class FlowExecutionService:
         self._request_airflow_dag_run(flow_execution)
         return flow_execution.id
 
+    def register_executions(self, dag_ids: list[str]):
+        for dag_id in dag_ids:
+            _ = self._register_execution(dag_id)
+        return True
+
     def kill_execution(self, execution_id: str):
         execution = self._get_flow_execution(execution_id)
 

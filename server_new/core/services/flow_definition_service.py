@@ -2,7 +2,7 @@ import logging
 import os
 import shutil
 
-from sqlalchemy import or_, and_, func
+from sqlalchemy import or_, and_, func, asc, desc
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.sql.operators import like_op
 
@@ -17,9 +17,15 @@ logger = logging.getLogger()
 
 
 class FlowDefinitionService:
-    def __init__(self, meta_db: Session, airflow_db: Session):
+    def __init__(self, meta_db: Session, airflow_db: Session | None):
         self.meta_db = meta_db
         self.airflow_db = airflow_db
+
+    def _get_flow(self, dag_id: str) -> DBFlow:
+        flow = self.meta_db.query(DBFlow).filter(DBFlow.id == dag_id).first()
+        if not flow:
+            raise WorkflowError(f"Flow({dag_id}) not found")
+        return flow
 
     def find_existing_flow(self, dag: DAGRequest):
         return (
@@ -28,6 +34,13 @@ class FlowDefinitionService:
             .filter(DBFlow.name == dag.name)
             .first()
         )
+
+    def check_available_dag_name(self, dag_name: str) -> bool:
+        flows = self.meta_db.query(DBFlow).filter(DBFlow.name == dag_name).all()
+        if flows:
+            return False
+        else:
+            return True
 
     def save_dag(self, dag: DAGRequest):
         existing = self.find_existing_flow(dag)
@@ -40,16 +53,11 @@ class FlowDefinitionService:
             db_flow = flow_domain2db(domain_flow, self.airflow_db)
             self.meta_db.add(db_flow)
             self.meta_db.commit()
+        return db_flow.id
 
     def update_dag(self, origin_dag_id: str, new_dag: DAGRequest):
         # 0. 기존 Flow 조회
-        origin_flow = (
-            self.meta_db.query(DBFlow)
-            .filter(DBFlow.id == origin_dag_id)
-            .first()
-        )
-        if origin_flow is None:
-            raise WorkflowError(f"DAG ({origin_dag_id}) 가 존재하지 않습니다.")
+        origin_flow = self._get_flow(origin_dag_id)
 
         # 1. 변환
         new_flow = flow_api2domain(new_dag)
@@ -76,11 +84,21 @@ class FlowDefinitionService:
 
         try:
             self.meta_db.commit()
+            return origin_flow.id
         except Exception as e:
             self.meta_db.rollback()
             msg = f"❌ DAG 업데이트 실패: {e}"
             logger.error(msg)
             raise WorkflowError(msg)
+
+    def update_dag_active_status(self, dag_id: str, active_status: bool) -> bool:
+        flow = self._get_flow(dag_id)
+        flow.active_status = active_status
+        self.meta_db.commit()
+        return True
+
+    def get_dag_total_count(self):
+        return self.meta_db.query(func.count(DBFlow.id)).scalar()
 
     def get_active_flows(self) -> list[DBFlow]:
         return self.meta_db.query(DBFlow).filter(DBFlow.is_deleted == False).all()
@@ -92,10 +110,10 @@ class FlowDefinitionService:
                      active_status: list[bool],
                      execution_status: list[str],
                      name: str,
-                     sort: list[str],
+                     sort: str,
                      offset: int = 0,
                      limit: int = 10,
-                     is_deleted=False):
+                     include_deleted=False):
         query = self.meta_db.query(DBFlow)
         if execution_status:
             FEQ1 = aliased(FlowExecutionQueue)
@@ -106,8 +124,8 @@ class FlowDefinitionService:
                         .group_by(FEQ1.flow_id)
                         .subquery())
             query = (query.outerjoin(subquery, DBFlow.id == subquery.c.flow_id)
-             .outerjoin(FEQ2, and_(FEQ2.flow_id == subquery.c.flow_id,
-                                   FEQ2.updated_at == subquery.c.updated_at)))
+                     .outerjoin(FEQ2, and_(FEQ2.flow_id == subquery.c.flow_id,
+                                           FEQ2.updated_at == subquery.c.updated_at)))
             filters = []
             for es in execution_status:
                 filters.append(FEQ2.status == es)
@@ -116,24 +134,35 @@ class FlowDefinitionService:
             query = query.filter(or_(*[DBFlow.active_status == i for i in active_status]))
         if name:
             query = query.filter(like_op(DBFlow.name, f"%{name}%"))
-        # if sort:
-        #     [s.split("_") for s in sort]
-        if is_deleted:
-            flows = query.all()
-        else:
-            flows = query.filter(DBFlow.is_deleted == False)
-        return [flow_domain2api(flow_db2domain(dbflow)) for dbflow in flows]
+        if sort:
+            field, direction = sort.split("_")
+            column_attr = getattr(DBFlow, field, None)
+            if column_attr:
+                if direction.lower() == "asc":
+                    query = query.order_by(asc(column_attr))
+                elif direction.lower() == "desc":
+                    query = query.order_by(desc(column_attr))
+        if not include_deleted:
+            query = query.filter(DBFlow.is_deleted == False)
+
+        # limit 전 토탈 카운트 체크
+        total_count = query.count()
+
+        # limit 적용
+        query = query.offset(offset).limit(limit)
+
+        # get list
+        flows = query.all()
+        filtered_count = len(flows)
+
+        return [flow_domain2api(flow_db2domain(dbflow)) for dbflow in flows], filtered_count, total_count
 
     def get_dag(self, dag_id):
-        flow = self.meta_db.query(DBFlow).filter(DBFlow.id == dag_id).first()
-        if flow is None:
-            raise WorkflowError(f"DAG ({dag_id}) 가 존재하지 않습니다.")
+        flow = self._get_flow(dag_id)
         return flow_domain2api(flow_db2domain(flow))
 
     def delete_dag_temporary(self, dag_id: str):
-        flow = self.meta_db.query(DBFlow).filter(DBFlow.id == dag_id).first()
-        if not flow:
-            raise WorkflowError(f"Flow({dag_id}) not found")
+        flow = self._get_flow(dag_id)
 
         delete_dag_file(flow.dag_id)
 
@@ -141,17 +170,17 @@ class FlowDefinitionService:
         flow.file_hash = None
         self.meta_db.commit()
         logger.info(f"🕒 DAG 임시 삭제됨 (DB 보관): {flow.name}")
+        return dag_id
 
     def delete_dag_permanently(self, dag_id: str):
-        flow = self.meta_db.query(DBFlow).filter(DBFlow.id == dag_id).first()
-        if not flow:
-            raise WorkflowError(f"Flow({dag_id}) not found")
+        flow = self._get_flow(dag_id)
 
         delete_dag_file(flow.dag_id)
 
         self.meta_db.delete(flow)
         self.meta_db.commit()
         logger.info(f"💥 DAG 영구 삭제됨: {flow.name}")
+        return dag_id
 
     def restore_deleted_dag(self, dag_id: str):
         flow = self.meta_db.query(DBFlow).filter(DBFlow.id == dag_id).first()
