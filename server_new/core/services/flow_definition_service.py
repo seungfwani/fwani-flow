@@ -29,23 +29,24 @@ class FlowDefinitionService:
             raise WorkflowError(f"Flow({dag_id}) not found")
         return flow
 
-    def find_existing_flow(self, dag: DAGRequest):
+    def find_existing_flow(self, dag_name: str) -> DBFlow:
         return (
             self.meta_db.query(DBFlow)
             # .filter((DBFlow.id == self.dag.id) | (DBFlow.name == self.dag.name))
-            .filter(DBFlow.name == dag.name)
+            .filter(and_(DBFlow.name == dag_name,
+                         DBFlow.is_draft == False))
             .first()
         )
 
     def check_available_dag_name(self, dag_name: str) -> bool:
-        flows = self.meta_db.query(DBFlow).filter(DBFlow.name == dag_name).all()
-        if flows:
+        flow = self.find_existing_flow(dag_name=dag_name)
+        if flow:
             return False
         else:
             return True
 
     def save_dag(self, dag: DAGRequest):
-        existing = self.find_existing_flow(dag)
+        existing = self.find_existing_flow(dag.name)
 
         if existing:
             raise WorkflowError("DAG already exists")

@@ -1,8 +1,8 @@
 """Initial migration
 
-Revision ID: 91ddf19ecb08
+Revision ID: a0217d589cbb
 Revises: 
-Create Date: 2025-08-07 16:25:10.746840
+Create Date: 2025-08-11 17:58:38.861947
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '91ddf19ecb08'
+revision: str = 'a0217d589cbb'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -24,6 +24,7 @@ def upgrade() -> None:
     op.create_table('flow',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('name', sa.String(), nullable=True),
+    sa.Column('is_draft', sa.Boolean(), nullable=True),
     sa.Column('dag_id', sa.String(), nullable=True),
     sa.Column('description', sa.Text(), nullable=True),
     sa.Column('owner_id', sa.String(), nullable=True),
@@ -32,13 +33,15 @@ def upgrade() -> None:
     sa.Column('is_loaded_by_airflow', sa.Boolean(), nullable=True),
     sa.Column('schedule', sa.String(), nullable=True),
     sa.Column('is_deleted', sa.Boolean(), nullable=True),
+    sa.Column('active_status', sa.Boolean(), nullable=True),
+    sa.Column('max_retires', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_flow_dag_id'), 'flow', ['dag_id'], unique=True)
     op.create_index(op.f('ix_flow_id'), 'flow', ['id'], unique=False)
-    op.create_index(op.f('ix_flow_name'), 'flow', ['name'], unique=True)
+    op.create_index(op.f('ix_flow_name'), 'flow', ['name'], unique=False)
     op.create_table('function_template',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('name', sa.String(), nullable=True),
@@ -99,9 +102,12 @@ def upgrade() -> None:
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('flow_id', sa.String(), nullable=False),
     sa.Column('variable_id', sa.String(), nullable=False),
-    sa.Column('python_libraries', sa.JSON(), nullable=True),
+    sa.Column('kind', sa.String(), nullable=True),
     sa.Column('code_string', sa.Text(), nullable=True),
     sa.Column('code_hash', sa.String(), nullable=True),
+    sa.Column('python_libraries', sa.JSON(), nullable=True),
+    sa.Column('impl_namespace', sa.String(), nullable=True),
+    sa.Column('impl_callable', sa.String(), nullable=True),
     sa.Column('input_meta_type', sa.JSON(), nullable=True),
     sa.Column('output_meta_type', sa.JSON(), nullable=True),
     sa.Column('ui_type', sa.String(), nullable=True),

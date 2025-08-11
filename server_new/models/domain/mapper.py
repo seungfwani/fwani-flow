@@ -226,6 +226,7 @@ def flow_domain2db(domain_flow: DomainFlow, airflow_db: Session):
         file_hash=domain_flow.file_hash,
         schedule=domain_flow.scheduled,
         max_retires=domain_flow.max_retires,
+        is_draft=domain_flow.is_draft,
         is_loaded_by_airflow=check_loaded_by_airflow(domain_flow.write_time, domain_flow.dag_id, airflow_db),
     )
     # 관계 설정

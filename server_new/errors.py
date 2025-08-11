@@ -1,2 +1,10 @@
 class WorkflowError(Exception):
-    pass
+    def __init__(self, message: str, code: str = "ERROR") -> None:
+        self.message = message
+        self.code = code
+        super().__init__(self.message)
+
+
+class WorkflowUserError(WorkflowError):
+    def __init__(self, message: str) -> None:
+        super().__init__(message, "USER ERROR")

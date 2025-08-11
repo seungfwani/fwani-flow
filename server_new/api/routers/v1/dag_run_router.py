@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 from fastapi import APIRouter, Depends, Body, Query
 from sqlalchemy.orm import Session
@@ -25,19 +24,13 @@ router = APIRouter(
              )
 @api_response_wrapper
 async def run_dag_immediately(dag_id: str,
-                              dag: Optional[DAGRequest] = Body(default=None),
                               db: Session = Depends(get_db),
                               airflow: Session = Depends(get_airflow),
                               airflow_client: AirflowClient = Depends(get_airflow_client)
                               ):
     """
-    DAG 실행을 등록하는 API
-
-    dag 를 함께 주면, 해당 상태를 저장하고, 트리거를 요청
+    DAG 즉시 실행 요청하는 API
     """
-    if not dag:
-        dag_service = FlowDefinitionService(db, airflow)
-        dag_service.update_dag(dag_id, dag)
     flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
     return flow_execution_service.run_execution(dag_id)
 
@@ -56,6 +49,24 @@ async def run_dags(dag_ids: MultipleRunRequest,
     """
     flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
     return flow_execution_service.register_executions(dag_ids.ids)
+
+
+@router.post("/dag-run-test",
+             response_model=APIResponse[str],
+             )
+@api_response_wrapper
+async def run_dag_for_test(dag: DAGRequest,
+                           db: Session = Depends(get_db),
+                           airflow: Session = Depends(get_airflow),
+                           airflow_client: AirflowClient = Depends(get_airflow_client)
+                           ):
+    """
+    DAG 를 테스트 실행 하는 API
+    """
+    dag_service = FlowDefinitionService(db, airflow)
+    dag_id = dag_service.save_dag(dag)
+    flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
+    return flow_execution_service.run_execution(dag_id)
 
 
 @router.delete("/execution/{execution_id}/kill",

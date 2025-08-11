@@ -6,6 +6,8 @@ from typing import Optional, TypeVar, Generic
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
+from errors import WorkflowError
+
 logger = logging.getLogger()
 T = TypeVar("T")
 
@@ -27,14 +29,14 @@ def api_response_wrapper(func):
                 message="요청이 정상 처리 되었습니다.",
                 data=result,
             )
-        except HTTPException as e:
+        except WorkflowError as e:
             logger.error(traceback.format_exc())
             return APIResponse(
                 success=False,
-                message=e.detail,
+                message=e.message,
                 error={
-                    "code": e.status_code,
-                    "detail": e.detail
+                    "code": e.code,
+                    "detail": ""
                 }
             )
         except Exception as e:

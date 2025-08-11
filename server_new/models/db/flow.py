@@ -11,7 +11,7 @@ class Flow(BaseDB):
     __tablename__ = "flow"
 
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
-    name = Column(String, unique=True, index=True)
+    name = Column(String, index=True)
     is_draft = Column(Boolean, default=False)
     dag_id = Column(String, unique=True, index=True)
     description = Column(Text)

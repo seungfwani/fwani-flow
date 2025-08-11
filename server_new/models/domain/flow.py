@@ -126,7 +126,7 @@ class Flow:
                  ):
         self.id = _id if _id else str(uuid.uuid4())
         self.name = name
-        self.dag_id = make_flow_id_by_name(name)
+        self.dag_id = make_flow_id_by_name(name, is_draft)
         self.description = description
         self.owner = owner
         self.scheduled = scheduled
