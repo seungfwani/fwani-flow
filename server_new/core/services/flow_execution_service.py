@@ -164,6 +164,7 @@ class FlowExecutionService:
         request_try_number = try_number if try_number is not None else task_instance.try_number
         status, log = self.airflow_client.get_task_log(execution.dag_id, execution.run_id, task_instance.task_id,
                                                        request_try_number)
+        result["try_number"] = request_try_number
         result["status"] = FlowExecutionStatus.from_str(status)
         result["log"] = log
         return result

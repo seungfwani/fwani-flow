@@ -6,7 +6,12 @@ run 은 return 을 dataframe 만 한다.
 
 
 
-def wrapper_run(dag_id: str, run_id: str, task_id: str, before_task_ids: list[str], base_dir: str = "/app/shared"):
+def wrapper_run(dag_id: str,
+                run_id: str,
+                task_id: str,
+                before_task_ids: list[str],
+                base_dir: str = "/app/shared"
+):
     import os
     import pickle
 
@@ -17,15 +22,24 @@ def wrapper_run(dag_id: str, run_id: str, task_id: str, before_task_ids: list[st
                                f"dag_id={dag_id}",
                                f"run_id={run_id}", )
 
-    # get inputs of user function
-    inputs = []
+    # get input_dfs of user function
+    input_dfs = []
     for tid in before_task_ids:
         path = os.path.join(dag_run_dir, f"task_id={tid}/{RESULT_FILE_NAME}")
         with open(path, "rb") as fi:
-            inputs.append(pickle.load(fi))
+            input_dfs.append(pickle.load(fi))
 
     # call user function
-    result = run(*inputs)
+    # 실행 대상 결정
+    kind = "{{ kind }}"
+    if kind == "code":
+        # 사용자 코드에 정의된 run 사용
+        result = run(*input_dfs)
+    else:
+        # 내장 템플릿 로딩
+        mod = importlib.import_module("{{ impl_namespace }}")
+        func = getattr(mod, "{{ impl_callable }}")
+        result = func(*input_dfs, params={{ params }})
 
     # write result
     task_dir = os.path.join(dag_run_dir, f"task_id={task_id}")

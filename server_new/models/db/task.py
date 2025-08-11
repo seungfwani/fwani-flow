@@ -13,14 +13,21 @@ class Task(BaseDB):
     flow_id = Column(String, ForeignKey("flow.id", ondelete="CASCADE"), nullable=False)
     variable_id = Column(String, nullable=False)
 
-    python_libraries = Column(JSON)
-    code_string = Column(Text)
+    kind = Column(String)
+
+    # 코드 타입 전용
+    code_string = Column(Text)  # CODE 일 때만 사용
     code_hash = Column(String)
+
+    # 공통 실행 스펙
+    python_libraries = Column(JSON)
+    impl_namespace = Column(String)  # 내장 함수
+    impl_callable = Column(String, default="run")  # "run" 같은 entrypoint 함수 (기본 "run")
 
     input_meta_type = Column(JSON)
     output_meta_type = Column(JSON)
 
-    # ui node data
+    # UI
     ui_type = Column(String, nullable=True, default="default")
     ui_label = Column(String, nullable=True)
     ui_position = Column(JSON, nullable=True, default={"x": 0, "y": 0})

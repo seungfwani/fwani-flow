@@ -7,7 +7,7 @@ from models.api.dag_model import DAGRequest, DAGNode, DAGEdge, DAGResponse, DAGN
 from models.db.airflow_mapper import AirflowDag
 from models.db.edge import Edge as DBEdge
 from models.db.flow import Flow as DBFlow
-from models.db.task import Task as DBTask
+from models.db.task import Task as DBTask, TaskInput
 from models.domain.flow import Flow as DomainFlow, Edge as DomainEdge, Task as DomainTask
 from utils.code_validator import validate_user_code
 
@@ -37,6 +37,7 @@ def task_api2domain(tasks: [DAGNode]) -> dict[str, DomainTask]:
             errors[task.id] = error_list
         result[task.id] = DomainTask(task.id,
                                      f"task_{i}",
+                                     task.data.kind.lower(),
                                      task.data.python_libraries,
                                      task.data.code,
                                      task.type,
@@ -62,6 +63,7 @@ def flow_api2domain(dag: DAGRequest):
         tasks=list(tasks.values()),
         edges=edge_api2domain(dag.edges, tasks),
         is_draft=dag.is_draft,
+        max_retires=dag.max_retires,
     )
 
 
@@ -69,6 +71,7 @@ def flow_db2domain(flow: DBFlow):
     tasks_cache: dict[str, DomainTask] = {task.id: DomainTask(
         task.id,
         task.variable_id,
+        task.kind,
         task.python_libraries,
         task.code_string,
         task.ui_type,
@@ -78,6 +81,8 @@ def flow_db2domain(flow: DBFlow):
         task.input_meta_type,
         task.output_meta_type,
         {inp.key: inp.value for inp in task.inputs},
+        impl_namespace=task.impl_namespace,
+        impl_callable=task.impl_callable,
     ) for task in flow.tasks}
     return DomainFlow(
         name=flow.name,
@@ -98,6 +103,7 @@ def flow_db2domain(flow: DBFlow):
             edge.ui_style,
         ) for edge in flow.edges],
         is_draft=flow.is_draft,
+        max_retires=flow.max_retires,
         _id=flow.id,
         updated_at=flow.updated_at,
         active_status=flow.active_status,
@@ -118,6 +124,7 @@ def flow_domain2api(flow: DomainFlow):
             position=task.ui_position,
             data=DAGNodeData(
                 label=task.ui_label,
+                kind=task.kind,
                 python_libraries=task.python_libraries,
                 code=task.code,
                 input_meta_type=task.input_meta_type,
@@ -143,17 +150,16 @@ def flow_domain2api(flow: DomainFlow):
         active_status=flow.active_status,
         execution_status=flow.execution_status,
         is_draft=flow.is_draft,
+        max_retires=flow.max_retires,
     )
 
 
 def task_edge_domain2db(flow: DBFlow, domain_edges: list[DomainEdge]):
     def task_domain2db(flow_: DBFlow, domain_task: DomainTask):
-        return DBTask(
+        task = DBTask(
             flow=flow_,
             variable_id=domain_task.variable_id,
-            python_libraries=domain_task.python_libraries,
-            code_string=domain_task.code,
-            code_hash=domain_task.code_hash,
+            kind=domain_task.kind,
             input_meta_type=domain_task.input_meta_type,
             output_meta_type=domain_task.output_meta_type,
             ui_type=domain_task.ui_type,
@@ -161,6 +167,23 @@ def task_edge_domain2db(flow: DBFlow, domain_edges: list[DomainEdge]):
             ui_position=domain_task.ui_position,
             ui_style=domain_task.ui_style,
         )
+        if domain_task.kind == "code":
+            task.python_libraries = domain_task.python_libraries
+            task.code_string = domain_task.code
+            task.code_hash = domain_task.code_hash
+        elif domain_task.kind == "meta":
+            task.python_libraries = ["pandas", "requests"]
+            task.impl_namespace = "builtin_functions"
+            task.impl_callable = "run"
+        else:  # system
+            task.python_libraries = ["pandas", "requests"]
+            task.impl_namespace = "builtin_functions"
+            task.impl_callable = "run"
+        task_inputs = []
+        for k, v in domain_task.inputs.items():
+            task_inputs.append(TaskInput(task=task, key=k, value=v))
+        task.inputs = task_inputs
+        return task
 
     tasks_cache: dict[str, DBTask] = {}
     edges: list[DBEdge] = []
@@ -202,6 +225,7 @@ def flow_domain2db(domain_flow: DomainFlow, airflow_db: Session):
         hash=hash(domain_flow),
         file_hash=domain_flow.file_hash,
         schedule=domain_flow.scheduled,
+        max_retires=domain_flow.max_retires,
         is_loaded_by_airflow=check_loaded_by_airflow(domain_flow.write_time, domain_flow.dag_id, airflow_db),
     )
     # 관계 설정

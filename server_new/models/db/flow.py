@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Column, String, Text, DateTime, func, Boolean
+from sqlalchemy import Column, String, Text, DateTime, func, Boolean, Integer
 from sqlalchemy.orm import relationship, validates
 
 from core.database import BaseDB
@@ -22,6 +22,7 @@ class Flow(BaseDB):
     schedule = Column(String, default=None)
     is_deleted = Column(Boolean, default=False)
     active_status = Column(Boolean, default=False)
+    max_retires = Column(Integer, default=0)
 
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())

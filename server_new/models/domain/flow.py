@@ -16,6 +16,7 @@ class Task:
     def __init__(self,
                  id_: str,
                  variable_id,
+                 kind: str,
                  python_libraries,
                  code,
                  ui_type,
@@ -25,12 +26,15 @@ class Task:
                  input_meta_type: dict[str, Any],
                  output_meta_type: dict[str, Any],
                  inputs: dict[str, Any],
+                 impl_namespace=None,
+                 impl_callable=None,
                  ):
         self.id = id_
         self.variable_id = variable_id
+        self.kind = kind
         self.python_libraries = python_libraries
         self.code = code
-        self.code_hash = get_hash(code)
+        self.code_hash = get_hash(code) if kind == 'code' else None
         self.ui_type = ui_type
         self.ui_label = ui_label
         self.ui_position = ui_position
@@ -38,6 +42,8 @@ class Task:
         self.input_meta_type = input_meta_type
         self.output_meta_type = output_meta_type
         self.inputs = inputs
+        self.impl_namespace = impl_namespace
+        self.impl_callable = impl_callable
 
     def __eq__(self, other):
         if not isinstance(other, Task):
@@ -112,6 +118,7 @@ class Flow:
                  tasks: list[Task],
                  edges: list[Edge],
                  is_draft: bool,
+                 max_retires: int,
                  _id: str = None,
                  updated_at: datetime | None = None,
                  active_status: bool = False,
@@ -131,6 +138,7 @@ class Flow:
         self.active_status = active_status
         self.execution_status = execution_status
         self.is_draft = is_draft
+        self.max_retires = max_retires
 
     def __eq__(self, other):
         if not isinstance(other, Flow):
@@ -161,7 +169,13 @@ class Flow:
         os.makedirs(dag_dir_path, exist_ok=True)
         # write dag
         for task in self.tasks:
-            file_contents = render_task_code_script(task.code)
+            file_contents = render_task_code_script(
+                task_code=task.code,
+                kind=task.kind,
+                impl_namespace=task.impl_namespace,
+                impl_callable=task.impl_callable,
+                params=task.inputs,
+            )
             with open(os.path.join(dag_dir_path, f"func_{task.variable_id}.py"), 'w') as dag_file:
                 dag_file.write(file_contents)
 

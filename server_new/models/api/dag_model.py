@@ -53,13 +53,14 @@ CRON_REGEX = (r"^("
 # DAG 데이터 모델 정의
 class DAGNodeData(BaseModel):
     label: Optional[str] = Field("", examples=["node name"])
+    kind: str = Field("code", description="노드의 종류. code, meta, system")
     python_libraries: List[str] = Field([], description="requirements.txt 에 작성하는 포멧",
                                         examples=[['pandas==2.3.1', 'requests==2.32.3']])
     code: Optional[str] = Field("", description="python code", examples=["import json\njson.dumps([])"])
     input_meta_type: Optional[dict] = Field({}, description="graphio input meta type")
     output_meta_type: Optional[dict] = Field({}, description="function output meta type")
 
-    inputs: dict[str, Any] = Field({}, description="code 실행시 input 값", examples=[{"key1": "value1", "key2": "value2"}])
+    inputs: dict[str, Any] = Field({}, description="system, meta 의 code 실행시 필요한 input 값", examples=[{"key1": "value1", "key2": "value2"}])
 
     def __eq__(self, other):
         if not isinstance(other, DAGNodeData):
@@ -129,6 +130,7 @@ class DAGRequest(BaseModel):
     nodes: List[DAGNode]
     edges: List[DAGEdge]
     schedule: Optional[str] = Field(None, description="DAG schedule", examples=["0 9 * * *"])
+    max_retires: Optional[int] = Field(0, description="DAG max retires. default 0")
     is_draft: bool = Field(False, description="DAG Draft Status", examples=[True, False])
 
     @field_validator("schedule")
@@ -152,6 +154,7 @@ class DAGResponse(BaseModel):
     edges: List[DAGEdge]
     schedule: Optional[str] = Field(None, description="DAG schedule", examples=["0 9 * * *"])
     is_draft: bool = Field(False, description="DAG Draft Status", examples=[True, False])
+    max_retires: Optional[int] = Field(0, description="DAG max retires. default 0")
     updated_at: Optional[datetime] = Field(None, description="DAG Updated at", examples=["2020-10-18 00:00:00"])
     active_status: bool = Field(False, description="DAG Active", examples=[True, False])
     execution_status: Optional[str] = Field(None, description="DAG Last Execution Status",
