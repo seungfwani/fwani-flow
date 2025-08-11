@@ -99,7 +99,7 @@ class FlowDefinitionService:
         logger.info(f"Update airflow is_paused to '{result}'")
         flow.active_status = active_status
         self.meta_db.commit()
-        return True
+        return active_status
 
     def get_dag_total_count(self):
         return self.meta_db.query(func.count(DBFlow.id)).scalar()
