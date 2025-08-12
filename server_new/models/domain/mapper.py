@@ -63,7 +63,7 @@ def flow_api2domain(dag: DAGRequest):
         tasks=list(tasks.values()),
         edges=edge_api2domain(dag.edges, tasks),
         is_draft=dag.is_draft,
-        max_retires=dag.max_retires,
+        max_retries=dag.max_retries,
     )
 
 
@@ -103,7 +103,7 @@ def flow_db2domain(flow: DBFlow):
             edge.ui_style,
         ) for edge in flow.edges],
         is_draft=flow.is_draft,
-        max_retires=flow.max_retires,
+        max_retries=flow.max_retries,
         _id=flow.id,
         updated_at=flow.updated_at,
         active_status=flow.active_status,
@@ -150,7 +150,7 @@ def flow_domain2api(flow: DomainFlow):
         active_status=flow.active_status,
         execution_status=flow.execution_status,
         is_draft=flow.is_draft,
-        max_retires=flow.max_retires,
+        max_retries=flow.max_retries,
     )
 
 
@@ -225,7 +225,7 @@ def flow_domain2db(domain_flow: DomainFlow, airflow_db: Session):
         hash=hash(domain_flow),
         file_hash=domain_flow.file_hash,
         schedule=domain_flow.scheduled,
-        max_retires=domain_flow.max_retires,
+        max_retries=domain_flow.max_retries,
         is_draft=domain_flow.is_draft,
         is_loaded_by_airflow=check_loaded_by_airflow(domain_flow.write_time, domain_flow.dag_id, airflow_db),
     )

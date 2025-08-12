@@ -8,9 +8,12 @@ from sqlalchemy.sql.operators import like_op
 
 from config import Config
 from core.airflow_client import AirflowClient
+from core.snapshot import build_flow_snapshot, SnapshotOperation
 from errors import WorkflowError
 from models.api.dag_model import DAGRequest
-from models.db.flow import Flow as DBFlow
+from models.db.flow import Flow as DBFlow, FlowSnapshot
+from models.db.task import Task as DBTask, TaskInput
+from models.db.edge import Edge as DBEdge
 from models.db.flow_execution_queue import FlowExecutionQueue
 from models.domain.mapper import flow_api2domain, flow_db2domain, flow_domain2db, task_edge_domain2db, flow_domain2api
 
@@ -45,6 +48,99 @@ class FlowDefinitionService:
         else:
             return True
 
+    def next_version(self, flow_id: str) -> int:
+        cur = (self.meta_db.query(func.max(FlowSnapshot.version))
+               .filter(FlowSnapshot.flow_id == flow_id)
+               .scalar())
+        return (cur or 0) + 1
+
+    def save_flow_snapshot(self, flow: DBFlow, op: SnapshotOperation, message: str | None = None):
+        if flow.is_draft:
+            # 수정본 일때는 스냅샷 저장 안함
+            return
+        snap = FlowSnapshot(
+            flow=flow,
+            version=self.next_version(flow.id),
+            op=op.name,
+            message=message,
+            snapshot=build_flow_snapshot(flow),
+        )
+        self.meta_db.add(snap)
+
+    def restore_flow_by_snapshot(self, flow_id: str, version: int):
+        fs = (self.meta_db.query(FlowSnapshot)
+              .filter_by(flow_id=flow_id, version=version)
+              .one())
+        data = fs.snapshot
+
+        flow = self._get_flow(flow_id)
+
+        # 기존 task/edge 삭제 후 스냅샷으로 재구성
+        flow.tasks.clear()
+        flow.edges.clear()
+
+        f = data["flow"]
+        flow.name = f["name"]
+        flow.is_draft = f["is_draft"]
+        flow.dag_id = f["dag_id"]
+        flow.description = f["description"]
+        flow.owner_id = f["owner_id"]
+        flow.hash = f["hash"]
+        flow.file_hash = f["file_hash"]
+        flow.is_loaded_by_airflow = f["is_loaded_by_airflow"]
+        flow.schedule = f["schedule"]
+        flow.is_deleted = f["is_deleted"]
+        flow.active_status = f["active_status"]
+        flow.max_retries = f["max_retries"]
+
+        # tasks 복원
+        for t in data["tasks"]:
+            task = DBTask(
+                id=t["id"],
+                variable_id=t["variable_id"],
+                kind=t["kind"],
+                code_string=t["code_string"],
+                code_hash=t["code_hash"],
+                python_libraries=t["python_libraries"],
+                impl_namespace=t["impl_namespace"],
+                impl_callable=t["impl_callable"],
+                input_meta_type=t["input_meta_type"],
+                output_meta_type=t["output_meta_type"],
+                ui_type=t["ui_type"],
+                ui_label=t["ui_label"],
+                ui_position=t["ui_position"],
+                ui_style=t["ui_style"],
+                ui_extra_data=t["ui_extra_data"],
+            )
+            task.inputs = [
+                TaskInput(
+                    id=inp["id"],
+                    key=inp["key"],
+                    type=inp["type"],
+                    value=inp["value"],
+                ) for inp in t["inputs"]
+            ]
+            flow.tasks.append(task)
+
+        # edges 복원
+        for e in data["edges"]:
+            flow.edges.append(DBEdge(
+                id=e["id"],
+                from_task_id=e["from_task_id"],
+                to_task_id=e["to_task_id"],
+                ui_type=e["ui_type"],
+                ui_label=e["ui_label"],
+                ui_labelStyle=e["ui_labelStyle"],
+                ui_labelBgStyle=e["ui_labelBgStyle"],
+                ui_labelBgPadding=e["ui_labelBgPadding"],
+                ui_labelBgBorderRadius=e["ui_labelBgBorderRadius"],
+                ui_style=e["ui_style"],
+            ))
+
+        self.meta_db.flush()
+        self.save_flow_snapshot(flow, op=SnapshotOperation.RESTORE, message=f"restore from v{version}")
+        self.meta_db.commit()
+
     def save_dag(self, dag: DAGRequest):
         existing = self.find_existing_flow(dag.name)
 
@@ -55,6 +151,7 @@ class FlowDefinitionService:
             domain_flow = flow_api2domain(dag)
             db_flow = flow_domain2db(domain_flow, self.airflow_db)
             self.meta_db.add(db_flow)
+            self.save_flow_snapshot(db_flow, SnapshotOperation.CREATE, message="신규 등록")
             self.meta_db.commit()
         return db_flow.id
 
@@ -79,6 +176,9 @@ class FlowDefinitionService:
         origin_flow.schedule = new_flow.scheduled
         origin_flow.hash = hash(new_flow)
         origin_flow.file_hash = new_flow.file_hash
+        origin_flow.active_status = new_flow.active_status
+        origin_flow.max_retries = new_flow.max_retries
+        origin_flow.is_draft = new_flow.is_draft
 
         origin_flow.tasks.clear()
         origin_flow.edges.clear()
@@ -86,6 +186,7 @@ class FlowDefinitionService:
         origin_flow.tasks, origin_flow.edges = task_edge_domain2db(origin_flow, new_flow.edges)
 
         try:
+            self.save_flow_snapshot(origin_flow, SnapshotOperation.UPDATE, message="필드 수정")
             self.meta_db.commit()
             return origin_flow.id
         except Exception as e:
@@ -99,6 +200,7 @@ class FlowDefinitionService:
         result = self.airflow_client.update_pause(flow.dag_id, False if active_status else True)
         logger.info(f"Update airflow is_paused to '{result}'")
         flow.active_status = active_status
+        self.save_flow_snapshot(flow, SnapshotOperation.UPDATE, message="activate status 수정")
         self.meta_db.commit()
         return active_status
 
@@ -173,6 +275,7 @@ class FlowDefinitionService:
 
         flow.is_deleted = True
         flow.file_hash = None
+        self.save_flow_snapshot(flow, SnapshotOperation.DELETE, message="임시 삭제")
         self.meta_db.commit()
         logger.info(f"🕒 DAG 임시 삭제됨 (DB 보관): {flow.name}")
         return dag_id
@@ -182,6 +285,7 @@ class FlowDefinitionService:
 
         delete_dag_file(flow.dag_id)
 
+        self.save_flow_snapshot(flow, SnapshotOperation.DELETE, message="완전 삭제")
         self.meta_db.delete(flow)
         self.meta_db.commit()
         logger.info(f"💥 DAG 영구 삭제됨: {flow.name}")
@@ -195,6 +299,7 @@ class FlowDefinitionService:
         flow.is_deleted = False
         flow.file_hash = flow_db2domain(flow).file_hash
 
+        self.save_flow_snapshot(flow, SnapshotOperation.DELETE, message="임시 삭제 flow 복구")
         self.meta_db.commit()
         logger.info(f"♻️ DAG 복구됨: {flow.name}")
 

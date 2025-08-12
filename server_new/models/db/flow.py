@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Column, String, Text, DateTime, func, Boolean, Integer
+from sqlalchemy import Column, String, Text, DateTime, func, Boolean, Integer, ForeignKey, UniqueConstraint, JSON
 from sqlalchemy.orm import relationship, validates
 
 from core.database import BaseDB
@@ -11,7 +11,7 @@ class Flow(BaseDB):
     __tablename__ = "flow"
 
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
-    name = Column(String, index=True)
+    name = Column(String, unique=True, index=True)
     is_draft = Column(Boolean, default=False)
     dag_id = Column(String, unique=True, index=True)
     description = Column(Text)
@@ -22,19 +22,20 @@ class Flow(BaseDB):
     schedule = Column(String, default=None)
     is_deleted = Column(Boolean, default=False)
     active_status = Column(Boolean, default=False)
-    max_retires = Column(Integer, default=0)
+    max_retries = Column(Integer, default=0)
 
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     tasks = relationship("Task", back_populates="flow", cascade="all, delete-orphan", passive_deletes=True)
     edges = relationship("Edge", back_populates="flow", cascade="all, delete-orphan", passive_deletes=True)
+    flow_snapshots = relationship("FlowSnapshot", back_populates="flow", cascade="all, delete-orphan", passive_deletes=True)
 
     flow_execution_queues = relationship("FlowExecutionQueue",
                                          back_populates="flow",
                                          cascade="all, delete-orphan",
                                          passive_deletes=True,
-                                         order_by="desc(FlowExecutionQueue.updated_at)",)
+                                         order_by="desc(FlowExecutionQueue.updated_at)", )
     airflow_dag_run_histories = relationship("AirflowDagRunHistory", back_populates="flow",
                                              cascade="all, delete-orphan",
                                              passive_deletes=True)
@@ -72,6 +73,21 @@ class Flow(BaseDB):
     def _update_dag_id(self, key, name):
         self.dag_id = make_flow_id_by_name(name)
         return name
+
+
+class FlowSnapshot(BaseDB):
+    __tablename__ = "flow_snapshot"
+
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    flow_id = Column(String, ForeignKey("flow.id", ondelete="CASCADE"), index=True, nullable=False)
+    version = Column(Integer, nullable=False)  # unique with flow_id
+    op = Column(String, nullable=False)  # create/update/delete/publish/restore
+    message = Column(String, nullable=True)
+    snapshot = Column(JSON, nullable=False)
+    created_at = Column(DateTime, default=func.now())
+    __table_args__ = (UniqueConstraint("flow_id", "version", name="uq_flow_version"),)
+
+    flow = relationship("Flow", back_populates="flow_snapshots")
 
 # class FlowVersion(BaseDB):
 #     __tablename__ = "flow_version"

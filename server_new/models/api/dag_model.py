@@ -131,7 +131,7 @@ class DAGRequest(BaseModel):
     nodes: List[DAGNode]
     edges: List[DAGEdge]
     schedule: Optional[str] = Field(None, description="DAG schedule", examples=["0 9 * * *"])
-    max_retires: Optional[int] = Field(0, description="DAG max retires. default 0")
+    max_retries: Optional[int] = Field(0, description="DAG max retries. default 0")
     is_draft: bool = Field(False, description="DAG Draft Status", examples=[True, False])
 
     @field_validator("schedule")
@@ -155,7 +155,7 @@ class DAGResponse(BaseModel):
     edges: List[DAGEdge]
     schedule: Optional[str] = Field(None, description="DAG schedule", examples=["0 9 * * *"])
     is_draft: bool = Field(False, description="DAG Draft Status", examples=[True, False])
-    max_retires: Optional[int] = Field(0, description="DAG max retires. default 0")
+    max_retries: Optional[int] = Field(0, description="DAG max retries. default 0")
     updated_at: Optional[datetime] = Field(None, description="DAG Updated at", examples=["2020-10-18 00:00:00"])
     active_status: bool = Field(False, description="DAG Active", examples=[True, False])
     execution_status: Optional[str] = Field(None, description="DAG Last Execution Status",

@@ -12,13 +12,9 @@ def get_udf_requirements(requirements_txt: str) -> List[str]:
         return []
 
 
-def make_flow_id_by_name(name: str, is_draft=False) -> str:
-    if is_draft:
-        source_name = name + datetime.now().strftime("%Y%m%d%H%M%S")
-    else:
-        source_name = name
+def make_flow_id_by_name(name: str) -> str:
     return ("dag_"
-            + base64.urlsafe_b64encode(source_name.encode())
+            + base64.urlsafe_b64encode(name.encode())
             .rstrip(b'=').decode('ascii'))
 
 

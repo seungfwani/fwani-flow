@@ -118,7 +118,7 @@ class Flow:
                  tasks: list[Task],
                  edges: list[Edge],
                  is_draft: bool,
-                 max_retires: int,
+                 max_retries: int,
                  _id: str = None,
                  updated_at: datetime | None = None,
                  active_status: bool = False,
@@ -126,7 +126,7 @@ class Flow:
                  ):
         self.id = _id if _id else str(uuid.uuid4())
         self.name = name
-        self.dag_id = make_flow_id_by_name(name, is_draft)
+        self.dag_id = make_flow_id_by_name(name)
         self.description = description
         self.owner = owner
         self.scheduled = scheduled
@@ -138,7 +138,7 @@ class Flow:
         self.active_status = active_status
         self.execution_status = execution_status
         self.is_draft = is_draft
-        self.max_retires = max_retires
+        self.max_retries = max_retries
 
     def __eq__(self, other):
         if not isinstance(other, Flow):

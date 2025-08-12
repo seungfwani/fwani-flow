@@ -1,8 +1,8 @@
 """Initial migration
 
-Revision ID: a0217d589cbb
+Revision ID: 7bcc061788ca
 Revises: 
-Create Date: 2025-08-11 17:58:38.861947
+Create Date: 2025-08-12 18:16:46.848421
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'a0217d589cbb'
+revision: str = '7bcc061788ca'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -34,14 +34,14 @@ def upgrade() -> None:
     sa.Column('schedule', sa.String(), nullable=True),
     sa.Column('is_deleted', sa.Boolean(), nullable=True),
     sa.Column('active_status', sa.Boolean(), nullable=True),
-    sa.Column('max_retires', sa.Integer(), nullable=True),
+    sa.Column('max_retries', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_flow_dag_id'), 'flow', ['dag_id'], unique=True)
     op.create_index(op.f('ix_flow_id'), 'flow', ['id'], unique=False)
-    op.create_index(op.f('ix_flow_name'), 'flow', ['name'], unique=False)
+    op.create_index(op.f('ix_flow_name'), 'flow', ['name'], unique=True)
     op.create_table('function_template',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('name', sa.String(), nullable=True),
@@ -98,6 +98,20 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_flow_execution_queue_id'), 'flow_execution_queue', ['id'], unique=False)
+    op.create_table('flow_snapshot',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('flow_id', sa.String(), nullable=False),
+    sa.Column('version', sa.Integer(), nullable=False),
+    sa.Column('op', sa.String(), nullable=False),
+    sa.Column('message', sa.String(), nullable=True),
+    sa.Column('snapshot', sa.JSON(), nullable=False),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['flow_id'], ['flow.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('flow_id', 'version', name='uq_flow_version')
+    )
+    op.create_index(op.f('ix_flow_snapshot_flow_id'), 'flow_snapshot', ['flow_id'], unique=False)
+    op.create_index(op.f('ix_flow_snapshot_id'), 'flow_snapshot', ['id'], unique=False)
     op.create_table('task',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('flow_id', sa.String(), nullable=False),
@@ -193,6 +207,9 @@ def downgrade() -> None:
     op.drop_table('airflow_dag_run_snapshot_edge')
     op.drop_index(op.f('ix_task_id'), table_name='task')
     op.drop_table('task')
+    op.drop_index(op.f('ix_flow_snapshot_id'), table_name='flow_snapshot')
+    op.drop_index(op.f('ix_flow_snapshot_flow_id'), table_name='flow_snapshot')
+    op.drop_table('flow_snapshot')
     op.drop_index(op.f('ix_flow_execution_queue_id'), table_name='flow_execution_queue')
     op.drop_table('flow_execution_queue')
     op.drop_table('airflow_dag_run_history')
