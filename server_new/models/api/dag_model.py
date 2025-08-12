@@ -211,5 +211,5 @@ class ActiveStatusRequest(BaseModel):
     active_status: bool = Field(False, description="DAG Active", examples=[True, False])
 
 
-class MultipleRunRequest(BaseModel):
-    ids: list[str] = Field([], description="실행 할 dag id list")
+class MultipleRequest(BaseModel):
+    ids: list[str] = Field([], description="dag id list")

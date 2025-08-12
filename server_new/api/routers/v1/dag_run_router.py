@@ -8,7 +8,7 @@ from core.database import get_db, get_airflow
 from core.services.flow_definition_service import FlowDefinitionService
 from core.services.flow_execution_service import FlowExecutionService
 from models.api.api_model import api_response_wrapper, APIResponse
-from models.api.dag_model import DAGRequest, TaskExecutionModel, MultipleRunRequest
+from models.api.dag_model import DAGRequest, TaskExecutionModel, MultipleRequest
 
 logger = logging.getLogger()
 
@@ -39,7 +39,7 @@ async def run_dag_immediately(dag_id: str,
              response_model=APIResponse[bool],
              )
 @api_response_wrapper
-async def run_dags(dag_ids: MultipleRunRequest,
+async def run_dags(dag_ids: MultipleRequest,
                    db: Session = Depends(get_db),
                    airflow: Session = Depends(get_airflow),
                    airflow_client: AirflowClient = Depends(get_airflow_client)
