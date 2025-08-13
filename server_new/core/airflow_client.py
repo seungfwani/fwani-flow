@@ -143,17 +143,9 @@ class AirflowClient:
 
 
 def get_airflow_client() -> Generator[AirflowClient, None, None]:
-    logger.info("Connecting to airflow server...")
-    _airflow = AirflowClient(
-        host=Config.AIRFLOW_HOST,
-        port=Config.AIRFLOW_PORT,
-        username=Config.AIRFLOW_USER,
-        password=Config.AIRFLOW_PASSWORD,
-    )
-    try:
-        yield _airflow
-    finally:
-        _airflow.session.close()
+    with get_airflow_client_context() as airflow_client:
+        yield airflow_client
+
 
 @contextmanager
 def get_airflow_client_context() -> Generator[AirflowClient, None, None]:
