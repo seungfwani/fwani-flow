@@ -178,6 +178,7 @@ class FlowDefinitionService:
                                 message=f"이전 버전 restore - v{version}",
                                 is_draft=flow.is_draft, )
         self.meta_db.commit()
+        return flow.id
 
     def save_dag(self, dag: DAGRequest):
         existing = self.find_existing_flow(dag.name)
@@ -318,13 +319,21 @@ class FlowDefinitionService:
 
     def get_dag(self, dag_id):
         query = (self.meta_db.query(FlowSnapshot)
-         .filter(FlowSnapshot.flow_id == dag_id))
+                 .filter(FlowSnapshot.flow_id == dag_id))
         current_flow = query.filter(FlowSnapshot.is_current == True).first()
         draft_flow = query.filter(FlowSnapshot.is_draft == True).first()
         return flow_snapshot2api(current_flow), flow_snapshot2api(draft_flow)
 
     def get_snapshot_list(self, dag_id):
-        self.meta_db.query(FlowSnapshot).filter(FlowSnapshot.flow_id == dag_id).all()
+        return [{
+            "id": snap.id,
+            "version": snap.version,
+            "is_current": snap.is_current,
+            "is_draft": snap.is_draft,
+        } for snap in self.meta_db.query(FlowSnapshot)
+        .filter(FlowSnapshot.flow_id == dag_id)
+        .order_by(desc(FlowSnapshot.version))
+        .all()]
 
     def delete_dag_temporary(self, dag_id: str):
         flow = self._get_flow(dag_id)
@@ -360,6 +369,7 @@ class FlowDefinitionService:
         self.save_flow_snapshot(flow, SnapshotOperation.RESTORE, message="임시 삭제 flow 복구")
         self.meta_db.commit()
         logger.info(f"♻️ DAG 복구됨: {flow.name}")
+        return flow.id
 
 
 def delete_dag_file(dag_id: str):

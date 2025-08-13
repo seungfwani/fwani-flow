@@ -20,7 +20,23 @@ router = APIRouter(
 
 
 @router.post("/dag/{dag_id}/run-now",
-             response_model=APIResponse[str],
+             response_model=APIResponse[dict[str, str]],
+             responses={
+                 200: {
+                     "content": {
+                         "application/json": {
+                             "example": {
+                                 "success": True,
+                                 "message": "요청이 정상 처리 되었습니다.",
+                                 "data": {
+                                     "execution_id": "f9d52759-4e66-4d99-8279-a0b236b9fdc9"
+                                 },
+                                 "error": {}
+                             }
+                         }
+                     }
+                 }
+             }
              )
 @api_response_wrapper
 async def run_dag_immediately(dag_id: str,
@@ -32,11 +48,30 @@ async def run_dag_immediately(dag_id: str,
     DAG 즉시 실행 요청하는 API
     """
     flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
-    return flow_execution_service.run_execution(dag_id)
+    return {"execution_id": flow_execution_service.run_execution(dag_id)}
 
 
 @router.post("/dag",
-             response_model=APIResponse[bool],
+             response_model=APIResponse[list[dict[str, str]]],
+             responses={
+                 200: {
+                     "content": {
+                         "application/json": {
+                             "example": {
+                                 "success": True,
+                                 "message": "요청이 정상 처리 되었습니다.",
+                                 "data": [
+                                     {
+                                         "dag_id": "f9d52759-4e66-4d99-8279-a0b236b9fdc9",
+                                         "execution_id": "f9d52759-4e66-4d99-8279-a0b236b9fdc9"
+                                     }
+                                 ],
+                                 "error": {}
+                             }
+                         }
+                     }
+                 }
+             }
              )
 @api_response_wrapper
 async def run_dags(dag_ids: MultipleRequest,
@@ -52,7 +87,24 @@ async def run_dags(dag_ids: MultipleRequest,
 
 
 @router.post("/dag-run-test",
-             response_model=APIResponse[str],
+             response_model=APIResponse[dict[str, str]],
+             responses={
+                 200: {
+                     "content": {
+                         "application/json": {
+                             "example": {
+                                 "success": True,
+                                 "message": "요청이 정상 처리 되었습니다.",
+                                 "data": {
+                                     "dag_id": "f9d52759-4e66-4d99-8279-a0b236b9fdc9",
+                                     "execution_id": "f9d52759-4e66-4d99-8279-a0b236b9fdc9"
+                                 },
+                                 "error": {}
+                             }
+                         }
+                     }
+                 }
+             }
              )
 @api_response_wrapper
 async def run_dag_for_test(dag: DAGRequest,
@@ -66,11 +118,25 @@ async def run_dag_for_test(dag: DAGRequest,
     dag_service = FlowDefinitionService(db, airflow)
     dag_id = dag_service.save_dag(dag)
     flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
-    return flow_execution_service.register_executions([dag_id])
+    return flow_execution_service.register_executions([dag_id])[0]
 
 
 @router.delete("/execution/{execution_id}/kill",
                response_model=APIResponse[bool],
+             responses={
+                 200: {
+                     "content": {
+                         "application/json": {
+                             "example": {
+                                 "success": True,
+                                 "message": "요청이 정상 처리 되었습니다.",
+                                 "data": True,
+                                 "error": {}
+                             }
+                         }
+                     }
+                 }
+             }
                )
 @api_response_wrapper
 async def kill_dag_run(execution_id: str,

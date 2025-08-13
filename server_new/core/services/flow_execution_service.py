@@ -82,9 +82,13 @@ class FlowExecutionService:
         return flow_execution.id
 
     def register_executions(self, dag_ids: list[str]):
+        result = []
         for dag_id in dag_ids:
-            _ = self._register_execution(dag_id)
-        return True
+            result.append({
+                "dag_id": dag_id,
+                "execution_id": self._register_execution(dag_id).id
+            })
+        return result
 
     def kill_execution(self, execution_id: str):
         execution = self._get_flow_execution(execution_id)
