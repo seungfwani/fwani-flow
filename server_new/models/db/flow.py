@@ -77,7 +77,7 @@ class Flow(BaseDB):
 
     @validates("name")
     def _update_dag_id(self, key, name):
-        self.dag_id = make_flow_id_by_name(name)
+        self.dag_id = make_flow_id_by_name(name, self.is_draft)
         return name
 
 

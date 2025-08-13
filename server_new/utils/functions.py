@@ -13,13 +13,10 @@ def get_udf_requirements(requirements_txt: str) -> List[str]:
 
 
 def make_flow_id_by_name(name: str, is_draft: bool=False) -> str:
-    if is_draft:
-        source_name = name + "__draft"
-    else:
-        source_name = name
-    return ("dag_"
-            + base64.urlsafe_b64encode(source_name.encode())
+    dag_name = ("dag_"
+            + base64.urlsafe_b64encode(name.encode())
             .rstrip(b'=').decode('ascii'))
+    return f"{dag_name}__draft" if is_draft else dag_name
 
 
 def get_hash(data: str | bytes) -> str:

@@ -82,7 +82,7 @@ class FlowDefinitionService:
                 last_snap.is_current = True
                 last_snap.is_draft = False
                 last_snap.op = op.name
-                last_snap.message = message
+                last_snap.message = last_snap.message + "\n" + message
                 last_snap.payload = payload
                 last_snap.payload_hash = payload_hash
                 return last_snap, True
@@ -202,6 +202,8 @@ class FlowDefinitionService:
         return db_flow.id
 
     def update_dag(self, origin_dag_id: str, new_dag: DAGRequest):
+        if not new_dag:
+            return origin_dag_id
         # 0. 기존 Flow 조회
         origin_flow = self._get_flow(origin_dag_id)
 
@@ -218,6 +220,7 @@ class FlowDefinitionService:
                 raise WorkflowError(f"Flow 이름 '{new_flow.name}' 은 이미 존재합니다.")
         # 3. 필드 갱신
         origin_flow.name = new_flow.name
+        origin_flow.dag_id = new_flow.dag_id
         origin_flow.description = new_flow.description
         origin_flow.schedule = new_flow.scheduled
         origin_flow.hash = hash(new_flow)

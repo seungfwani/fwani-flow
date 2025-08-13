@@ -126,7 +126,7 @@ class Flow:
                  ):
         self.id = _id if _id else str(uuid.uuid4())
         self.name = name
-        self.dag_id = make_flow_id_by_name(name)
+        self.dag_id = make_flow_id_by_name(name, is_draft)
         self.description = description
         self.owner = owner
         self.scheduled = scheduled
@@ -179,13 +179,13 @@ class Flow:
             with open(os.path.join(dag_dir_path, f"func_{task.variable_id}.py"), 'w') as dag_file:
                 dag_file.write(file_contents)
 
-        dag_file_path = os.path.join(dag_dir_path, "dag.py")
+        dag_file_path = os.path.join(dag_dir_path, f"{self.dag_id}.py")
         try:
             # write dag
             file_contents = render_dag_script(self.dag_id,
                                               self.tasks,
                                               self.edges,
-                                              tags=[self.dag_id, "generated"],
+                                              tags=[self.dag_id, "draft" if self.is_draft else "publish", "generated"],
                                               schedule=self.scheduled)
             with open(dag_file_path, 'w') as dag_file:
                 dag_file.write(file_contents)

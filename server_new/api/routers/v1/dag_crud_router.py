@@ -160,7 +160,7 @@ async def update_dag_active_status(dag_id: str,
     """
     DAG active 상태 변경 api
     """
-    dag_service = FlowDefinitionService(db, airflow_client=next(airflow_client))
+    dag_service = FlowDefinitionService(db, airflow_client=airflow_client)
     return {"active_status": dag_service.update_dag_active_status(dag_id, request.active_status)}
 
 

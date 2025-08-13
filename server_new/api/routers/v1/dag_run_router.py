@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Body, Query
 from sqlalchemy.orm import Session
@@ -40,6 +41,7 @@ router = APIRouter(
              )
 @api_response_wrapper
 async def run_dag_immediately(dag_id: str,
+                              dag: Optional[DAGRequest] = Body(None),
                               db: Session = Depends(get_db),
                               airflow: Session = Depends(get_airflow),
                               airflow_client: AirflowClient = Depends(get_airflow_client)
@@ -47,6 +49,8 @@ async def run_dag_immediately(dag_id: str,
     """
     DAG 즉시 실행 요청하는 API
     """
+    dag_service = FlowDefinitionService(db, airflow)
+    dag_id = dag_service.update_dag(dag_id, dag)
     flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
     return {"execution_id": flow_execution_service.run_execution(dag_id)}
 
@@ -123,20 +127,20 @@ async def run_dag_for_test(dag: DAGRequest,
 
 @router.delete("/execution/{execution_id}/kill",
                response_model=APIResponse[bool],
-             responses={
-                 200: {
-                     "content": {
-                         "application/json": {
-                             "example": {
-                                 "success": True,
-                                 "message": "요청이 정상 처리 되었습니다.",
-                                 "data": True,
-                                 "error": {}
-                             }
-                         }
-                     }
-                 }
-             }
+               responses={
+                   200: {
+                       "content": {
+                           "application/json": {
+                               "example": {
+                                   "success": True,
+                                   "message": "요청이 정상 처리 되었습니다.",
+                                   "data": True,
+                                   "error": {}
+                               }
+                           }
+                       }
+                   }
+               }
                )
 @api_response_wrapper
 async def kill_dag_run(execution_id: str,
