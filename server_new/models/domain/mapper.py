@@ -6,7 +6,7 @@ from errors import WorkflowError
 from models.api.dag_model import DAGRequest, DAGNode, DAGEdge, DAGResponse, DAGNodeData
 from models.db.airflow_mapper import AirflowDag
 from models.db.edge import Edge as DBEdge
-from models.db.flow import Flow as DBFlow
+from models.db.flow import Flow as DBFlow, FlowSnapshot
 from models.db.task import Task as DBTask, TaskInput
 from models.domain.flow import Flow as DomainFlow, Edge as DomainEdge, Task as DomainTask
 from utils.code_validator import validate_user_code
@@ -223,7 +223,6 @@ def flow_domain2db(domain_flow: DomainFlow, airflow_db: Session):
         description=domain_flow.description,
         owner_id=domain_flow.owner,
         hash=hash(domain_flow),
-        file_hash=domain_flow.file_hash,
         schedule=domain_flow.scheduled,
         max_retries=domain_flow.max_retries,
         is_draft=domain_flow.is_draft,
@@ -232,6 +231,53 @@ def flow_domain2db(domain_flow: DomainFlow, airflow_db: Session):
     # 관계 설정
     flow.tasks, flow.edges = task_edge_domain2db(flow, domain_flow.edges)
     return flow
+
+
+def flow_snapshot2api(flow_snapshot: FlowSnapshot):
+    if not flow_snapshot:
+        return None
+    payload = flow_snapshot.payload
+    f = payload['flow']
+    return DAGResponse(
+        id=f['id'],
+        name=f['name'],
+        description=f['description'],
+        owner=f['owner_id'],
+        # TODO: task, edge 변환
+        nodes=[DAGNode(
+            id=t["id"],
+            type=t["ui_type"],
+            position=t["ui_position"],
+            data=DAGNodeData(
+                label=t["ui_label"],
+                kind=t["kind"],
+                python_libraries=t["python_libraries"],
+                code=t["code_string"],
+                input_meta_type=t["input_meta_type"],
+                output_meta_type=t["output_meta_type"],
+                inputs={inp['key']: inp['value'] for inp in t["inputs"]},
+            ),
+            style=t["ui_style"],
+        ) for t in payload["tasks"]],
+        edges=[DAGEdge(
+            id=e["id"],
+            type=e["ui_type"],
+            source=e["from_task_id"],
+            target=e["to_task_id"],
+            label=e["ui_label"],
+            labelStyle=e["ui_labelStyle"],
+            labelBgStyle=e["ui_labelBgStyle"],
+            labelBgPadding=e["ui_labelBgPadding"],
+            labelBgBorderRadius=e["ui_labelBgBorderRadius"],
+            style=e["ui_style"],
+        ) for e in payload["edges"]],
+        schedule=f['schedule'],
+        updated_at=None,
+        active_status=f['active_status'],
+        execution_status=None,
+        is_draft=f['is_draft'],
+        max_retries=f['max_retries'],
+    )
 
 
 def check_loaded_by_airflow(write_file_time: datetime.datetime, dag_id: str, airflow_db: Session):

@@ -1,8 +1,8 @@
 """Initial migration
 
-Revision ID: 7bcc061788ca
+Revision ID: 96c238dd88f3
 Revises: 
-Create Date: 2025-08-12 18:16:46.848421
+Create Date: 2025-08-13 14:36:26.801642
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '7bcc061788ca'
+revision: str = '96c238dd88f3'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -102,10 +102,14 @@ def upgrade() -> None:
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('flow_id', sa.String(), nullable=False),
     sa.Column('version', sa.Integer(), nullable=False),
+    sa.Column('is_current', sa.Boolean(), server_default='false', nullable=False),
+    sa.Column('is_draft', sa.Boolean(), server_default='false', nullable=False),
     sa.Column('op', sa.String(), nullable=False),
     sa.Column('message', sa.String(), nullable=True),
-    sa.Column('snapshot', sa.JSON(), nullable=False),
+    sa.Column('payload', sa.JSON(), nullable=False),
+    sa.Column('payload_hash', sa.String(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.CheckConstraint('NOT (is_current AND is_draft)', name='ck_current_xor_draft'),
     sa.ForeignKeyConstraint(['flow_id'], ['flow.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('flow_id', 'version', name='uq_flow_version')
@@ -175,7 +179,7 @@ def upgrade() -> None:
     sa.Column('ui_labelStyle', sa.JSON(), nullable=True),
     sa.Column('ui_labelBgStyle', sa.JSON(), nullable=True),
     sa.Column('ui_labelBgPadding', sa.JSON(), nullable=True),
-    sa.Column('ui_labelBgBorderRadius', sa.Numeric(), nullable=True),
+    sa.Column('ui_labelBgBorderRadius', sa.Float(), nullable=True),
     sa.Column('ui_style', sa.JSON(), nullable=True),
     sa.ForeignKeyConstraint(['flow_id'], ['flow.id'], ondelete='CASCADE'),
     sa.ForeignKeyConstraint(['from_task_id'], ['task.id'], ondelete='CASCADE'),

@@ -1,6 +1,7 @@
 import uuid
 
-from sqlalchemy import Column, String, Text, DateTime, func, Boolean, Integer, ForeignKey, UniqueConstraint, JSON
+from sqlalchemy import Column, String, Text, DateTime, func, Boolean, Integer, ForeignKey, UniqueConstraint, JSON, \
+    Index, text, CheckConstraint
 from sqlalchemy.orm import relationship, validates
 
 from core.database import BaseDB
@@ -29,7 +30,12 @@ class Flow(BaseDB):
 
     tasks = relationship("Task", back_populates="flow", cascade="all, delete-orphan", passive_deletes=True)
     edges = relationship("Edge", back_populates="flow", cascade="all, delete-orphan", passive_deletes=True)
-    flow_snapshots = relationship("FlowSnapshot", back_populates="flow", cascade="all, delete-orphan", passive_deletes=True)
+    flow_snapshots = relationship("FlowSnapshot",
+                                  back_populates="flow",
+                                  cascade="all, delete-orphan",
+                                  passive_deletes=True,
+                                  order_by="desc(FlowSnapshot.version)",
+                                  )
 
     flow_execution_queues = relationship("FlowExecutionQueue",
                                          back_populates="flow",
@@ -81,11 +87,21 @@ class FlowSnapshot(BaseDB):
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     flow_id = Column(String, ForeignKey("flow.id", ondelete="CASCADE"), index=True, nullable=False)
     version = Column(Integer, nullable=False)  # unique with flow_id
+
+    # 현재/수정 버전 플래그
+    is_current = Column(Boolean, nullable=False, server_default="false")
+    is_draft = Column(Boolean, nullable=False, server_default="false")
+
     op = Column(String, nullable=False)  # create/update/delete/publish/restore
     message = Column(String, nullable=True)
-    snapshot = Column(JSON, nullable=False)
+    payload = Column(JSON, nullable=False)
+    payload_hash = Column(String, nullable=False)
     created_at = Column(DateTime, default=func.now())
-    __table_args__ = (UniqueConstraint("flow_id", "version", name="uq_flow_version"),)
+    __table_args__ = (
+        UniqueConstraint("flow_id", "version", name="uq_flow_version"),
+        # (선택) 둘 다 true 금지
+        CheckConstraint("NOT (is_current AND is_draft)", name="ck_current_xor_draft")
+    )
 
     flow = relationship("Flow", back_populates="flow_snapshots")
 

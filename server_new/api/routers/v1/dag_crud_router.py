@@ -44,11 +44,11 @@ async def update_dag(dag_id: str, dag: DAGRequest, db: Session = Depends(get_db)
     return {"id": dag_service.update_dag(dag_id, dag)}
 
 
-@router.patch("/dag/{dag_id}/restore",
+@router.patch("/dag/{dag_id}/restore-deleted",
               response_model=APIResponse[str],
               )
 @api_response_wrapper
-async def restore_dag(dag_id: str, db: Session = Depends(get_db)):
+async def restore_deleted_dag(dag_id: str, db: Session = Depends(get_db)):
     """
     DAG 임시 삭제 (airflow 에서만 삭제)
 
@@ -56,6 +56,18 @@ async def restore_dag(dag_id: str, db: Session = Depends(get_db)):
     """
     dag_service = FlowDefinitionService(db)
     return dag_service.restore_deleted_dag(dag_id)
+
+
+@router.patch("/dag/{dag_id}/restore-snapshot/{version}",
+              response_model=APIResponse[str],
+              )
+@api_response_wrapper
+async def restore_snapshot_dag(dag_id: str, version: int, db: Session = Depends(get_db)):
+    """
+    DAG snapshot 형태로 복구
+    """
+    dag_service = FlowDefinitionService(db)
+    return dag_service.restore_flow_by_snapshot(dag_id, version)
 
 
 @router.patch("/dag/{dag_id}/active-status",
@@ -100,6 +112,7 @@ async def delete_dag_temporary(dag_id: str, db: Session = Depends(get_db)):
     """
     dag_service = FlowDefinitionService(db)
     return {"id": dag_service.delete_dag_temporary(dag_id)}
+
 
 @router.delete("/dag",
                response_model=APIResponse[list[dict[str, str]]],
@@ -159,6 +172,30 @@ async def get_dag_list(
     모든 이용가능한 DAG 리스트를 조회
     """
     dag_service = FlowDefinitionService(db)
+    dag_list, result_count, filtered_count, total_count = dag_service.get_dag_list(active_status,
+                                                                                   execution_status,
+                                                                                   name,
+                                                                                   sort,
+                                                                                   offset,
+                                                                                   limit,
+                                                                                   include_deleted)
+    return {
+        "total_count": total_count,
+        "filtered_count": filtered_count,
+        "result_count": result_count,
+        "list": dag_list,
+    }
+
+
+@router.get("/dag-snapshot/{dag_id}",
+            response_model=APIResponse[dict[str, List[DAGResponse] | int]],
+            )
+@api_response_wrapper
+async def get_dag_list(dag_id: str, db: Session = Depends(get_db)):
+    """
+    모든 이용가능한 DAG 리스트를 조회
+    """
+    dag_service = FlowDefinitionService(db)
     dag_list, filtered_count, total_count = dag_service.get_dag_list(active_status,
                                                                      execution_status,
                                                                      name,
@@ -182,7 +219,8 @@ async def get_dag(dag_id: str, db: Session = Depends(get_db)):
     DAG 의 상세 정보 조회
     """
     dag_service = FlowDefinitionService(db)
-    return {"origin": dag_service.get_dag(dag_id), "temp": None}
+    current, draft = dag_service.get_dag(dag_id)
+    return {"origin": current, "temp": draft}
 
 
 @router.get("/check-dag-name",

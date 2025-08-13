@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import Column, String, ForeignKey, JSON, Numeric
+from sqlalchemy import Column, String, ForeignKey, JSON, Float
 from sqlalchemy.orm import relationship
 
 from core.database import BaseDB
@@ -24,6 +24,5 @@ class Edge(BaseDB):
     ui_labelStyle = Column(JSON, nullable=True, default={})
     ui_labelBgStyle = Column(JSON, nullable=True, default={})
     ui_labelBgPadding = Column(JSON, nullable=True, default=[])
-    ui_labelBgBorderRadius = Column(Numeric, nullable=True, default=0)
+    ui_labelBgBorderRadius = Column(Float, nullable=True, default=0)
     ui_style = Column(JSON, nullable=True, default={})
-
