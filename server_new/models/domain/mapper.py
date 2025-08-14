@@ -130,7 +130,7 @@ def flow_domain2api(flow: DomainFlow):
                 "kind": task.kind,
                 "python_libraries": task.python_libraries,
                 "code": task.code,
-                "builtin_func_id": task.builtin_func_id,
+                "builtin_func_id": task.builtin_func_id or "",
                 "inputs": task.inputs,
             },
             style=task.ui_style,
