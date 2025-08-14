@@ -40,6 +40,8 @@ spec:
               value: "/opt/airflow/logs"
             - name: AIRFLOW__WORKFLOW__SHARED_FOLDER
               value: "/app/shared"
+            - name: PYTHONPATH
+              value: "/app/built_in_functions:$PYTHONPATH"
           ports:
             - containerPort: 8080
               name: api-port
@@ -48,6 +50,9 @@ spec:
             - mountPath: /app/shared
               name: ext-volume
               subPath: airflow/shared
+            - mountPath: /app/built_in_functions
+              name: ext-volume
+              subPath: airflow/built_in_functions
             - mountPath: /opt/airflow/logs
               name: ext-volume
               subPath: airflow/logs

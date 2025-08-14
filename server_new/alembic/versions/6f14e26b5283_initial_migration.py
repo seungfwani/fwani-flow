@@ -1,8 +1,8 @@
 """Initial migration
 
-Revision ID: d568c8075ae9
+Revision ID: 6f14e26b5283
 Revises: 
-Create Date: 2025-08-14 14:31:02.489339
+Create Date: 2025-08-14 18:06:09.431364
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'd568c8075ae9'
+revision: str = '6f14e26b5283'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -52,6 +52,21 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_function_template_id'), 'function_template', ['id'], unique=False)
+    op.create_table('system_function',
+    sa.Column('id', sa.String(), nullable=False),
+    sa.Column('name', sa.String(), nullable=True),
+    sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('impl_namespace', sa.String(), nullable=False),
+    sa.Column('impl_callable', sa.String(), nullable=False),
+    sa.Column('python_libraries', sa.JSON(), nullable=True),
+    sa.Column('param_schema', sa.JSON(), nullable=False),
+    sa.Column('is_deprecated', sa.Boolean(), nullable=False),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.Column('updated_at', sa.DateTime(), nullable=True),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_system_function_id'), 'system_function', ['id'], unique=False)
+    op.create_index(op.f('ix_system_function_name'), 'system_function', ['name'], unique=False)
     op.create_table('user',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('username', sa.String(), nullable=True),
@@ -106,6 +121,7 @@ def upgrade() -> None:
     sa.Column('code_string', sa.Text(), nullable=True),
     sa.Column('code_hash', sa.String(), nullable=True),
     sa.Column('python_libraries', sa.JSON(), nullable=True),
+    sa.Column('system_function_id', sa.String(), nullable=True),
     sa.Column('impl_namespace', sa.String(), nullable=True),
     sa.Column('impl_callable', sa.String(), nullable=True),
     sa.Column('input_meta_type', sa.JSON(), nullable=True),
@@ -119,6 +135,7 @@ def upgrade() -> None:
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
     sa.ForeignKeyConstraint(['flow_id'], ['flow.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['system_function_id'], ['system_function.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_task_id'), 'task', ['id'], unique=False)
@@ -169,6 +186,9 @@ def downgrade() -> None:
     op.drop_table('flow_execution_queue')
     op.drop_index(op.f('ix_user_id'), table_name='user')
     op.drop_table('user')
+    op.drop_index(op.f('ix_system_function_name'), table_name='system_function')
+    op.drop_index(op.f('ix_system_function_id'), table_name='system_function')
+    op.drop_table('system_function')
     op.drop_index(op.f('ix_function_template_id'), table_name='function_template')
     op.drop_table('function_template')
     op.drop_index(op.f('ix_flow_name'), table_name='flow')

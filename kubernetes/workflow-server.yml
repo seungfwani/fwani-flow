@@ -41,6 +41,8 @@ spec:
               value: "/app/dags"
             - name: SHARED_DIR
               value: "/app/shared"
+            - name: BUILTIN_FUNC_CONFIG_DIR
+              value: "/app/builtin_functions"
             - name: AIRFLOW_HOST
               value: "airflow-svc"
             - name: AIRFLOW_PORT
@@ -57,6 +59,9 @@ spec:
             - mountPath: /app/shared
               name: ext-volume
               subPath: airflow/shared
+            - mountPath: /app/built_in_functions
+              name: ext-volume
+              subPath: airflow/built_in_functions
             - mountPath: /app/logs
               name: ext-volume
               subPath: workflow/logs
@@ -105,6 +110,9 @@ data:
     
     echo "💡 alembic 데이터베이스 설정..."
     alembic upgrade head
+    
+    echo "💡 built-in function 복사..."
+    cp /app/builtin_functions/*.py /app/built_in_functions/
     
     echo "🚀 Workflow 서버 실행..."
     python /app/main.py

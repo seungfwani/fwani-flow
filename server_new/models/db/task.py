@@ -21,6 +21,7 @@ class Task(BaseDB):
 
     # 공통 실행 스펙
     python_libraries = Column(JSON)
+    system_function_id = Column(String, ForeignKey("system_function.id"), nullable=True, server_default=None)
     impl_namespace = Column(String)  # 내장 함수
     impl_callable = Column(String, default="run")  # "run" 같은 entrypoint 함수 (기본 "run")
 
@@ -40,6 +41,7 @@ class Task(BaseDB):
 
     flow = relationship("Flow", back_populates="tasks")
     inputs = relationship("TaskInput", back_populates="task", cascade="all, delete-orphan")
+    system_function = relationship("SystemFunction", uselist=False)
 
 
 class TaskInput(BaseDB):

@@ -26,6 +26,7 @@ def _canonicalize_flow(flow: Flow) -> dict:
             "code_string": t.code_string,
             "code_hash": t.code_hash,
             "python_libraries": t.python_libraries,
+            "builtin_func_id": t.system_function_id,
             "impl_namespace": t.impl_namespace,
             "impl_callable": t.impl_callable,
             "input_meta_type": t.input_meta_type,

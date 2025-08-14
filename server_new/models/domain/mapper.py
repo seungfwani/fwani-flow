@@ -3,7 +3,7 @@ import datetime
 from sqlalchemy.orm import Session
 
 from errors import WorkflowError
-from models.api.dag_model import DAGRequest, DAGNode, DAGEdge, DAGResponse, DAGNodeData
+from models.api.dag_model import DAGRequest, DAGNode, DAGEdge, DAGResponse
 from models.db.airflow_mapper import AirflowDag
 from models.db.edge import Edge as DBEdge
 from models.db.flow import Flow as DBFlow, FlowSnapshot
@@ -33,13 +33,15 @@ def task_api2domain(tasks: [DAGNode]) -> dict[str, DomainTask]:
     result = {}
     errors = {}
     for i, task in enumerate(tasks):
-        if error_list := validate_user_code(task.data.code):
-            errors[task.id] = error_list
+        if task.data.kind == 'code':
+            if error_list := validate_user_code(task.data.code):
+                errors[task.id] = error_list
         result[task.id] = DomainTask(task.id,
                                      f"task_{i}",
                                      task.data.kind.lower(),
                                      task.data.python_libraries,
                                      task.data.code,
+                                     task.data.builtin_func_id,
                                      task.type,
                                      task.data.label,
                                      task.position,
@@ -75,6 +77,7 @@ def flow_db2domain(flow: DBFlow):
         task.kind,
         task.python_libraries,
         task.code_string,
+        task.system_function_id,
         task.ui_type,
         task.ui_label,
         task.ui_position,
@@ -82,8 +85,6 @@ def flow_db2domain(flow: DBFlow):
         task.input_meta_type,
         task.output_meta_type,
         {inp.key: inp.value for inp in task.inputs},
-        impl_namespace=task.impl_namespace,
-        impl_callable=task.impl_callable,
         ui_class=task.ui_class,
     ) for task in flow.tasks}
     return DomainFlow(
@@ -124,15 +125,14 @@ def flow_domain2api(flow: DomainFlow):
             id=task.id,
             type=task.ui_type,
             position=task.ui_position,
-            data=DAGNodeData(
-                label=task.ui_label,
-                kind=task.kind,
-                python_libraries=task.python_libraries,
-                code=task.code,
-                input_meta_type=task.input_meta_type,
-                output_meta_type=task.output_meta_type,
-                inputs=task.inputs,
-            ),
+            data={
+                "label": task.ui_label,
+                "kind": task.kind,
+                "python_libraries": task.python_libraries,
+                "code": task.code,
+                "builtin_func_id": task.builtin_func_id,
+                "inputs": task.inputs,
+            },
             style=task.ui_style,
             class_=task.ui_class,
         ) for task in flow.tasks],
@@ -175,14 +175,15 @@ def task_edge_domain2db(flow: DBFlow, domain_edges: list[DomainEdge]):
             task.python_libraries = domain_task.python_libraries
             task.code_string = domain_task.code
             task.code_hash = domain_task.code_hash
-        elif domain_task.kind == "meta":
-            task.python_libraries = ["pandas", "requests"]
-            task.impl_namespace = "builtin_functions"
-            task.impl_callable = "run"
-        else:  # system
-            task.python_libraries = ["pandas", "requests"]
-            task.impl_namespace = "builtin_functions"
-            task.impl_callable = "run"
+        elif domain_task.kind in ["meta", "system"]:
+            task.system_function_id = domain_task.builtin_func_id
+            # task.python_libraries = ["pandas", "requests"]
+            # task.impl_namespace = "builtin_functions"
+            # task.impl_callable = "run"
+        # else:  # system
+        # task.python_libraries = ["pandas", "requests"]
+        # task.impl_namespace = "builtin_functions"
+        # task.impl_callable = "run"
         task_inputs = []
         for k, v in domain_task.inputs.items():
             task_inputs.append(TaskInput(task=task, key=k, value=v))
@@ -252,15 +253,17 @@ def flow_snapshot2api(flow_snapshot: FlowSnapshot):
             id=t["id"],
             type=t["ui_type"],
             position=t["ui_position"],
-            data=DAGNodeData(
-                label=t["ui_label"],
-                kind=t["kind"],
-                python_libraries=t["python_libraries"],
-                code=t["code_string"],
-                input_meta_type=t["input_meta_type"],
-                output_meta_type=t["output_meta_type"],
-                inputs={inp['key']: inp['value'] for inp in t["inputs"]},
-            ),
+            class_=t.get("class"),
+            data={
+                "label": t["ui_label"],
+                "kind": t["kind"],
+                "python_libraries": t["python_libraries"],
+                "code": t["code_string"],
+                "builtin_func_id": t.get("builtin_func_id", ""),
+                "input_meta_type": t["input_meta_type"],
+                "output_meta_type": t["output_meta_type"],
+                "inputs": {inp['key']: inp['value'] for inp in t["inputs"]},
+            },
             style=t["ui_style"],
         ) for t in payload["tasks"]],
         edges=[DAGEdge(

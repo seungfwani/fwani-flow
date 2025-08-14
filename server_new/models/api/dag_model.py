@@ -1,9 +1,9 @@
 import logging
 import re
 from datetime import datetime
-from typing import List, Any, Optional
+from typing import List, Any, Optional, Literal, Annotated, Union
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 
 logger = logging.getLogger()
 
@@ -50,29 +50,61 @@ CRON_REGEX = (r"^("
               + r")$")
 
 
-# DAG 데이터 모델 정의
-class DAGNodeData(BaseModel):
+class BaseNodeData(BaseModel):
     label: Optional[str] = Field("", examples=["node name"])
-    kind: str = Field("code", description="노드의 종류. code, meta, system")
-    python_libraries: List[str] = Field([], description="requirements.txt 에 작성하는 포멧",
-                                        examples=[['pandas==2.3.1', 'requests==2.32.3']])
-    code: Optional[str] = Field("", description="python code", examples=["import json\njson.dumps([])"])
     input_meta_type: Optional[dict] = Field({}, description="graphio input meta type")
     output_meta_type: Optional[dict] = Field({}, description="function output meta type")
 
     inputs: dict[str, Any] = Field({}, description="system, meta 의 code 실행시 필요한 input 값",
                                    examples=[{"key1": "value1", "key2": "value2"}])
 
-    def __eq__(self, other):
-        if not isinstance(other, DAGNodeData):
-            return False
-        return (
-                self.function_id == other.function_id and
-                self.execution_data == other.execution_data
-        )
 
-    def __hash__(self):
-        return hash((self.function_id, self.execution_data))
+class CodeNodeData(BaseNodeData):
+    kind: Literal["code"] = "code"
+    python_libraries: List[str] = Field([], description="requirements.txt 에 작성하는 포멧",
+                                        examples=[['pandas==2.3.1', 'requests==2.32.3']])
+    code: str = Field(..., description="python code", examples=["def run():\n    return 1"])
+    builtin_func_id: None | str = Field(None, description="code 타입에서는 사용하지 않음")
+
+    @model_validator(mode="after")
+    def _enforce_code_constraints(self):
+        if not self.code or not self.code.strip():
+            raise ValueError("kind=code 에서는 code 가 필수입니다.")
+        return self
+
+
+class MetaNodeData(BaseNodeData):
+    kind: Literal["meta"] = "meta"
+    python_libraries: List[str] | None = Field(None, description="requirements.txt 에 작성하는 포멧",
+                                               examples=[['pandas==2.3.1', 'requests==2.32.3']])
+    code: str | None = Field(None, description="meta/system 에서는 비움")
+    builtin_func_id: str = Field(..., description="built-in function id")
+
+    @model_validator(mode="after")
+    def _enforce_meta_constraints(self):
+        if not self.builtin_func_id:
+            raise ValueError("kind=meta 에서는 builtin_func_id 가 필수입니다.")
+        return self
+
+
+class SystemNodeData(BaseNodeData):
+    kind: Literal["system"] = "system"
+    python_libraries: List[str] | None = Field(None, description="requirements.txt 에 작성하는 포멧",
+                                               examples=[['pandas==2.3.1', 'requests==2.32.3']])
+    code: str | None = Field(None, description="meta/system 에서는 비움")
+    builtin_func_id: str = Field(..., description="built-in function id")
+
+    @model_validator(mode="after")
+    def _enforce_system_constraints(self):
+        if not self.builtin_func_id:
+            raise ValueError("kind=system 에서는 builtin_func_id 가 필수입니다.")
+        return self
+
+
+DAGNodeData = Annotated[
+    Union[CodeNodeData, MetaNodeData, SystemNodeData],
+    Field(discriminator="kind"),
+]
 
 
 class DAGNode(BaseModel):

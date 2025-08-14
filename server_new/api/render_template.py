@@ -35,7 +35,8 @@ def render_dag_script(dag_id, tasks, edges, tags=None, schedule=None):
     )
 
 
-def render_task_code_script(task_code: str, kind: str, impl_namespace: str, impl_callable: str, params: dict):
+def render_task_code_script(task_code: str, kind: str, params: dict, impl_namespace: str = None,
+                            impl_callable: str = None, ):
     logger.info(f"render task code {task_code}")
     base_directory = os.path.dirname(os.path.abspath(__file__))
     template_directory = os.path.join(base_directory, "templates")

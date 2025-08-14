@@ -186,6 +186,12 @@ class FlowDefinitionService:
             is_draft=True,
         )
         self.meta_db.add(dummy_flow)
+        self.meta_db.flush()
+        _, is_snap_changed = self.save_flow_snapshot(dummy_flow,
+                                                     SnapshotOperation.CREATE,
+                                                     message="Dummy 생성",
+                                                     is_draft=True,
+                                                     )
         self.meta_db.commit()
         return flow_db2domain(dummy_flow)
 

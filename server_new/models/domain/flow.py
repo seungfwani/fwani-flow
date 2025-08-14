@@ -6,7 +6,9 @@ from typing import Any
 
 from api.render_template import render_dag_script, render_task_code_script
 from config import Config
+from core.database import get_db_context
 from errors import WorkflowError
+from models.db.system_function import SystemFunction
 from utils.functions import make_flow_id_by_name, get_hash
 
 logger = logging.getLogger()
@@ -19,6 +21,7 @@ class Task:
                  kind: str,
                  python_libraries,
                  code,
+                 builtin_func_id,
                  ui_type,
                  ui_label,
                  ui_position,
@@ -35,6 +38,7 @@ class Task:
         self.kind = kind
         self.python_libraries = python_libraries
         self.code = code
+        self.builtin_func_id = builtin_func_id
         self.code_hash = get_hash(code) if kind == 'code' else None
         self.ui_class = ui_class
         self.ui_type = ui_type
@@ -170,16 +174,27 @@ class Flow:
         dag_dir_path = os.path.join(Config.DAG_DIR, self.dag_id)
         os.makedirs(dag_dir_path, exist_ok=True)
         # write dag
-        for task in self.tasks:
-            file_contents = render_task_code_script(
-                task_code=task.code,
-                kind=task.kind,
-                impl_namespace=task.impl_namespace,
-                impl_callable=task.impl_callable,
-                params=task.inputs,
-            )
-            with open(os.path.join(dag_dir_path, f"func_{task.variable_id}.py"), 'w') as dag_file:
-                dag_file.write(file_contents)
+        with get_db_context() as db:
+            for task in self.tasks:
+                if task.kind == 'code':
+                    file_contents = render_task_code_script(
+                        task_code=task.code,
+                        kind=task.kind,
+                        params=task.inputs,
+                    )
+                else:
+                    system_function = db.query(SystemFunction).get(task.builtin_func_id)
+                    if system_function is None:
+                        raise WorkflowError("태스크 파일 저장 실패: builtin function 없음")
+                    file_contents = render_task_code_script(
+                        task_code=task.code,
+                        kind=task.kind,
+                        impl_namespace=system_function.impl_namespace,
+                        impl_callable=system_function.impl_callable,
+                        params=task.inputs,
+                    )
+                with open(os.path.join(dag_dir_path, f"func_{task.variable_id}.py"), 'w') as dag_file:
+                    dag_file.write(file_contents)
 
         dag_file_path = os.path.join(dag_dir_path, f"{self.dag_id}.py")
         try:
