@@ -2,6 +2,7 @@ import importlib
 import logging
 import os
 import pkgutil
+from contextlib import contextmanager
 
 from fastapi import HTTPException
 from sqlalchemy import create_engine
@@ -52,6 +53,12 @@ import_models()
 
 
 def get_db():
+    with get_db_context() as db:
+        yield db
+
+
+@contextmanager
+def get_db_context():
     logger.info("Connecting to database")
     db = SessionLocalBaseDB()
     try:

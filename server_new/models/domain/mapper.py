@@ -47,6 +47,7 @@ def task_api2domain(tasks: [DAGNode]) -> dict[str, DomainTask]:
                                      task.data.input_meta_type,
                                      task.data.output_meta_type,
                                      task.data.inputs,
+                                     ui_class=task.class_,
                                      )
     if errors:
         raise WorkflowError(errors)
@@ -83,6 +84,7 @@ def flow_db2domain(flow: DBFlow):
         {inp.key: inp.value for inp in task.inputs},
         impl_namespace=task.impl_namespace,
         impl_callable=task.impl_callable,
+        ui_class=task.ui_class,
     ) for task in flow.tasks}
     return DomainFlow(
         name=flow.name,
@@ -132,6 +134,7 @@ def flow_domain2api(flow: DomainFlow):
                 inputs=task.inputs,
             ),
             style=task.ui_style,
+            class_=task.ui_class,
         ) for task in flow.tasks],
         edges=[DAGEdge(
             id=edge.id,
@@ -166,6 +169,7 @@ def task_edge_domain2db(flow: DBFlow, domain_edges: list[DomainEdge]):
             ui_label=domain_task.ui_label,
             ui_position=domain_task.ui_position,
             ui_style=domain_task.ui_style,
+            ui_class=domain_task.ui_class,
         )
         if domain_task.kind == "code":
             task.python_libraries = domain_task.python_libraries

@@ -2,20 +2,23 @@ import datetime
 import logging
 import os
 import pickle
+import time
 
 from airflow.models import DagRun as AirflowDagRun
 from airflow.models import TaskInstance as AirflowTaskInstance
-from sqlalchemy import and_
+from sqlalchemy import and_, desc
 from sqlalchemy.orm import Session
 
 from config import Config
 from core.airflow_client import AirflowClient
 from errors import WorkflowError
 from models.api.dag_model import ExecutionResponse
+from models.db.airflow_mapper import AirflowDagCode
 from models.db.flow import Flow as DBFlow
 from models.db.flow_execution_queue import FlowExecutionQueue
 from models.domain.enums import FlowExecutionStatus
 from models.domain.task_instance import TaskInstance as DomainTaskInstance
+from utils.functions import get_hash
 
 logger = logging.getLogger()
 
@@ -65,6 +68,30 @@ class FlowExecutionService:
                     flow_execution.status = FlowExecutionStatus.ERROR.value
                 else:
                     # TODO: try count 를 추가해서 airflow 요청을 재시도 하는 로직 필요
+                    MAX_RETRIES = 10
+                    RETRY_INTERVAL = 1
+                    for i in range(MAX_RETRIES):
+                        logger.info(f"[{i + 1}/{MAX_RETRIES}] check airflow dag code for {flow_execution.dag_id}")
+
+                        airflow_dag_code = (
+                            self.airflow_db.query(AirflowDagCode)
+                            .filter(AirflowDagCode.fileloc.like(f"%/{flow_execution.dag_id}/%"))
+                            .order_by(desc(AirflowDagCode.last_updated))
+                            .first()
+                        )
+
+                        if airflow_dag_code:
+                            current_hash = get_hash(airflow_dag_code.source_code)
+                            if current_hash == flow_execution.file_hash:
+                                logger.info("✅ DAG code hash match!")
+                                break
+                            else:
+                                logger.warning(
+                                    f"Hash mismatch: expected={flow_execution.file_hash}, got={current_hash}")
+                        else:
+                            logger.debug("DAG code not found yet.")
+
+                        time.sleep(RETRY_INTERVAL)
                     run_id = self.airflow_client.run_dag(flow_execution.dag_id, flow_execution.data)
                     flow_execution.run_id = run_id
                     flow_execution.status = FlowExecutionStatus.TRIGGERED.value

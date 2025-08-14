@@ -120,9 +120,9 @@ async def run_dag_for_test(dag: DAGRequest,
     DAG 를 테스트 실행 하는 API
     """
     dag_service = FlowDefinitionService(db, airflow)
-    dag_id = dag_service.save_dag(dag)
+    flow = dag_service.save_dag(dag)
     flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
-    return flow_execution_service.register_executions([dag_id])[0]
+    return flow_execution_service.register_executions([flow.id])[0]
 
 
 @router.delete("/execution/{execution_id}/kill",

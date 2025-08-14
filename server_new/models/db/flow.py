@@ -1,7 +1,7 @@
 import uuid
 
 from sqlalchemy import Column, String, Text, DateTime, func, Boolean, Integer, ForeignKey, UniqueConstraint, JSON, \
-    Index, text, CheckConstraint
+    CheckConstraint
 from sqlalchemy.orm import relationship, validates
 
 from core.database import BaseDB
@@ -42,9 +42,6 @@ class Flow(BaseDB):
                                          cascade="all, delete-orphan",
                                          passive_deletes=True,
                                          order_by="desc(FlowExecutionQueue.updated_at)", )
-    airflow_dag_run_histories = relationship("AirflowDagRunHistory", back_populates="flow",
-                                             cascade="all, delete-orphan",
-                                             passive_deletes=True)
 
     def __repr__(self):
         return (f"<Flow ("

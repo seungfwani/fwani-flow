@@ -32,6 +32,7 @@ class Task(BaseDB):
     ui_label = Column(String, nullable=True)
     ui_position = Column(JSON, nullable=True, default={"x": 0, "y": 0})
     ui_style = Column(JSON, nullable=True, default={})
+    ui_class = Column(String, nullable=True)
     ui_extra_data = Column(JSON, nullable=True, default={})
 
     created_at = Column(DateTime, default=func.now())

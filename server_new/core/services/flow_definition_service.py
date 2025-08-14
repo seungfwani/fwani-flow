@@ -1,4 +1,4 @@
-import json
+import datetime
 import logging
 import os
 import shutil
@@ -12,13 +12,11 @@ from core.airflow_client import AirflowClient
 from core.snapshot import build_flow_snapshot, SnapshotOperation
 from errors import WorkflowError
 from models.api.dag_model import DAGRequest
-from models.db.flow import Flow as DBFlow, FlowSnapshot
-from models.db.task import Task as DBTask, TaskInput
 from models.db.edge import Edge as DBEdge
+from models.db.flow import Flow as DBFlow, FlowSnapshot
 from models.db.flow_execution_queue import FlowExecutionQueue
-from models.domain.mapper import flow_api2domain, flow_db2domain, flow_domain2db, task_edge_domain2db, flow_domain2api, \
-    flow_snapshot2api
-from utils.functions import get_hash
+from models.db.task import Task as DBTask, TaskInput
+from models.domain.mapper import flow_api2domain, flow_db2domain, flow_domain2db, task_edge_domain2db, flow_snapshot2api
 
 logger = logging.getLogger()
 
@@ -180,6 +178,17 @@ class FlowDefinitionService:
         self.meta_db.commit()
         return flow.id
 
+    def create_dummy(self):
+        now_timestamp = datetime.datetime.now(datetime.timezone.utc)
+
+        dummy_flow = DBFlow(
+            name="Workflow_" + now_timestamp.strftime("%Y-%m-%dT%H:%M:%S.%f%Z"),
+            is_draft=True,
+        )
+        self.meta_db.add(dummy_flow)
+        self.meta_db.commit()
+        return flow_db2domain(dummy_flow)
+
     def save_dag(self, dag: DAGRequest):
         existing = self.find_existing_flow(dag.name)
 
@@ -199,7 +208,7 @@ class FlowDefinitionService:
             if is_snap_changed:
                 db_flow.file_hash = domain_flow.file_hash
             self.meta_db.commit()
-        return db_flow.id
+        return flow_db2domain(db_flow)
 
     def update_dag(self, origin_dag_id: str, new_dag: DAGRequest):
         if not new_dag:
@@ -243,7 +252,7 @@ class FlowDefinitionService:
             if is_snap_changed:
                 origin_flow.file_hash = new_flow.file_hash
             self.meta_db.commit()
-            return origin_flow.id
+            return flow_db2domain(origin_flow)
         except Exception as e:
             self.meta_db.rollback()
             msg = f"❌ DAG 업데이트 실패: {e}"
@@ -260,7 +269,7 @@ class FlowDefinitionService:
         return active_status
 
     def get_dag_total_count(self):
-        return self.meta_db.query(func.count(DBFlow.id)).scalar()
+        return self.meta_db.query(func.count(DBFlow.id)).filter(DBFlow.is_deleted == False).scalar()
 
     def get_active_flows(self) -> list[DBFlow]:
         return self.meta_db.query(DBFlow).filter(DBFlow.is_deleted == False).all()
@@ -318,7 +327,7 @@ class FlowDefinitionService:
         flows = query.all()
         result_count = len(flows)
 
-        return [flow_domain2api(flow_db2domain(dbflow)) for dbflow in flows], result_count, filtered_count, total_count
+        return [flow_db2domain(dbflow) for dbflow in flows], result_count, filtered_count, total_count
 
     def get_dag(self, dag_id):
         query = (self.meta_db.query(FlowSnapshot)

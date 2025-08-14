@@ -80,6 +80,7 @@ class DAGNode(BaseModel):
     type: str = Field("custom", description="UI node 타입", examples=["custom"])
     position: dict[str, float] = Field(default_factory=lambda: {"x": 0, "y": 0}, description="UI node 좌표",
                                        examples=[{"x": 0, "y": 0}])
+    class_: Optional[str] = Field(None, alias="class")
     data: DAGNodeData
     style: Optional[dict[str, Any]] = Field({}, examples=[{"key1": "value1", "key2": "value2"}])
 
@@ -126,7 +127,7 @@ class DAGEdge(BaseModel):
 
 class DAGRequest(BaseModel):
     name: str = Field(..., description="DAG Name", examples=["DAG Name"])
-    description: str = Field(..., description="DAG Description", examples=["DAG Description"])
+    description: Optional[str] = Field(None, description="DAG Description", examples=["DAG Description"])
     owner: Optional[str] = Field(None, description="DAG Owner", examples=["DAG Owner"])
     nodes: List[DAGNode]
     edges: List[DAGEdge]
@@ -149,8 +150,8 @@ class DAGRequest(BaseModel):
 class DAGResponse(BaseModel):
     id: str = Field(..., description="Generated DAG ID", examples=["00000000-0000-4000-9000-000000000000"])
     name: str = Field(..., description="DAG Name", examples=["DAG Name"])
-    description: str = Field(..., description="DAG Description", examples=["DAG Description"])
-    owner: str = Field(..., description="DAG Description", examples=["DAG Description"])
+    description: Optional[str] = Field(None, description="DAG Description", examples=["DAG Description"])
+    owner: Optional[str] = Field(None, description="DAG Description", examples=["DAG Description"])
     nodes: List[DAGNode]
     edges: List[DAGEdge]
     schedule: Optional[str] = Field(None, description="DAG schedule", examples=["0 9 * * *"])

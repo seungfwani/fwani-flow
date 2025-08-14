@@ -4,15 +4,16 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
+from alembic import command
 from alembic.config import Config as AlembicConfig
 from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 
-from alembic import command
 from api.routers import v1_routers
 from config import Config
 from core.log import LOG_CONFIG, setup_logging
 from core.schedulers import start_scheduler
+from core.sync_system_function import sync_system_functions_from_yaml
 
 logger = logging.getLogger()
 
@@ -31,6 +32,10 @@ def run_migrations():
 
 # Flask 애플리케이션 생성
 def init_app():
+    # 실행 시 자동 설정 적용
+    setup_logging()
+    logger.info("✅ FastAPI 애플리케이션 생성 완료")
+
     # FastAPI 애플리케이션 생성
     description_text = Path("docs/swagger_description.md").read_text(encoding="utf-8")
     app = FastAPI(
@@ -49,14 +54,11 @@ def init_app():
     )
 
     run_migrations()
+    sync_system_functions_from_yaml()
 
     # udf 폴더 생성
     os.makedirs(Config.UDF_DIR, exist_ok=True, mode=0o777)
     os.makedirs(Config.DAG_DIR, exist_ok=True, mode=0o777)
-
-    # 실행 시 자동 설정 적용
-    setup_logging()
-    logger.info("✅ FastAPI 애플리케이션 생성 완료")
     return app
 
 

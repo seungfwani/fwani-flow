@@ -9,6 +9,7 @@ from core.database import get_db, get_airflow
 from core.services.flow_definition_service import FlowDefinitionService
 from models.api.api_model import api_response_wrapper, APIResponse
 from models.api.dag_model import DAGResponse, DAGRequest, ActiveStatusRequest, MultipleRequest
+from models.domain.mapper import flow_domain2api
 from utils.functions import to_bool
 
 logger = logging.getLogger()
@@ -20,8 +21,8 @@ router = APIRouter(
 )
 
 
-@router.post("/dag",
-             response_model=APIResponse[dict[str, str]],
+@router.post("/dag-dummy",
+             response_model=APIResponse[DAGResponse],
              responses={
                  200: {
                      "content": {
@@ -30,7 +31,127 @@ router = APIRouter(
                                  "success": True,
                                  "message": "요청이 정상 처리 되었습니다.",
                                  "data": {
-                                     "id": "f9d52759-4e66-4d99-8279-a0b236b9fdc9"
+                                     "id": "f9d52759-4e66-4d99-8279-a0b236b9fdc9",
+                                     "name": "Workflow_2025-05-23 12:12:12.234",
+                                     "description": None,
+                                     "owner": None,
+                                     "nodes": [],
+                                     "edges": [],
+                                     "schedule": None,
+                                     "is_draft": True,
+                                     "max_retries": 0,
+                                     "updated_at": "2025-08-13T06:44:55",
+                                     "active_status": False,
+                                     "execution_status": None
+                                 },
+                                 "error": {}
+                             }
+                         }
+                     }
+                 }
+             }
+             )
+@api_response_wrapper
+async def create_dummy(db: Session = Depends(get_db), airflow: Session = Depends(get_airflow)):
+    """
+    DAG 저장 api
+    """
+    dag_service = FlowDefinitionService(db, airflow)
+    return flow_domain2api(dag_service.create_dummy())
+
+
+@router.post("/dag",
+             response_model=APIResponse[DAGResponse],
+             responses={
+                 200: {
+                     "content": {
+                         "application/json": {
+                             "example": {
+                                 "success": True,
+                                 "message": "요청이 정상 처리 되었습니다.",
+                                 "data": {
+                                     "id": "f9d52759-4e66-4d99-8279-a0b236b9fdc9",
+                                     "name": "DAG Na23me",
+                                     "description": "DAG Description",
+                                     "owner": "DAG Owner",
+                                     "nodes": [
+                                         {
+                                             "id": "3b6d1e59-2847-4f87-9baf-2581b65f353c",
+                                             "type": "custom",
+                                             "position": {
+                                                 "x": 0,
+                                                 "y": 0
+                                             },
+                                             "data": {
+                                                 "label": "node name",
+                                                 "kind": "code",
+                                                 "python_libraries": [
+                                                     "pandas==2.3.1",
+                                                     "requests==2.32.3"
+                                                 ],
+                                                 "code": "def run():\n    print(1)\n    return 1",
+                                                 "input_meta_type": {},
+                                                 "output_meta_type": {},
+                                                 "inputs": {
+                                                     "key1": "value1",
+                                                     "key2": "value2"
+                                                 }
+                                             },
+                                             "style": {
+                                                 "key1": "value1",
+                                                 "key2": "value2"
+                                             }
+                                         },
+                                         {
+                                             "id": "4b05d07c-55cb-4d70-ab2f-2cc335cb68de",
+                                             "type": "custom",
+                                             "position": {
+                                                 "x": 0,
+                                                 "y": 0
+                                             },
+                                             "data": {
+                                                 "label": "node name",
+                                                 "kind": "code",
+                                                 "python_libraries": [
+                                                     "pandas==2.3.1",
+                                                     "requests==2.32.3"
+                                                 ],
+                                                 "code": "def run(a):\n    print(1+a)\n    return 1+a",
+                                                 "input_meta_type": {},
+                                                 "output_meta_type": {},
+                                                 "inputs": {
+                                                     "key1": "value1",
+                                                     "key2": "value2"
+                                                 }
+                                             },
+                                             "style": {
+                                                 "key1": "value1",
+                                                 "key2": "value2"
+                                             }
+                                         }
+                                     ],
+                                     "edges": [
+                                         {
+                                             "id": "d2314f44-da47-4446-a177-a8a14987cffc",
+                                             "type": "custom",
+                                             "source": "3b6d1e59-2847-4f87-9baf-2581b65f353c",
+                                             "target": "4b05d07c-55cb-4d70-ab2f-2cc335cb68de",
+                                             "label": "",
+                                             "labelStyle": {},
+                                             "labelBgStyle": {},
+                                             "labelBgPadding": [
+                                                 0
+                                             ],
+                                             "labelBgBorderRadius": 0,
+                                             "style": {}
+                                         }
+                                     ],
+                                     "schedule": "0 9 * * *",
+                                     "is_draft": True,
+                                     "max_retries": 0,
+                                     "updated_at": "2025-08-13T06:44:55",
+                                     "active_status": False,
+                                     "execution_status": None
                                  },
                                  "error": {}
                              }
@@ -45,11 +166,11 @@ async def save_dag(dag: DAGRequest, db: Session = Depends(get_db), airflow: Sess
     DAG 저장 api
     """
     dag_service = FlowDefinitionService(db, airflow)
-    return {"id": dag_service.save_dag(dag)}
+    return flow_domain2api(dag_service.save_dag(dag))
 
 
 @router.patch("/dag/{dag_id}/update",
-              response_model=APIResponse[dict[str, str]],
+              response_model=APIResponse[DAGResponse],
               responses={
                   200: {
                       "content": {
@@ -58,7 +179,88 @@ async def save_dag(dag: DAGRequest, db: Session = Depends(get_db), airflow: Sess
                                   "success": True,
                                   "message": "요청이 정상 처리 되었습니다.",
                                   "data": {
-                                      "id": "f9d52759-4e66-4d99-8279-a0b236b9fdc9"
+                                      "id": "f9d52759-4e66-4d99-8279-a0b236b9fdc9",
+                                      "name": "DAG Na23me",
+                                      "description": "DAG Description",
+                                      "owner": "DAG Owner",
+                                      "nodes": [
+                                          {
+                                              "id": "3b6d1e59-2847-4f87-9baf-2581b65f353c",
+                                              "type": "custom",
+                                              "position": {
+                                                  "x": 0,
+                                                  "y": 0
+                                              },
+                                              "data": {
+                                                  "label": "node name",
+                                                  "kind": "code",
+                                                  "python_libraries": [
+                                                      "pandas==2.3.1",
+                                                      "requests==2.32.3"
+                                                  ],
+                                                  "code": "def run():\n    print(1)\n    return 1",
+                                                  "input_meta_type": {},
+                                                  "output_meta_type": {},
+                                                  "inputs": {
+                                                      "key1": "value1",
+                                                      "key2": "value2"
+                                                  }
+                                              },
+                                              "style": {
+                                                  "key1": "value1",
+                                                  "key2": "value2"
+                                              }
+                                          },
+                                          {
+                                              "id": "4b05d07c-55cb-4d70-ab2f-2cc335cb68de",
+                                              "type": "custom",
+                                              "position": {
+                                                  "x": 0,
+                                                  "y": 0
+                                              },
+                                              "data": {
+                                                  "label": "node name",
+                                                  "kind": "code",
+                                                  "python_libraries": [
+                                                      "pandas==2.3.1",
+                                                      "requests==2.32.3"
+                                                  ],
+                                                  "code": "def run(a):\n    print(1+a)\n    return 1+a",
+                                                  "input_meta_type": {},
+                                                  "output_meta_type": {},
+                                                  "inputs": {
+                                                      "key1": "value1",
+                                                      "key2": "value2"
+                                                  }
+                                              },
+                                              "style": {
+                                                  "key1": "value1",
+                                                  "key2": "value2"
+                                              }
+                                          }
+                                      ],
+                                      "edges": [
+                                          {
+                                              "id": "d2314f44-da47-4446-a177-a8a14987cffc",
+                                              "type": "custom",
+                                              "source": "3b6d1e59-2847-4f87-9baf-2581b65f353c",
+                                              "target": "4b05d07c-55cb-4d70-ab2f-2cc335cb68de",
+                                              "label": "",
+                                              "labelStyle": {},
+                                              "labelBgStyle": {},
+                                              "labelBgPadding": [
+                                                  0
+                                              ],
+                                              "labelBgBorderRadius": 0,
+                                              "style": {}
+                                          }
+                                      ],
+                                      "schedule": "0 9 * * *",
+                                      "is_draft": True,
+                                      "max_retries": 0,
+                                      "updated_at": "2025-08-13T06:44:55",
+                                      "active_status": False,
+                                      "execution_status": None
                                   },
                                   "error": {}
                               }
@@ -73,7 +275,7 @@ async def update_dag(dag_id: str, dag: DAGRequest, db: Session = Depends(get_db)
     DAG 업데이트 api
     """
     dag_service = FlowDefinitionService(db)
-    return {"id": dag_service.update_dag(dag_id, dag)}
+    return flow_domain2api(dag_service.update_dag(dag_id, dag))
 
 
 @router.patch("/dag/{dag_id}/restore-deleted",
@@ -436,7 +638,7 @@ async def get_dag_list(
         "total_count": total_count,
         "filtered_count": filtered_count,
         "result_count": result_count,
-        "list": dag_list,
+        "list": [flow_domain2api(dag) for dag in dag_list],
     }
 
 

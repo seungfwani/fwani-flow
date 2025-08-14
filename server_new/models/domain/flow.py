@@ -28,6 +28,7 @@ class Task:
                  inputs: dict[str, Any],
                  impl_namespace=None,
                  impl_callable=None,
+                 ui_class: str = None,
                  ):
         self.id = id_
         self.variable_id = variable_id
@@ -35,6 +36,7 @@ class Task:
         self.python_libraries = python_libraries
         self.code = code
         self.code_hash = get_hash(code) if kind == 'code' else None
+        self.ui_class = ui_class
         self.ui_type = ui_type
         self.ui_label = ui_label
         self.ui_position = ui_position
