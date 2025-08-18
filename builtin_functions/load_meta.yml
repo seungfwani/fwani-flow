@@ -1,12 +1,25 @@
 id: "00000000-0000-4000-9000-000000000001"
 name: "Load MetaTypeData"
 description: "metatype 테이블 로드 함수"
-impl_namespace: "builtin_functions.load_meta"
+impl_namespace: "load_meta"
 impl_callable: "run"
 param_schema:
   - type: string
-    name: id
+    name: host
     required: true
+  - type: string
+    name: endpoint
+    required: false
+  - type: string
+    name: meta_type_id
+    required: true
+  - type: string
+    name: headers
+    required: true
+  - type: integer
+    name: timeout_sec
+    required: false
 python_libraries:
-  - boto3==1.34.0
+  - pandas==2.3.1
+  - requests==2.32.3
 is_deprecated: false

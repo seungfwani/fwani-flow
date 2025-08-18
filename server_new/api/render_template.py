@@ -5,9 +5,6 @@ import textwrap
 
 from jinja2 import Environment, FileSystemLoader
 
-from config import Config
-from utils.functions import get_udf_requirements
-
 logger = logging.getLogger()
 
 
@@ -21,7 +18,6 @@ def render_dag_script(dag_id, tasks, edges, tags=None, schedule=None):
 
     env = Environment(loader=FileSystemLoader(template_directory))
     env.filters["from_json"] = json.loads
-    env.globals["get_udf_requirements"] = get_udf_requirements
     dag_template = env.get_template("test_dag_template.tpl")
     # dag_template = Template(template_str)
 
@@ -31,7 +27,6 @@ def render_dag_script(dag_id, tasks, edges, tags=None, schedule=None):
         tags=tags,
         tasks=tasks,
         edges=edges,
-        base_dir=Config.SHARED_DIR,  # workflow, airflow 마운트 경로 똑같아야 함
     )
 
 

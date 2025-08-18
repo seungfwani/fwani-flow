@@ -4,14 +4,34 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from api.render_template import render_dag_script, render_task_code_script
+from api.render_template import render_task_code_script, render_dag_script
 from config import Config
-from core.database import get_db_context
 from errors import WorkflowError
-from models.db.system_function import SystemFunction
+from repositories.system_function_repo import SystemFunctionRepo
 from utils.functions import make_flow_id_by_name, get_hash
 
 logger = logging.getLogger()
+
+
+class SystemFunction:
+    def __init__(self,
+                 id_: str,
+                 name: str,
+                 description: str,
+                 impl_namespace: str,
+                 impl_callable: str,
+                 python_libraries: list[str],
+                 param_schema: list[dict[str, Any]],
+                 is_deprecated: bool,
+                 ):
+        self.id = id_
+        self.name = name
+        self.description = description
+        self.impl_namespace = impl_namespace
+        self.impl_callable = impl_callable
+        self.python_libraries = python_libraries
+        self.param_schema = param_schema
+        self.is_deprecated = is_deprecated
 
 
 class Task:
@@ -50,6 +70,7 @@ class Task:
         self.inputs = inputs
         self.impl_namespace = impl_namespace
         self.impl_callable = impl_callable
+        self._system_function = None
 
     def __eq__(self, other):
         if not isinstance(other, Task):
@@ -70,6 +91,24 @@ class Task:
             tuple(self.output_meta_type),
             tuple(self.inputs),
         ))
+
+    @property
+    def system_function(self):
+        if self._system_function is None:
+            system_function_repo = SystemFunctionRepo()
+            sf = system_function_repo.find_by_id(self.builtin_func_id)
+            if sf:
+                self._system_function = SystemFunction(
+                    id_=sf.id,
+                    name=sf.name,
+                    description=sf.description,
+                    impl_namespace=sf.impl_namespace,
+                    impl_callable=sf.impl_callable,
+                    python_libraries=sf.python_libraries,
+                    param_schema=sf.param_schema,
+                    is_deprecated=sf.is_deprecated,
+                )
+        return self._system_function
 
 
 class Edge:
@@ -174,27 +213,27 @@ class Flow:
         dag_dir_path = os.path.join(Config.DAG_DIR, self.dag_id)
         os.makedirs(dag_dir_path, exist_ok=True)
         # write dag
-        with get_db_context() as db:
-            for task in self.tasks:
-                if task.kind == 'code':
-                    file_contents = render_task_code_script(
-                        task_code=task.code,
-                        kind=task.kind,
-                        params=task.inputs,
-                    )
-                else:
-                    system_function = db.query(SystemFunction).get(task.builtin_func_id)
-                    if system_function is None:
-                        raise WorkflowError("태스크 파일 저장 실패: builtin function 없음")
-                    file_contents = render_task_code_script(
-                        task_code=task.code,
-                        kind=task.kind,
-                        impl_namespace=system_function.impl_namespace,
-                        impl_callable=system_function.impl_callable,
-                        params=task.inputs,
-                    )
-                with open(os.path.join(dag_dir_path, f"func_{task.variable_id}.py"), 'w') as dag_file:
-                    dag_file.write(file_contents)
+        for task in self.tasks:
+            if task.kind == 'code':
+                file_contents = render_task_code_script(
+                    task_code=task.code,
+                    kind=task.kind,
+                    params=task.inputs,
+                )
+            else:
+                system_function_repo = SystemFunctionRepo()
+                system_function = system_function_repo.find_by_id(task.builtin_func_id)
+                if system_function is None:
+                    raise WorkflowError("태스크 파일 저장 실패: builtin function 없음")
+                file_contents = render_task_code_script(
+                    task_code=task.code,
+                    kind=task.kind,
+                    impl_namespace=system_function.impl_namespace,
+                    impl_callable=system_function.impl_callable,
+                    params=task.inputs,
+                )
+            with open(os.path.join(dag_dir_path, f"func_{task.variable_id}.py"), 'w') as dag_file:
+                dag_file.write(file_contents)
 
         dag_file_path = os.path.join(dag_dir_path, f"{self.dag_id}.py")
         try:

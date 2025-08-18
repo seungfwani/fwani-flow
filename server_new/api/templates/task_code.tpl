@@ -5,20 +5,26 @@ run 은 return 을 dataframe 만 한다.
 """
 
 
-
 def wrapper_run(dag_id: str,
                 run_id: str,
                 task_id: str,
                 before_task_ids: list[str],
-                base_dir: str = "/app/shared"
+                app_dir: str = "/app",
+                share_dir_name: str = "shared",
+                builtin_dir_name: str = "built_in_functions",
 ):
     import os
     import pickle
+    import sys
+    import importlib
+
+    # Python 경로 추가 (UDF 실행 가능)
+    sys.path.append(os.path.join(app_dir, builtin_dir_name))
 
 {{ task_code }}
 
     RESULT_FILE_NAME = "result.pkl"
-    dag_run_dir = os.path.join(base_dir,
+    dag_run_dir = os.path.join(app_dir, share_dir_name,
                                f"dag_id={dag_id}",
                                f"run_id={run_id}", )
 

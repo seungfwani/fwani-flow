@@ -1,11 +1,7 @@
-import json
-import uuid
+from sqlalchemy import Column, String, DateTime, Boolean, BIGINT, Integer, Float
 
-from sqlalchemy import Column, String, DateTime, Boolean, func, ForeignKey, JSON, Numeric, BIGINT, Integer, Float
-from sqlalchemy.orm import relationship
+from core.database import AirflowDB
 
-from core.database import BaseDB, AirflowDB
-from utils.functions import string2datetime
 
 class AirflowDag(AirflowDB):
     __tablename__ = "dag"
