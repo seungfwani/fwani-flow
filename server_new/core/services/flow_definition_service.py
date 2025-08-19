@@ -246,7 +246,7 @@ class FlowDefinitionService:
         origin_flow.tasks.clear()
         origin_flow.edges.clear()
 
-        origin_flow.tasks, origin_flow.edges = task_edge_domain2db(origin_flow, new_flow.edges)
+        origin_flow.tasks, origin_flow.edges = task_edge_domain2db(origin_flow, new_flow.tasks, new_flow.edges)
         self.meta_db.flush()
 
         try:

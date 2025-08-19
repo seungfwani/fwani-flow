@@ -1,7 +1,7 @@
-id: "00000000-0000-4000-9000-000000000001"
-name: "Load MetaTypeData"
-description: "metatype 테이블 로드 함수"
-impl_namespace: "load_meta"
+id: "00000000-0000-4000-9000-000000000002"
+name: "저장 설정"
+description: "metatype 을 저장하는 함수"
+impl_namespace: "save_meta"
 impl_callable: "run"
 param_schema:
   - type: string
@@ -23,4 +23,4 @@ python_libraries:
   - pandas==2.3.1
   - requests==2.32.3
 is_deprecated: false
-kind: meta
+kind: system

@@ -50,9 +50,9 @@ async def run_dag_immediately(dag_id: str,
     DAG 즉시 실행 요청하는 API
     """
     dag_service = FlowDefinitionService(db, airflow)
-    dag_id = dag_service.update_dag(dag_id, dag)
+    flow = dag_service.update_dag(dag_id, dag)
     flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
-    return {"execution_id": flow_execution_service.run_execution(dag_id)}
+    return {"execution_id": flow_execution_service.run_execution(flow.id)}
 
 
 @router.post("/dag",

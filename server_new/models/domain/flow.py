@@ -49,9 +49,8 @@ class Task:
                  input_meta_type: dict[str, Any],
                  output_meta_type: dict[str, Any],
                  inputs: dict[str, Any],
-                 impl_namespace=None,
-                 impl_callable=None,
                  ui_class: str = None,
+                 ui_extra_data=None,
                  ):
         self.id = id_
         self.variable_id = variable_id
@@ -68,9 +67,8 @@ class Task:
         self.input_meta_type = input_meta_type
         self.output_meta_type = output_meta_type
         self.inputs = inputs
-        self.impl_namespace = impl_namespace
-        self.impl_callable = impl_callable
         self._system_function = None
+        self.ui_extra_data = ui_extra_data
 
     def __eq__(self, other):
         if not isinstance(other, Task):

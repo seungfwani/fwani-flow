@@ -14,6 +14,7 @@ class SystemFunction(BaseDB):
     impl_namespace = Column(String, nullable=False)
     impl_callable = Column(String, nullable=False)
     python_libraries = Column(JSON)
+    kind = Column(String)
 
     # 인자 정의
     param_schema = Column(JSON, nullable=False, default={})

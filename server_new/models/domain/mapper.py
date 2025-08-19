@@ -41,7 +41,11 @@ def task_api2domain(tasks: [DAGNode]) -> dict[str, DomainTask]:
                                      task.data.kind.lower(),
                                      task.data.python_libraries,
                                      task.data.code,
-                                     task.data.builtin_func_id,
+                                     (
+                                         '00000000-0000-4000-9000-000000000001'
+                                         if task.data.kind.lower() == 'meta' and not task.data.builtin_func_id
+                                         else task.data.builtin_func_id
+                                     ),
                                      task.type,
                                      task.data.label,
                                      task.position,
@@ -50,6 +54,7 @@ def task_api2domain(tasks: [DAGNode]) -> dict[str, DomainTask]:
                                      task.data.output_meta_type,
                                      task.data.inputs,
                                      ui_class=task.class_,
+                                     ui_extra_data=task.data.to_json()
                                      )
     if errors:
         raise WorkflowError(errors)
@@ -86,6 +91,7 @@ def flow_db2domain(flow: DBFlow):
         task.output_meta_type,
         {inp.key: inp.value for inp in task.inputs},
         ui_class=task.ui_class,
+        ui_extra_data=task.ui_extra_data,
     ) for task in flow.tasks}
     return DomainFlow(
         name=flow.name,
@@ -115,27 +121,40 @@ def flow_db2domain(flow: DBFlow):
 
 
 def flow_domain2api(flow: DomainFlow):
-    return DAGResponse(
-        id=flow.id,
-        name=flow.name,
-        description=flow.description,
-        owner=flow.owner,
-        # TODO: task, edge 변환
-        nodes=[DAGNode(
-            id=task.id,
-            type=task.ui_type,
-            position=task.ui_position,
-            data={
+    tasks = []
+    for task in flow.tasks:
+        if task.ui_extra_data:
+            data = task.ui_extra_data
+            data['label'] = task.ui_label
+            data['kind'] = task.kind
+            data['python_libraries'] = task.python_libraries
+            data['code'] = task.code
+            data['builtin_func_id'] = task.builtin_func_id
+            data['inputs'] = task.inputs
+        else:
+            data = {
                 "label": task.ui_label,
                 "kind": task.kind,
                 "python_libraries": task.python_libraries,
                 "code": task.code,
                 "builtin_func_id": task.builtin_func_id or "",
                 "inputs": task.inputs,
-            },
+            }
+        tasks.append(DAGNode(
+            id=task.id,
+            type=task.ui_type,
+            position=task.ui_position,
+            data=data,
             style=task.ui_style,
             class_=task.ui_class,
-        ) for task in flow.tasks],
+        ))
+    return DAGResponse(
+        id=flow.id,
+        name=flow.name,
+        description=flow.description,
+        owner=flow.owner,
+        # TODO: task, edge 변환
+        nodes=tasks,
         edges=[DAGEdge(
             id=edge.id,
             type=edge.ui_type,
@@ -157,7 +176,7 @@ def flow_domain2api(flow: DomainFlow):
     )
 
 
-def task_edge_domain2db(flow: DBFlow, domain_edges: list[DomainEdge]):
+def task_edge_domain2db(flow: DBFlow, domain_tasks: list[DomainTask], domain_edges: list[DomainEdge]):
     def task_domain2db(flow_: DBFlow, domain_task: DomainTask):
         task = DBTask(
             flow=flow_,
@@ -170,6 +189,7 @@ def task_edge_domain2db(flow: DBFlow, domain_edges: list[DomainEdge]):
             ui_position=domain_task.ui_position,
             ui_style=domain_task.ui_style,
             ui_class=domain_task.ui_class,
+            ui_extra_data=domain_task.ui_extra_data,
         )
         if domain_task.kind == "code":
             task.python_libraries = domain_task.python_libraries
@@ -191,18 +211,15 @@ def task_edge_domain2db(flow: DBFlow, domain_edges: list[DomainEdge]):
         return task
 
     tasks_cache: dict[str, DBTask] = {}
+    for task in domain_tasks:
+        tasks_cache[task.id] = task_domain2db(flow, task)
+
     edges: list[DBEdge] = []
 
     # 모든 edge 반복하며 task + edge 생성
     for domain_edge in domain_edges:
         source_key = domain_edge.source.id
         target_key = domain_edge.target.id
-
-        if source_key not in tasks_cache:
-            tasks_cache[source_key] = task_domain2db(flow, domain_edge.source)
-        if target_key not in tasks_cache:
-            tasks_cache[target_key] = task_domain2db(flow, domain_edge.target)
-
         source_task = tasks_cache[source_key]
         target_task = tasks_cache[target_key]
 
@@ -234,7 +251,7 @@ def flow_domain2db(domain_flow: DomainFlow, airflow_db: Session):
         is_loaded_by_airflow=check_loaded_by_airflow(domain_flow.write_time, domain_flow.dag_id, airflow_db),
     )
     # 관계 설정
-    flow.tasks, flow.edges = task_edge_domain2db(flow, domain_flow.edges)
+    flow.tasks, flow.edges = task_edge_domain2db(flow, domain_flow.tasks, domain_flow.edges)
     return flow
 
 

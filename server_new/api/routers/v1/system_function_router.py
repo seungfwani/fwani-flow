@@ -26,7 +26,7 @@ async def get_system_functions(db: Session = Depends(get_db)):
     """
     system function 리스트 조회
     """
-    data = db.query(SystemFunction).all()
+    data = db.query(SystemFunction).filter(SystemFunction.kind != 'meta').all()
     return [SystemFunctionResponse(
         id=sf.id,
         name=sf.name,

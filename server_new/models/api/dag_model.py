@@ -58,6 +58,13 @@ class BaseNodeData(BaseModel):
     inputs: dict[str, Any] = Field({}, description="system, meta 의 code 실행시 필요한 input 값",
                                    examples=[{"key1": "value1", "key2": "value2"}])
 
+    model_config = {
+        "extra": "allow"
+    }
+
+    def to_json(self):
+        return self.model_dump()
+
 
 class CodeNodeData(BaseNodeData):
     kind: Literal["code"] = "code"
@@ -75,21 +82,15 @@ class CodeNodeData(BaseNodeData):
 
 class MetaNodeData(BaseNodeData):
     kind: Literal["meta"] = "meta"
-    python_libraries: List[str] | None = Field(None, description="requirements.txt 에 작성하는 포멧",
+    python_libraries: List[str] | None = Field([], description="requirements.txt 에 작성하는 포멧",
                                                examples=[['pandas==2.3.1', 'requests==2.32.3']])
     code: str | None = Field(None, description="meta/system 에서는 비움")
-    builtin_func_id: str = Field(..., description="built-in function id")
-
-    @model_validator(mode="after")
-    def _enforce_meta_constraints(self):
-        if not self.builtin_func_id:
-            raise ValueError("kind=meta 에서는 builtin_func_id 가 필수입니다.")
-        return self
+    builtin_func_id: str | None = Field(None, description="built-in function id")
 
 
 class SystemNodeData(BaseNodeData):
     kind: Literal["system"] = "system"
-    python_libraries: List[str] | None = Field(None, description="requirements.txt 에 작성하는 포멧",
+    python_libraries: List[str] | None = Field([], description="requirements.txt 에 작성하는 포멧",
                                                examples=[['pandas==2.3.1', 'requests==2.32.3']])
     code: str | None = Field(None, description="meta/system 에서는 비움")
     builtin_func_id: str = Field(..., description="built-in function id")
