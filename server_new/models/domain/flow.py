@@ -219,16 +219,14 @@ class Flow:
                     params=task.inputs,
                 )
             else:
-                system_function_repo = SystemFunctionRepo()
-                system_function = system_function_repo.find_by_id(task.builtin_func_id)
-                if system_function is None:
-                    raise WorkflowError("태스크 파일 저장 실패: builtin function 없음")
+                default_inputs = {col.get('name'): col.get('value') for col in task.system_function.param_schema}
+                default_inputs.update(task.inputs)
                 file_contents = render_task_code_script(
                     task_code=task.code,
                     kind=task.kind,
-                    impl_namespace=system_function.impl_namespace,
-                    impl_callable=system_function.impl_callable,
-                    params=task.inputs,
+                    impl_namespace=task.system_function.impl_namespace,
+                    impl_callable=task.system_function.impl_callable,
+                    params=default_inputs,
                 )
             with open(os.path.join(dag_dir_path, f"func_{task.variable_id}.py"), 'w') as dag_file:
                 dag_file.write(file_contents)

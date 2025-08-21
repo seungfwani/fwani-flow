@@ -149,7 +149,7 @@ def get_airflow_client() -> Generator[AirflowClient, None, None]:
 
 @contextmanager
 def get_airflow_client_context() -> Generator[AirflowClient, None, None]:
-    logger.info("Connecting to airflow server...")
+    logger.info("🪡 Connecting to airflow server...")
     _airflow = AirflowClient(
         host=Config.AIRFLOW_HOST,
         port=Config.AIRFLOW_PORT,

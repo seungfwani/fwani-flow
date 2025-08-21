@@ -49,10 +49,14 @@ async def run_dag_immediately(dag_id: str,
     """
     DAG 즉시 실행 요청하는 API
     """
-    dag_service = FlowDefinitionService(db, airflow)
-    flow = dag_service.update_dag(dag_id, dag)
     flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
-    return {"execution_id": flow_execution_service.run_execution(flow.id)}
+    if dag:
+        dag_service = FlowDefinitionService(db, airflow)
+        flow = dag_service.update_dag(dag_id, dag)
+        execution_id = flow_execution_service.run_execution(flow.id)
+    else:
+        execution_id = flow_execution_service.run_execution(dag_id)
+    return {"execution_id": execution_id}
 
 
 @router.post("/dag",
@@ -170,7 +174,7 @@ async def get_dag_run_list(
 
 
 @router.get("/execution/{execution_id}/status",
-            response_model=APIResponse[str],
+            response_model=APIResponse[dict[str, str | bool]],
             )
 @api_response_wrapper
 async def get_dag_run_status(execution_id: str,
@@ -182,11 +186,15 @@ async def get_dag_run_status(execution_id: str,
     DAG 실행의 상태 조회
     """
     flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
-    return flow_execution_service.get_execution_status(execution_id)
+    status, terminated = flow_execution_service.get_execution_status(execution_id)
+    return {
+        "status": status,
+        "terminated": terminated,
+    }
 
 
 @router.get("/execution/{execution_id}/tasks",
-            response_model=APIResponse[list[TaskExecutionModel]],
+            response_model=APIResponse[dict[str, str | bool | list[TaskExecutionModel]]],
             )
 @api_response_wrapper
 async def get_all_task_instances(execution_id: str,
@@ -198,7 +206,14 @@ async def get_all_task_instances(execution_id: str,
     DAG 실행의 모든 태스크 상태 조회
     """
     flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
-    return [TaskExecutionModel.from_data(t) for t in flow_execution_service.get_all_task_instance(execution_id)]
+    tasks = [TaskExecutionModel.from_data(t) for t in
+             flow_execution_service.get_all_task_instance(execution_id)]
+    status, terminated = flow_execution_service.get_execution_status(execution_id)
+    return {
+        "status": status,
+        "terminated": terminated,
+        "tasks": tasks
+    }
 
 
 @router.get("/execution/{execution_id}/tasks/{task_id}/logs",

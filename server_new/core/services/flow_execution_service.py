@@ -4,6 +4,7 @@ import os
 import pickle
 import time
 
+import pandas
 from airflow.models import DagRun as AirflowDagRun
 from airflow.models import TaskInstance as AirflowTaskInstance
 from sqlalchemy import and_, desc
@@ -156,7 +157,8 @@ class FlowExecutionService:
             if airflow_dag_run:
                 execution.status = airflow_dag_run.state
                 self.meta_db.commit()
-        return execution.status
+            return execution.status, False
+        return execution.status, True
 
     def get_all_task_instance(self, execution_id: str):
         execution = self._get_flow_execution(execution_id)
@@ -225,7 +227,10 @@ class FlowExecutionService:
                 logger.info(f"load pickle file: {pkl_path}")
                 with open(pkl_path, "rb") as f:
                     result = pickle.load(f)
-                return {"result": result, "type": "dict"}
+                if isinstance(result, pandas.DataFrame):
+                    return {"result": result.to_dict(orient='records'), "type": "rows"}
+                else:
+                    return {"result": result, "type": "dict"}
             except Exception as e:
                 logger.error("⚠️ Failed to load pickle result", e)
                 raise WorkflowError("Failed to load pickle result")

@@ -16,7 +16,7 @@ def clean_orphan_dag_files(db: Session):
     base_path = Path(Config.DAG_DIR)
     for folder in base_path.glob("dag_*"):
         if folder.is_dir():
-            print(f"확인 할 폴더: {folder}")
+            logger.info(f"확인 할 폴더: {folder}")
             dag_name = folder.name
             flow = db.query(Flow).filter(Flow.dag_id.like(f"{dag_name}%")).first()
             if flow is None:

@@ -59,7 +59,7 @@ def get_db():
 
 @contextmanager
 def get_db_context():
-    logger.info("Connecting to database")
+    logger.info("🪡 Connecting to database")
     db = SessionLocalBaseDB()
     try:
         yield db
@@ -68,7 +68,7 @@ def get_db_context():
 
 
 def get_airflow():
-    logger.info("Connecting to Airflow DB")
+    logger.info("🪡 Connecting to Airflow DB")
     db = SessionLocalAirflowDB()
     try:
         yield db

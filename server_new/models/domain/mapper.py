@@ -9,7 +9,6 @@ from models.db.edge import Edge as DBEdge
 from models.db.flow import Flow as DBFlow, FlowSnapshot
 from models.db.task import Task as DBTask, TaskInput
 from models.domain.flow import Flow as DomainFlow, Edge as DomainEdge, Task as DomainTask
-from utils.code_validator import validate_user_code
 
 
 def edge_api2domain(edges: list[DAGEdge], tasks: dict[str, DomainTask]) -> list[DomainEdge]:
@@ -33,9 +32,6 @@ def task_api2domain(tasks: [DAGNode]) -> dict[str, DomainTask]:
     result = {}
     errors = {}
     for i, task in enumerate(tasks):
-        if task.data.kind == 'code':
-            if error_list := validate_user_code(task.data.code):
-                errors[task.id] = error_list
         result[task.id] = DomainTask(task.id,
                                      f"task_{i}",
                                      task.data.kind.lower(),
@@ -121,6 +117,8 @@ def flow_db2domain(flow: DBFlow):
 
 
 def flow_domain2api(flow: DomainFlow):
+    if not flow:
+        return None
     tasks = []
     for task in flow.tasks:
         if task.ui_extra_data:
@@ -180,6 +178,7 @@ def task_edge_domain2db(flow: DBFlow, domain_tasks: list[DomainTask], domain_edg
     def task_domain2db(flow_: DBFlow, domain_task: DomainTask):
         task = DBTask(
             flow=flow_,
+            id=domain_task.id,
             variable_id=domain_task.variable_id,
             kind=domain_task.kind,
             input_meta_type=domain_task.input_meta_type,
@@ -225,6 +224,7 @@ def task_edge_domain2db(flow: DBFlow, domain_tasks: list[DomainTask], domain_edg
 
         db_edge = DBEdge(
             flow=flow,
+            id=domain_edge.id,
             from_task=source_task,
             to_task=target_task,
             ui_type=domain_edge.ui_type,

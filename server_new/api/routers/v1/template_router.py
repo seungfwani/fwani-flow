@@ -1,6 +1,7 @@
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from core.database import get_db
@@ -14,12 +15,12 @@ logger = logging.getLogger()
 
 # 워크플로우 블루프린트 생성
 router = APIRouter(
-    prefix="/template",
+    prefix="/templates",
     tags=["template"],
 )
 
 
-@router.post("",
+@router.post("/template",
              response_model=APIResponse[TemplateResponse],
              )
 @api_response_wrapper
@@ -45,7 +46,7 @@ async def create_template(data: TemplateRequest, db: Session = Depends(get_db)):
     )
 
 
-@router.patch("/{template_id}",
+@router.patch("/template/{template_id}",
               response_model=APIResponse[TemplateResponse],
               )
 @api_response_wrapper
@@ -71,7 +72,7 @@ async def update_dag(template_id: str, data: TemplateRequest, db: Session = Depe
     )
 
 
-@router.get("",
+@router.get("/template",
             response_model=APIResponse[list[TemplateResponse]],
             )
 @api_response_wrapper
@@ -89,7 +90,7 @@ async def get_template_list(db: Session = Depends(get_db)):
     ) for ft in data]
 
 
-@router.get("/{template_id}",
+@router.get("/template/{template_id}",
             response_model=APIResponse[TemplateResponse],
             )
 @api_response_wrapper
@@ -109,7 +110,7 @@ async def get_template(template_id: str, db: Session = Depends(get_db)):
     )
 
 
-@router.delete("/{template_id}",
+@router.delete("/template/{template_id}",
                response_model=APIResponse[str],
                )
 @api_response_wrapper
@@ -123,3 +124,34 @@ async def delete_template(template_id: str, db: Session = Depends(get_db)):
     db.delete(template)
     db.commit()
     return template.id
+
+
+@router.get("/check-template-name",
+            response_model=APIResponse[dict[str, bool]],
+            responses={
+                200: {
+                    "content": {
+                        "application/json": {
+                            "example": {
+                                "success": True,
+                                "message": "요청이 정상 처리 되었습니다.",
+                                "data": {
+                                    "available": True
+                                },
+                                "error": {}
+                            }
+                        }
+                    }
+                }
+            }
+            )
+@api_response_wrapper
+async def check_template_name(name: str = Query(..., description="체크 할 template name"), db: Session = Depends(get_db)):
+    """
+    template 이름 체크
+    """
+    template_names = db.execute(select(FunctionTemplate.name)).scalars()
+    if template_names and name in template_names:
+        return {"available": False}
+    else:
+        return {"available": True}

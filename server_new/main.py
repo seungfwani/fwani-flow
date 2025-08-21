@@ -20,6 +20,7 @@ logger = logging.getLogger()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_logging()
     start_scheduler()
     yield
 
@@ -32,10 +33,7 @@ def run_migrations():
 
 # Flask 애플리케이션 생성
 def init_app():
-    # 실행 시 자동 설정 적용
-    setup_logging()
-    logger.info("✅ FastAPI 애플리케이션 생성 완료")
-
+    logger.info("▶️ Starting server ...")
     # FastAPI 애플리케이션 생성
     description_text = Path("docs/swagger_description.md").read_text(encoding="utf-8")
     app = FastAPI(
@@ -44,6 +42,8 @@ def init_app():
         lifespan=lifespan,
         description=description_text
     )
+    logger.info("✅ FastAPI 애플리케이션 생성 완료")
+
     # API 라우트 등록
     for router in v1_routers:
         app.include_router(router, prefix="/api/v1")
@@ -63,7 +63,6 @@ def init_app():
 
 
 def start_server():
-    logger.info("Starting server ...")
     uvicorn.run("main:init_app",
                 host="0.0.0.0",
                 port=5050,

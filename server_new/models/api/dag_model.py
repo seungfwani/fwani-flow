@@ -70,14 +70,8 @@ class CodeNodeData(BaseNodeData):
     kind: Literal["code"] = "code"
     python_libraries: List[str] = Field([], description="requirements.txt 에 작성하는 포멧",
                                         examples=[['pandas==2.3.1', 'requests==2.32.3']])
-    code: str = Field(..., description="python code", examples=["def run():\n    return 1"])
+    code: str = Field("", description="python code", examples=["def run():\n    return 1"])
     builtin_func_id: None | str = Field(None, description="code 타입에서는 사용하지 않음")
-
-    @model_validator(mode="after")
-    def _enforce_code_constraints(self):
-        if not self.code or not self.code.strip():
-            raise ValueError("kind=code 에서는 code 가 필수입니다.")
-        return self
 
 
 class MetaNodeData(BaseNodeData):

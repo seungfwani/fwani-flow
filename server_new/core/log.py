@@ -11,7 +11,7 @@ os.makedirs(Config.LOG_DIR, exist_ok=True, mode=0o777)
 LOG_FILE = os.path.join(Config.LOG_DIR, "app.log")
 
 # 로그 포맷 설정
-LOG_FORMAT = "[%(asctime)s] [%(levelname)s] - %(message)s"
+LOG_FORMAT = "[%(asctime)s] [%(levelname)s] [%(process)s-%(thread)d] - %(message)s"
 DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
 #  Uvicorn 로그 설정
@@ -24,16 +24,11 @@ LOG_CONFIG = {
             "fmt": LOG_FORMAT,
             "use_colors": None,
         },
-        "access": {
-            "()": "uvicorn.logging.DefaultFormatter",
-            "fmt": "[%(asctime)s] %(levelname)s, %(process)s-%(thread)d, %(message)s",
-            "use_colors": None,
-        },
     },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
-            "formatter": "access",
+            "formatter": "default",
         },
         "file": {
             "class": "logging.handlers.RotatingFileHandler",
@@ -51,7 +46,7 @@ LOG_CONFIG = {
 
 
 def setup_logging():
-    logger = logging.getLogger()  # ✅ 통일된 로거 사용
+    logger = logging.getLogger()  # 통일된 로거 사용
     logger.setLevel(logging.getLevelName(Config.LOG_LEVEL))
 
     formatter = logging.Formatter(LOG_FORMAT, datefmt=DATE_FORMAT)
