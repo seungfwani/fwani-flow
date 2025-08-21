@@ -6,37 +6,13 @@ from datetime import datetime
 from airflow import DAG
 from airflow.utils.dates import days_ago
 
-{% set operator_types = [] -%}
-
-{% for task in tasks -%}
-    {% if task.function.operator_type not in operator_types -%}
-        {% set _ = operator_types.append(task.function.operator_type) -%}
-    {% endif -%}
-{% endfor -%}
-{% if "docker" in operator_types -%}
-import json
-
-from airflow.providers.docker.operators.docker import DockerOperator
-from docker.types import Mount
-{% endif %}
-{% if "python_virtual" in operator_types -%}
 from airflow.operators.python import PythonVirtualenvOperator
-from utils.decorator import wrapped_callable
-{% endif %}
-{% if "python" in operator_types -%}
-import os
-import sys
-
-from airflow.operators.python import PythonOperator
-from utils.decorator import file_decorator
-{% endif %}
 
 default_args = {
     'owner': 'code_generator',
     'start_date': days_ago(1),
     'retries': 1,
 }
-
 dag = DAG(
     dag_id='{{ dag_id }}',
     default_args=default_args,
@@ -45,15 +21,37 @@ dag = DAG(
     tags={{ tags }}
 )
 {% for task in tasks -%}
-{% if task.function.operator_type == 'docker' -%}
-{% include 'docker_operator.tpl' %}
-{% elif task.function.operator_type == 'python_virtual' -%}
-{% include 'python_virtual_operator.tpl' %}
-{% else -%}
-{% include 'python_operator.tpl' %}
-{% endif %}
+{% set before_task_ids = [] -%}
+    {% for edge in edges -%}
+        {% if edge.target.id == task.id -%}
+            {% set _ = before_task_ids.append(edge.source.variable_id) -%}
+        {% endif %}
+    {% endfor %}
+from {{ dag_id }}.func_{{ task.variable_id }} import wrapper_run as run_{{ task.variable_id }}
+
+{{ task.variable_id }} = PythonVirtualenvOperator(
+    task_id='{{ task.variable_id }}',
+    dag=dag,
+    python_callable=run_{{ task.variable_id }},
+    op_args=[],
+    op_kwargs={
+        "before_task_ids": {{ before_task_ids }},
+        "base_dir": "{{ base_dir }}",
+        {% raw -%}
+        "dag_id": "{{ ti.dag_id }}",
+        "run_id": "{{ ti.run_id }}",
+        "task_id": "{{ ti.task.task_id }}",
+        {% endraw -%}
+    },
+    system_site_packages=False,
+    {% if task.kind == "code" -%}
+    requirements={{ task.python_libraries }},
+    {% else -%}
+    requirements={{ task.system_function.python_libraries }},
+    {% endif %}
+)
 {% endfor %}
 
 {% for edge in edges -%}
-{{ edge.from_task.variable_id }} >> {{ edge.to_task.variable_id }}
+{{ edge.source.variable_id }} >> {{ edge.target.variable_id }}
 {% endfor %}

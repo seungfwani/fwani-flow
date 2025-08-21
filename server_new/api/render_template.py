@@ -18,7 +18,7 @@ def render_dag_script(dag_id, tasks, edges, tags=None, schedule=None):
 
     env = Environment(loader=FileSystemLoader(template_directory))
     env.filters["from_json"] = json.loads
-    dag_template = env.get_template("test_dag_template.tpl")
+    dag_template = env.get_template("dag_template.tpl")
     # dag_template = Template(template_str)
 
     return dag_template.render(
