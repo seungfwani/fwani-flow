@@ -9,7 +9,7 @@ logger = logging.getLogger()
 
 
 def render_dag_script(dag_id, tasks, edges, tags=None, schedule=None):
-    logger.info(f"render dag with {dag_id}, {tasks}, {edges}")
+    logger.info(f"▶️ render dag with {dag_id}, {tasks}, {edges}")
     base_directory = os.path.dirname(os.path.abspath(__file__))
     template_directory = os.path.join(base_directory, "templates")
     # create dag file
@@ -32,7 +32,7 @@ def render_dag_script(dag_id, tasks, edges, tags=None, schedule=None):
 
 def render_task_code_script(task_code: str, kind: str, params: dict, impl_namespace: str = None,
                             impl_callable: str = None, ):
-    logger.info(f"render task code {task_code}")
+    logger.info(f"▶️ render task code {task_code}")
     base_directory = os.path.dirname(os.path.abspath(__file__))
     template_directory = os.path.join(base_directory, "templates")
     env = Environment(loader=FileSystemLoader(template_directory))
@@ -45,12 +45,12 @@ def render_task_code_script(task_code: str, kind: str, params: dict, impl_namesp
         impl_callable=impl_callable,
         params=params,
     )
-    logger.info(f"rendered task_code:\n{rendered}")
+    logger.debug(f"rendered task_code:\n{rendered}")
     return rendered
 
 
 def render_udf_code_block(params_count: int) -> str:
-    logger.info(f"render udf template: {params_count}")
+    logger.info(f"▶️ render udf template: {params_count}")
     base_directory = os.path.dirname(os.path.abspath(__file__))
     template_directory = os.path.join(base_directory, "templates")
     env = Environment(loader=FileSystemLoader(template_directory))
@@ -58,5 +58,5 @@ def render_udf_code_block(params_count: int) -> str:
     rendered = template.render(
         params=', '.join([f"param_{i}" for i in range(params_count)]),
     )
-    logger.info(f"rendered udf template: {rendered}")
+    logger.debug(f"rendered udf template: {rendered}")
     return rendered

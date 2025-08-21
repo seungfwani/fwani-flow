@@ -42,7 +42,7 @@ def init_app():
         lifespan=lifespan,
         description=description_text
     )
-    logger.info("✅ FastAPI 애플리케이션 생성 완료")
+    logger.info("✅ Complete to create FastAPI Application")
 
     # API 라우트 등록
     for router in v1_routers:

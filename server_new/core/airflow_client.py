@@ -43,13 +43,13 @@ class AirflowClient:
 
     def _request_with_reconnect(self, method, url, **kwargs):
         try:
-            logger.info(f"Requesting {method}: {url}")
+            logger.info(f"🙋 [AirflowClient] Requesting {method}: {url}")
             response = self.session.request(method, url, **kwargs)
             response.raise_for_status()
             return response
         except ConnectionError:
             # 세션 재생성 후 재시도
-            logger.warning("[AirflowClient] Connection lost. Reconnecting...")
+            logger.warning("⚠️ [AirflowClient] Connection lost. Reconnecting...")
             self.session.close()
             self._create_session()
             response = self.session.request(method, url, **kwargs)
@@ -66,7 +66,7 @@ class AirflowClient:
         return urljoin(self.base_url, endpoint.lstrip("/"))
 
     def _get(self, endpoint, params=None, return_content=False) -> dict | bytes | None:
-        logger.info(f"[AirflowClient] Requesting GET {endpoint}, params={params}")
+        logger.info(f"🙋 [AirflowClient] Requesting GET {endpoint}, params={params}")
         url = self._make_url(endpoint)
         response = self._request_with_reconnect("GET", url, params=params)
         if not return_content:
@@ -80,13 +80,13 @@ class AirflowClient:
     #     return response.content
 
     def _post(self, endpoint, json_data=None):
-        logger.info(f"[AirflowClient] Requesting POST {endpoint}, json={json_data}")
+        logger.info(f"🙋 [AirflowClient] Requesting POST {endpoint}, json={json_data}")
         url = self._make_url(endpoint)
         response = self._request_with_reconnect("POST", url, data=json_data)
         return response.json()
 
     def _patch(self, endpoint, json_data=None):
-        logger.info(f"[AirflowClient] Requesting PATCH {endpoint}, json={json_data}")
+        logger.info(f"🙋 [AirflowClient] Requesting PATCH {endpoint}, json={json_data}")
         url = self._make_url(endpoint)
         response = self._request_with_reconnect("PATCH", url, data=json_data)
         return response.json()
@@ -112,9 +112,9 @@ class AirflowClient:
         """
         check_dag_of_airflow = self._get(f"dags/{dag_id}")
         if check_dag_of_airflow.get("is_paused"):
-            logger.info(f"[AirflowClient] DAG {dag_id} paused. Request activate")
+            logger.info(f"▶️ [AirflowClient] DAG {dag_id} paused. Request activate")
             active_result = self.update_pause(dag_id, False)
-            logger.info(f"[AirflowClient] DAG {dag_id} is activated. {active_result}")
+            logger.info(f"✅️ [AirflowClient] DAG {dag_id} is activated. {active_result}")
         response = self._post(f"dags/{dag_id}/dagRuns", json.dumps(data))
         return response["dag_run_id"]
 
@@ -149,7 +149,7 @@ def get_airflow_client() -> Generator[AirflowClient, None, None]:
 
 @contextmanager
 def get_airflow_client_context() -> Generator[AirflowClient, None, None]:
-    logger.info("🪡 Connecting to airflow server...")
+    logger.info("🔓 Open Airflow Client for API")
     _airflow = AirflowClient(
         host=Config.AIRFLOW_HOST,
         port=Config.AIRFLOW_PORT,
@@ -160,3 +160,4 @@ def get_airflow_client_context() -> Generator[AirflowClient, None, None]:
         yield _airflow
     finally:
         _airflow.session.close()
+        logger.info("🔒 Close Airflow Client for API")

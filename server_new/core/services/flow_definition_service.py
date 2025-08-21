@@ -70,13 +70,21 @@ class FlowDefinitionService:
                      .order_by(desc(FlowSnapshot.version))
                      .first())
         if last_snap and last_snap.payload_hash == payload_hash:
+            logger.info("🤷 No changes detected.")
             return last_snap, False
 
         # draft/current 정리
         if is_draft and upsert_draft:
+            logger.info("🧹 Delete old draft snapshot.")
             self.meta_db.query(FlowSnapshot).filter_by(flow_id=flow.id, is_draft=True).delete()
         if not is_draft:
+            self.meta_db.query(FlowSnapshot).filter(and_(
+                FlowSnapshot.flow_id == flow.id,
+                FlowSnapshot.is_current == True,
+                FlowSnapshot.version != last_snap.version,
+            )).update({"is_current": False})
             if last_snap and not last_snap.is_current:
+                logger.info(f"▶️ Make current snapshot to {last_snap.version}.")
                 last_snap.is_current = True
                 last_snap.is_draft = False
                 last_snap.op = op.name
@@ -84,7 +92,7 @@ class FlowDefinitionService:
                 last_snap.payload = payload
                 last_snap.payload_hash = payload_hash
                 return last_snap, True
-            self.meta_db.query(FlowSnapshot).filter_by(flow_id=flow.id, is_current=True).update({"is_current": False})
+            last_snap.is_current = False
 
         new_version = self.next_version(flow.id)
         snap = FlowSnapshot(
@@ -97,10 +105,12 @@ class FlowDefinitionService:
             is_draft=is_draft,
             is_current=not is_draft,
         )
+        logger.info(f"🆕 Create new snapshot to {snap.version}.")
         self.meta_db.add(snap)
         return snap, True
 
     def restore_flow_by_snapshot(self, flow_id: str, version: int):
+        logger.info(f"▶️ Start to restore snapshot {version}.")
         fs = (self.meta_db.query(FlowSnapshot)
               .filter_by(flow_id=flow_id, version=version)
               .one())
@@ -142,6 +152,7 @@ class FlowDefinitionService:
                 ui_type=t["ui_type"],
                 ui_label=t["ui_label"],
                 ui_position=t["ui_position"],
+                ui_class=t["ui_class"],
                 ui_style=t["ui_style"],
                 ui_extra_data=t["ui_extra_data"],
             )
@@ -176,9 +187,11 @@ class FlowDefinitionService:
                                 message=f"이전 버전 restore - v{version}",
                                 is_draft=flow.is_draft, )
         self.meta_db.commit()
+        logger.info(f"✅ Success to restore snapshot {version}.")
         return flow.id
 
     def create_dummy(self):
+        logger.info(f"🆕 Create dummy flow")
         now_timestamp = datetime.datetime.now(datetime.timezone.utc)
 
         dummy_flow = DBFlow(
@@ -201,7 +214,7 @@ class FlowDefinitionService:
         if existing:
             raise WorkflowError("DAG already exists")
         else:
-            logger.info(f"🆕 DAG 신규 등록: {dag.name}")
+            logger.info(f"🆕 Create New DAG: {dag.name}")
             domain_flow = flow_api2domain(dag)
             db_flow = flow_domain2db(domain_flow, self.airflow_db)
             self.meta_db.add(db_flow)
@@ -218,6 +231,7 @@ class FlowDefinitionService:
 
     def update_dag(self, origin_dag_id: str, new_dag: DAGRequest):
         if not new_dag:
+            logger.info(f"🤷 No dag to update. Do nothing.")
             return None
         # 0. 기존 Flow 조회
         origin_flow = self._get_flow(origin_dag_id)
@@ -226,6 +240,7 @@ class FlowDefinitionService:
         new_flow = flow_api2domain(new_dag)
         # 저장시(is_draft=False) 이름이 바뀐 경우 → 중복 확인 및 갱신
         if not new_flow.is_draft and new_flow.name != origin_flow.name:
+            logger.info(f"▶️ Check duplicated name {new_flow.name}.")
             duplicate = (
                 self.meta_db.query(DBFlow)
                 .filter(DBFlow.name == new_flow.name, DBFlow.id != origin_flow.id)
@@ -262,14 +277,12 @@ class FlowDefinitionService:
             return flow_db2domain(origin_flow)
         except Exception as e:
             self.meta_db.rollback()
-            msg = f"❌ DAG 업데이트 실패: {e}"
-            logger.error(msg)
-            raise WorkflowError(msg)
+            raise WorkflowError(f"❌ DAG 업데이트 실패: {e}")
 
     def update_dag_active_status(self, dag_id: str, active_status: bool) -> bool:
         flow = self._get_flow(dag_id)
         result = self.airflow_client.update_pause(flow.dag_id, False if active_status else True)
-        logger.info(f"Update airflow is_paused to '{result}'")
+        logger.info(f"🔄 Update airflow is_paused to '{result}'")
         flow.active_status = active_status
         self.save_flow_snapshot(flow, SnapshotOperation.UPDATE, message="activate status 수정")
         self.meta_db.commit()
@@ -292,6 +305,14 @@ class FlowDefinitionService:
                      offset: int = 0,
                      limit: int = 10,
                      include_deleted=False):
+        logger.info(f"▶️ Get dag list filter:"
+                    f" active_status={active_status},"
+                    f" execution_status={execution_status},"
+                    f" name={name},"
+                    f" sort={sort},"
+                    f" offset={offset},"
+                    f" limit={limit},"
+                    f" include_deleted={include_deleted}")
         query = self.meta_db.query(DBFlow)
         if execution_status:
             FEQ1 = aliased(FlowExecutionQueue)
@@ -338,7 +359,8 @@ class FlowDefinitionService:
 
     def get_dag(self, dag_id):
         query = (self.meta_db.query(FlowSnapshot)
-                 .filter(FlowSnapshot.flow_id == dag_id))
+                 .filter(FlowSnapshot.flow_id == dag_id)
+                 .order_by(desc(FlowSnapshot.version)))
         current_flow = query.filter(FlowSnapshot.is_current == True).first()
         draft_flow = query.filter(FlowSnapshot.is_draft == True).first()
         return flow_snapshot2api(current_flow), flow_snapshot2api(draft_flow)
@@ -363,7 +385,7 @@ class FlowDefinitionService:
         self.meta_db.commit()
 
         delete_dag_file(flow.dag_id)
-        logger.info(f"🕒 DAG 임시 삭제됨 (DB 보관): {flow.name}")
+        logger.info(f"🧹 Complete to delete dag temporary: {flow.name}")
         return dag_id
 
     def delete_dag_permanently(self, dag_id: str):
@@ -374,7 +396,7 @@ class FlowDefinitionService:
         self.meta_db.commit()
 
         delete_dag_file(flow.dag_id)
-        logger.info(f"💥 DAG 영구 삭제됨: {flow.name}")
+        logger.info(f"🧹 Complete to delete dag permanently: {flow.name}")
         return dag_id
 
     def restore_deleted_dag(self, dag_id: str):
@@ -387,23 +409,24 @@ class FlowDefinitionService:
 
         self.save_flow_snapshot(flow, SnapshotOperation.RESTORE, message="임시 삭제 flow 복구")
         self.meta_db.commit()
-        logger.info(f"♻️ DAG 복구됨: {flow.name}")
+        logger.info(f"♻️ Complete to restore DAG: {flow.name}")
         return flow.id
 
 
 def delete_dag_file(dag_id: str):
+    logger.info(f"▶️ Start to delete dag file {dag_id}")
     dag_dir_path = os.path.join(Config.DAG_DIR, dag_id)
     dag_file_path = os.path.join(dag_dir_path, "dag.py")
     if os.path.exists(dag_file_path):
         os.remove(dag_file_path)
-        logger.info(f"🗑 DAG 파일 삭제됨: {dag_file_path}")
+        logger.info(f"🧹 Delete DAG file: {dag_file_path}")
     else:
-        logger.warning(f"⚠️ DAG 파일이 존재하지 않음: {dag_file_path}")
+        logger.warning(f"⚠️ No DAG file: {dag_file_path}")
     # 디렉토리 삭제 시도
     try:
         shutil.rmtree(dag_dir_path)
-        logger.info(f"📂 DAG 디렉토리 삭제됨: {dag_dir_path}")
+        logger.info(f"🧹 Complete to delete directory: {dag_dir_path}")
     except FileNotFoundError:
-        logger.warning(f"⚠️ DAG 디렉토리가 존재하지 않음: {dag_dir_path}")
+        logger.warning(f"⚠️ No DAG directory: {dag_dir_path}")
     except Exception as e:
-        logger.error(f"❌ DAG 디렉토리 삭제 실패: {e}")
+        logger.error(f"❌ Failed to delete DAG directory: {e}")

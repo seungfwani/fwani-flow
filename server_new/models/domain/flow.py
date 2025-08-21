@@ -243,9 +243,7 @@ class Flow:
                 dag_file.write(file_contents)
             return file_contents
         except Exception as e:
-            msg = f"❌ DAG 파일 생성 실패: {e}"
-            logger.error(msg)
             if os.path.exists(dag_file_path):
                 os.remove(dag_file_path)
-                logger.warning(f"🗑️ 저장된 파일 삭제: {dag_file_path}")
-            raise WorkflowError(msg)
+                logger.warning(f"🧹 Delete file: {dag_file_path}")
+            raise WorkflowError(f"❌ DAG 파일 생성 실패: {e}")

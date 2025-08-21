@@ -29,6 +29,8 @@ class FlowExecutionStatus(Enum):
     @classmethod
     def from_str(cls, value: str) -> "FlowExecutionStatus":
         """기본값 fallback 로직 포함된 변환 메서드"""
+        if not value:
+            return cls.WAITING
         fallback_map = {
             "up_for_retry": cls.RUNNING,
             "up_for_reschedule": cls.RUNNING,
@@ -44,5 +46,5 @@ class FlowExecutionStatus(Enum):
         try:
             return cls(value)
         except ValueError:
-            logger.warning(f'Invalid value "{value}" for flow execution status')
+            logger.warning(f'⚠️ Invalid value "{value}" for flow execution status')
             return cls.ERROR

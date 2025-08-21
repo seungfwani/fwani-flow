@@ -12,17 +12,17 @@ logger = logging.getLogger()
 
 
 def clean_orphan_dag_files(db: Session):
-    logger.info("🔄 DAG 디렉토리 정리 시작.")
+    logger.info("▶️ Start to clean DAG directory")
     base_path = Path(Config.DAG_DIR)
     for folder in base_path.glob("dag_*"):
         if folder.is_dir():
-            logger.info(f"확인 할 폴더: {folder}")
+            logger.info(f"📁 Directory to check: {folder}")
             dag_name = folder.name
             flow = db.query(Flow).filter(Flow.dag_id.like(f"{dag_name}%")).first()
             if flow is None:
                 shutil.rmtree(folder)
-                logger.info(f"🧹 관리되지 않는 DAG 디렉토리 삭제: {folder}")
-    logger.info("✅ DAG 디렉토리 정리 완료.")
+                logger.info(f"🧹 Delete unmanaged DAG directory: {folder}")
+    logger.info("✅ Complete to clean DAG directory")
 
 
 def dag_cleaner_job():

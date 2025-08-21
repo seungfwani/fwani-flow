@@ -72,7 +72,7 @@ class FlowExecutionService:
                     MAX_RETRIES = 10
                     RETRY_INTERVAL = 1
                     for i in range(MAX_RETRIES):
-                        logger.info(f"[{i + 1}/{MAX_RETRIES}] check airflow dag code for {flow_execution.dag_id}")
+                        logger.info(f"▶️ [{i + 1}/{MAX_RETRIES}] check airflow dag code for {flow_execution.dag_id}")
 
                         airflow_dag_code = (
                             self.airflow_db.query(AirflowDagCode)
@@ -84,13 +84,14 @@ class FlowExecutionService:
                         if airflow_dag_code:
                             current_hash = get_hash(airflow_dag_code.source_code)
                             if current_hash == flow_execution.file_hash:
-                                logger.info("✅ DAG code hash match!")
+                                logger.info("✅ DAG code hash match with airflow hash!")
                                 break
                             else:
-                                logger.warning(
-                                    f"Hash mismatch: expected={flow_execution.file_hash}, got={current_hash}")
+                                logger.info(
+                                    f"⚠️ Hash mismatch with airflow hash:"
+                                    f" expected={flow_execution.file_hash}, airflow hash={current_hash}")
                         else:
-                            logger.debug("DAG code not found yet.")
+                            logger.debug(f"⚠️ No DAG code in airflow yet.")
 
                         time.sleep(RETRY_INTERVAL)
                     run_id = self.airflow_client.run_dag(flow_execution.dag_id, flow_execution.data)
@@ -216,6 +217,8 @@ class FlowExecutionService:
             if t.id == task_id:
                 task = t
                 break
+        if task is None:
+            raise WorkflowError(f"execution({execution_id}) 에 해당하는 task({task_id})를 찾을 수 없습니다.")
 
         pkl_path = os.path.join(Config.SHARED_DIR,
                                 f"dag_id={execution.dag_id}",
@@ -224,7 +227,7 @@ class FlowExecutionService:
                                 "result.pkl")
         if os.path.exists(pkl_path):
             try:
-                logger.info(f"load pickle file: {pkl_path}")
+                logger.info(f"▶️ load pickle file: {pkl_path}")
                 with open(pkl_path, "rb") as f:
                     result = pickle.load(f)
                 if isinstance(result, pandas.DataFrame):
@@ -232,7 +235,6 @@ class FlowExecutionService:
                 else:
                     return {"result": result, "type": "dict"}
             except Exception as e:
-                logger.error("⚠️ Failed to load pickle result", e)
                 raise WorkflowError("Failed to load pickle result")
         else:
             raise WorkflowError("결과 파일이 존재하지 않습니다.")

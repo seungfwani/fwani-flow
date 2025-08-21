@@ -59,18 +59,20 @@ def get_db():
 
 @contextmanager
 def get_db_context():
-    logger.info("🪡 Connecting to database")
+    logger.info("🔓 Open Meta DB Session")
     db = SessionLocalBaseDB()
     try:
         yield db
     finally:
         db.close()
+        logger.info("🔒 Close Meta DB Session")
 
 
 def get_airflow():
-    logger.info("🪡 Connecting to Airflow DB")
+    logger.info("🔓 Open Airflow DB Session")
     db = SessionLocalAirflowDB()
     try:
         yield db
     finally:
         db.close()
+        logger.info("🔒 Close Airflow DB Session")

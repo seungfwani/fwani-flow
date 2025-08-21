@@ -23,28 +23,29 @@ def load_system_functions_from_yaml():
 
 
 def sync_system_functions_from_yaml():
-    logger.info("Syncing system functions...")
+    logger.info("🔄 Syncing system functions...")
     catalog = load_system_functions_from_yaml()
-    logger.info(f"Found {len(catalog)} system functions")
+    logger.info(f"✅ Found {len(catalog)} system functions")
     now = datetime.now(timezone.utc)
     seen_ids = set()
 
     with get_db_context() as db:
-        for row in catalog:
-            logger.info(f"Processing {row['name']}")
-            seen_ids.add(row["id"])
-            row["updated_at"] = now
-            existing = db.get(SystemFunction, row["id"])
+        for function in catalog:
+            logger.info(f"▶️ Processing {function['name']}")
+            seen_ids.add(function["id"])
+            function["updated_at"] = now
+            existing = db.get(SystemFunction, function["id"])
             if existing:
-                for k, v in row.items():
+                for k, v in function.items():
                     setattr(existing, k, v)
             else:
-                db.add(SystemFunction(**row))
+                db.add(SystemFunction(**function))
         deprecated_sfs = db.query(SystemFunction).filter(~SystemFunction.id.in_(seen_ids)).all()
         for sf in deprecated_sfs:
             sf.is_deprecated = True
             sf.updated_at = now
         db.commit()
+    logger.info("✅ Complete to sync system functions...")
 
 
 if __name__ == "__main__":

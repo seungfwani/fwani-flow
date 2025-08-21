@@ -111,7 +111,10 @@ class DAGNode(BaseModel):
     data: DAGNodeData
     style: Optional[dict[str, Any]] = Field({}, examples=[{"key1": "value1", "key2": "value2"}])
 
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(
+        extra="ignore",
+        populate_by_name=True,
+    )
 
     def __eq__(self, other):
         if not isinstance(other, DAGNode):

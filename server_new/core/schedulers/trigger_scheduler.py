@@ -19,7 +19,7 @@ def process_trigger_queue(db: Session):
                                                    .filter_by(status="waiting")
                                                    .all())
 
-    logger.info(f"waiting executions: {waiting_execution}")
+    logger.debug(f"waiting executions: {waiting_execution}")
     with get_airflow_client_context() as airflow_client:
         for execution in waiting_execution:
             try:
@@ -33,7 +33,7 @@ def process_trigger_queue(db: Session):
                         execution.run_id = run_id
                         execution.status = FlowExecutionStatus.TRIGGERED.value
                         execution.triggered_time = datetime.datetime.now(datetime.timezone.utc)
-                        logger.info(f"Run request successful for airflow run_id: {run_id}")
+                        logger.info(f"✅ Run request successful for airflow run_id: {run_id}")
             except Exception as e:
                 execution.status = FlowExecutionStatus.ERROR.value
                 raise WorkflowError(f"DAG 트리거 실패: {e}")

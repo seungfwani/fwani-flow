@@ -270,7 +270,7 @@ def flow_snapshot2api(flow_snapshot: FlowSnapshot):
             id=t["id"],
             type=t["ui_type"],
             position=t["ui_position"],
-            class_=t.get("class"),
+            class_=t.get("ui_class"),
             data={
                 "label": t["ui_label"],
                 "kind": t["kind"],
