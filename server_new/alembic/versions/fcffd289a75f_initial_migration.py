@@ -1,8 +1,8 @@
 """Initial migration
 
-Revision ID: 6f14e26b5283
+Revision ID: fcffd289a75f
 Revises: 
-Create Date: 2025-08-14 18:06:09.431364
+Create Date: 2025-08-25 17:20:04.396942
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '6f14e26b5283'
+revision: str = 'fcffd289a75f'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -59,6 +59,7 @@ def upgrade() -> None:
     sa.Column('impl_namespace', sa.String(), nullable=False),
     sa.Column('impl_callable', sa.String(), nullable=False),
     sa.Column('python_libraries', sa.JSON(), nullable=True),
+    sa.Column('kind', sa.String(), nullable=True),
     sa.Column('param_schema', sa.JSON(), nullable=False),
     sa.Column('is_deprecated', sa.Boolean(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=True),
@@ -162,7 +163,7 @@ def upgrade() -> None:
     sa.Column('task_id', sa.String(), nullable=False),
     sa.Column('key', sa.String(), nullable=False),
     sa.Column('type', sa.String(), server_default='string', nullable=False),
-    sa.Column('value', sa.String(), nullable=True),
+    sa.Column('value', sa.JSON(), nullable=True),
     sa.ForeignKeyConstraint(['task_id'], ['task.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id')
     )

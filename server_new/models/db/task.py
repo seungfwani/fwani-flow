@@ -51,6 +51,6 @@ class TaskInput(BaseDB):
     task_id = Column(String, ForeignKey("task.id", ondelete="CASCADE"), nullable=False)
     key = Column(String, nullable=False)
     type = Column(String, nullable=False, default="string", server_default="string")
-    value = Column(String, nullable=True)
+    value = Column(JSON, nullable=True)
 
     task = relationship("Task", back_populates="inputs")

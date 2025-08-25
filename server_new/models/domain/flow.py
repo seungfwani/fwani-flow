@@ -46,7 +46,7 @@ class Task:
                  ui_label,
                  ui_position,
                  ui_style,
-                 input_meta_type: dict[str, Any],
+                 input_meta_type: list[dict[str, Any]],
                  output_meta_type: dict[str, Any],
                  inputs: dict[str, Any],
                  ui_class: str = None,

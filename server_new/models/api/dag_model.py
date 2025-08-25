@@ -52,7 +52,7 @@ CRON_REGEX = (r"^("
 
 class BaseNodeData(BaseModel):
     label: Optional[str] = Field("", examples=["node name"])
-    input_meta_type: Optional[dict] = Field({}, description="graphio input meta type")
+    input_meta_type: Optional[list] = Field([], description="graphio input meta type")
     output_meta_type: Optional[dict] = Field({}, description="function output meta type")
 
     inputs: dict[str, Any] = Field({}, description="system, meta 의 code 실행시 필요한 input 값",
