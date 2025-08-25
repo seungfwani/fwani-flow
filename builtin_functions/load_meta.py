@@ -21,8 +21,14 @@ def run(*_, params: Optional[Dict[str, Any]] = None):
     if not params:
         raise ValueError("params is required")
 
+    endpoint_base = "/graphio/v1/meta-type"
+    if _ := params.get("is_test", True):
+        endpoint_tpl = "/inspect/sample-data/{meta_type_id}"
+    else:
+        endpoint_tpl = "/meta_type_table/{meta_type_id}"
+    endpoint_tpl = f"{endpoint_base}{endpoint_tpl}"
+
     host = params.get("host")
-    endpoint_tpl = params.get("endpoint", "/meta_type_table/{meta_type_id}")
     meta_type_id = params.get("metaId")
     headers = params.get("headers", {})
     timeout = params.get("timeout_sec", 20)

@@ -7,11 +7,7 @@ param_schema:
   - type: string
     name: host
     required: true
-    value: http://192.168.109.254:31550
-  - type: string
-    name: endpoint
-    required: false
-    value: /graphio/v1/meta-type/meta-type-table/{meta_type_id}
+    value: http://192.168.109.254:30820
   - type: string
     name: metaId
     required: true

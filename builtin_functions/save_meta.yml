@@ -7,18 +7,7 @@ param_schema:
   - type: string
     name: host
     required: true
-  - type: string
-    name: endpoint
-    required: false
-  - type: string
-    name: meta_type_id
-    required: true
-  - type: string
-    name: headers
-    required: true
-  - type: integer
-    name: timeout_sec
-    required: false
+    value: http://192.168.109.254:30820
 python_libraries:
   - pandas==2.3.1
   - requests==2.32.3

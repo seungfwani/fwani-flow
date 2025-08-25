@@ -24,7 +24,7 @@ dag = DAG(
 {% set before_task_ids = [] -%}
     {% for edge in edges -%}
         {% if edge.target.id == task.id -%}
-            {% set _ = before_task_ids.append(edge.source.variable_id) -%}
+            {% set _ = before_task_ids.append((edge.source.id, edge.source.variable_id)) -%}
         {% endif %}
     {% endfor %}
 from {{ dag_id }}.func_{{ task.variable_id }} import wrapper_run as run_{{ task.variable_id }}

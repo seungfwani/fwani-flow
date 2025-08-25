@@ -8,7 +8,7 @@ run 은 return 을 dataframe 만 한다.
 def wrapper_run(dag_id: str,
                 run_id: str,
                 task_id: str,
-                before_task_ids: list[str],
+                before_task_ids: list[tuple[str, str]],
                 app_dir: str = "/app",
                 share_dir_name: str = "shared",
                 builtin_dir_name: str = "built_in_functions",
@@ -30,7 +30,7 @@ def wrapper_run(dag_id: str,
 
     # get input_dfs of user function
     input_dfs = []
-    for tid in before_task_ids:
+    for _, tid in before_task_ids:
         path = os.path.join(dag_run_dir, f"task_id={tid}/{RESULT_FILE_NAME}")
         with open(path, "rb") as fi:
             input_dfs.append(pickle.load(fi))
@@ -45,7 +45,9 @@ def wrapper_run(dag_id: str,
         # 내장 템플릿 로딩
         mod = importlib.import_module("{{ impl_namespace }}")
         func = getattr(mod, "{{ impl_callable }}")
-        result = func(*input_dfs, params={{ params }})
+        params = {{ params }}
+        params['before_task_ids'] = before_task_ids
+        result = func(*input_dfs, params=params)
 
     # write result
     task_dir = os.path.join(dag_run_dir, f"task_id={task_id}")
