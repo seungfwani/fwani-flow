@@ -16,6 +16,7 @@ from models.db.edge import Edge as DBEdge
 from models.db.flow import Flow as DBFlow, FlowSnapshot
 from models.db.flow_execution_queue import FlowExecutionQueue
 from models.db.task import Task as DBTask, TaskInput
+from models.domain.flow import Flow as DomainFlow
 from models.domain.mapper import flow_api2domain, flow_db2domain, flow_domain2db, task_edge_domain2db, flow_snapshot2api
 
 logger = logging.getLogger()
@@ -55,7 +56,7 @@ class FlowDefinitionService:
         return (cur or 0) + 1
 
     def save_flow_snapshot(self,
-                           flow: DBFlow,
+                           flow: DomainFlow,
                            op: SnapshotOperation,
                            message: str | None = None,
                            is_draft: bool = False,
@@ -182,7 +183,7 @@ class FlowDefinitionService:
             ))
 
         self.meta_db.flush()
-        self.save_flow_snapshot(flow,
+        self.save_flow_snapshot(flow_db2domain(flow),
                                 op=SnapshotOperation.RESTORE,
                                 message=f"이전 버전 restore - v{version}",
                                 is_draft=flow.is_draft, )
@@ -200,7 +201,7 @@ class FlowDefinitionService:
         )
         self.meta_db.add(dummy_flow)
         self.meta_db.flush()
-        _, is_snap_changed = self.save_flow_snapshot(dummy_flow,
+        _, is_snap_changed = self.save_flow_snapshot(flow_db2domain(dummy_flow),
                                                      SnapshotOperation.CREATE,
                                                      message="Dummy 생성",
                                                      is_draft=True,
@@ -219,7 +220,7 @@ class FlowDefinitionService:
             db_flow = flow_domain2db(domain_flow, self.airflow_db)
             self.meta_db.add(db_flow)
             self.meta_db.flush()
-            _, is_snap_changed = self.save_flow_snapshot(db_flow,
+            _, is_snap_changed = self.save_flow_snapshot(flow_db2domain(db_flow),
                                                          SnapshotOperation.CREATE,
                                                          message="신규 등록",
                                                          is_draft=dag.is_draft,
@@ -233,13 +234,20 @@ class FlowDefinitionService:
         if not new_dag:
             logger.info(f"🤷 No dag to update. Do nothing.")
             return None
-        # 0. 기존 Flow 조회
+        new_flow = flow_api2domain(new_dag)
+        if new_flow.is_draft:  # 수정중
+            _, is_snap_changed = self.save_flow_snapshot(new_flow,
+                                                         SnapshotOperation.UPDATE,
+                                                         message="수정",
+                                                         is_draft=new_dag.is_draft,
+                                                         )
+            return new_flow
+
+        # 1. 기존 Flow 조회
         origin_flow = self._get_flow(origin_dag_id)
 
-        # 1. 변환
-        new_flow = flow_api2domain(new_dag)
-        # 저장시(is_draft=False) 이름이 바뀐 경우 → 중복 확인 및 갱신
-        if not new_flow.is_draft and new_flow.name != origin_flow.name:
+        # 2. 저장시(is_draft=False) 이름이 바뀐 경우 → 중복 확인 및 갱신
+        if new_flow.name != origin_flow.name:
             logger.info(f"▶️ Check duplicated name {new_flow.name}.")
             duplicate = (
                 self.meta_db.query(DBFlow)
@@ -266,7 +274,7 @@ class FlowDefinitionService:
         self.meta_db.flush()
 
         try:
-            _, is_snap_changed = self.save_flow_snapshot(origin_flow,
+            _, is_snap_changed = self.save_flow_snapshot(flow_db2domain(origin_flow),
                                                          SnapshotOperation.UPDATE,
                                                          message="필드 수정",
                                                          is_draft=new_dag.is_draft,
@@ -284,7 +292,7 @@ class FlowDefinitionService:
         result = self.airflow_client.update_pause(flow.dag_id, False if active_status else True)
         logger.info(f"🔄 Update airflow is_paused to '{result}'")
         flow.active_status = active_status
-        self.save_flow_snapshot(flow, SnapshotOperation.UPDATE, message="activate status 수정")
+        self.save_flow_snapshot(flow_db2domain(flow), SnapshotOperation.UPDATE, message="activate status 수정")
         self.meta_db.commit()
         return active_status
 
@@ -381,7 +389,7 @@ class FlowDefinitionService:
 
         flow.is_deleted = True
         flow.file_hash = None
-        self.save_flow_snapshot(flow, SnapshotOperation.DELETE, message="임시 삭제")
+        self.save_flow_snapshot(flow_db2domain(flow), SnapshotOperation.DELETE, message="임시 삭제")
         self.meta_db.commit()
 
         delete_dag_file(flow.dag_id)
@@ -391,7 +399,7 @@ class FlowDefinitionService:
     def delete_dag_permanently(self, dag_id: str):
         flow = self._get_flow(dag_id)
 
-        self.save_flow_snapshot(flow, SnapshotOperation.DELETE, message="완전 삭제")
+        self.save_flow_snapshot(flow_db2domain(flow), SnapshotOperation.DELETE, message="완전 삭제")
         self.meta_db.delete(flow)
         self.meta_db.commit()
 
@@ -405,9 +413,10 @@ class FlowDefinitionService:
             raise WorkflowError(f"Flow({dag_id}) not found")
 
         flow.is_deleted = False
-        flow.file_hash = flow_db2domain(flow).file_hash
+        domain_flow = flow_db2domain(flow)
+        flow.file_hash = domain_flow.file_hash
 
-        self.save_flow_snapshot(flow, SnapshotOperation.RESTORE, message="임시 삭제 flow 복구")
+        self.save_flow_snapshot(domain_flow, SnapshotOperation.RESTORE, message="임시 삭제 flow 복구")
         self.meta_db.commit()
         logger.info(f"♻️ Complete to restore DAG: {flow.name}")
         return flow.id

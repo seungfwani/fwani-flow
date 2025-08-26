@@ -1,8 +1,8 @@
 """Initial migration
 
-Revision ID: fcffd289a75f
+Revision ID: cba512008680
 Revises: 
-Create Date: 2025-08-25 17:20:04.396942
+Create Date: 2025-08-26 12:01:54.773967
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'fcffd289a75f'
+revision: str = 'cba512008680'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -125,8 +125,8 @@ def upgrade() -> None:
     sa.Column('system_function_id', sa.String(), nullable=True),
     sa.Column('impl_namespace', sa.String(), nullable=True),
     sa.Column('impl_callable', sa.String(), nullable=True),
-    sa.Column('input_meta_type', sa.JSON(), nullable=True),
-    sa.Column('output_meta_type', sa.JSON(), nullable=True),
+    sa.Column('input_properties', sa.JSON(), nullable=True),
+    sa.Column('output_properties', sa.JSON(), nullable=True),
     sa.Column('ui_type', sa.String(), nullable=True),
     sa.Column('ui_label', sa.String(), nullable=True),
     sa.Column('ui_position', sa.JSON(), nullable=True),

@@ -25,8 +25,8 @@ class Task(BaseDB):
     impl_namespace = Column(String)  # 내장 함수
     impl_callable = Column(String, default="run")  # "run" 같은 entrypoint 함수 (기본 "run")
 
-    input_meta_type = Column(JSON)
-    output_meta_type = Column(JSON)
+    input_properties = Column(JSON)
+    output_properties = Column(JSON)
 
     # UI
     ui_type = Column(String, nullable=True, default="default")

@@ -46,8 +46,8 @@ class Task:
                  ui_label,
                  ui_position,
                  ui_style,
-                 input_meta_type: list[dict[str, Any]],
-                 output_meta_type: dict[str, Any],
+                 input_properties: list[dict[str, Any]],
+                 output_properties: list[dict[str, Any]],
                  inputs: dict[str, Any],
                  ui_class: str = None,
                  ui_extra_data=None,
@@ -64,8 +64,8 @@ class Task:
         self.ui_label = ui_label
         self.ui_position = ui_position
         self.ui_style = ui_style
-        self.input_meta_type = input_meta_type
-        self.output_meta_type = output_meta_type
+        self.input_properties = input_properties
+        self.output_properties = output_properties
         self.inputs = inputs
         self._system_function = None
         self.ui_extra_data = ui_extra_data
@@ -85,8 +85,8 @@ class Task:
             self.ui_label,
             tuple(self.ui_position),
             tuple(self.ui_style),
-            tuple(self.input_meta_type),
-            tuple(self.output_meta_type),
+            tuple(self.input_properties),
+            tuple(self.output_properties),
             tuple(self.inputs),
         ))
 
@@ -166,6 +166,7 @@ class Flow:
                  updated_at: datetime | None = None,
                  active_status: bool = False,
                  execution_status: str | None = None,
+                 is_deleted: bool = False,
                  ):
         self.id = _id if _id else str(uuid.uuid4())
         self.name = name
@@ -182,6 +183,7 @@ class Flow:
         self.execution_status = execution_status
         self.is_draft = is_draft
         self.max_retries = max_retries
+        self.is_deleted = is_deleted
 
     def __eq__(self, other):
         if not isinstance(other, Flow):
