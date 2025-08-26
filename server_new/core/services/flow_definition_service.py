@@ -257,6 +257,7 @@ class FlowDefinitionService:
         # 3. 필드 갱신
         origin_flow.description = new_flow.description
         origin_flow.schedule = new_flow.scheduled
+        origin_flow.schedule_options = new_flow.schedule_options
         origin_flow.hash = hash(new_flow)
         origin_flow.active_status = new_flow.active_status
         origin_flow.max_retries = new_flow.max_retries
