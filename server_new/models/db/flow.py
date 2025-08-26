@@ -21,6 +21,7 @@ class Flow(BaseDB):
     file_hash = Column(String)
     is_loaded_by_airflow = Column(Boolean, default=False)
     schedule = Column(String, default=None)
+    schedule_options = Column(JSON)
     is_deleted = Column(Boolean, default=False)
     active_status = Column(Boolean, default=False)
     max_retries = Column(Integer, default=0)

@@ -162,6 +162,7 @@ class DAGRequest(BaseModel):
     nodes: List[DAGNode]
     edges: List[DAGEdge]
     schedule: Optional[str] = Field(None, description="DAG schedule", examples=["0 9 * * *"])
+    schedule_options: Optional[dict[str, Any]] = Field({}, description="DAG schedule options for ui")
     max_retries: Optional[int] = Field(0, description="DAG max retries. default 0")
     is_draft: bool = Field(False, description="DAG Draft Status", examples=[True, False])
 
@@ -185,6 +186,7 @@ class DAGResponse(BaseModel):
     nodes: List[DAGNode]
     edges: List[DAGEdge]
     schedule: Optional[str] = Field(None, description="DAG schedule", examples=["0 9 * * *"])
+    schedule_options: Optional[dict[str, Any]] = Field({}, description="DAG schedule options for ui")
     is_draft: bool = Field(False, description="DAG Draft Status", examples=[True, False])
     max_retries: Optional[int] = Field(0, description="DAG max retries. default 0")
     updated_at: Optional[datetime] = Field(None, description="DAG Updated at", examples=["2020-10-18 00:00:00"])

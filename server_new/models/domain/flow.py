@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import uuid
@@ -8,7 +9,7 @@ from api.render_template import render_task_code_script, render_dag_script
 from config import Config
 from errors import WorkflowError
 from repositories.system_function_repo import SystemFunctionRepo
-from utils.functions import make_flow_id_by_name, get_hash
+from utils.functions import make_flow_id_by_name, get_hash, get_stable_hash
 
 logger = logging.getLogger()
 
@@ -76,19 +77,16 @@ class Task:
         return hash(self) == hash(other)
 
     def __hash__(self):
-        return hash((
-            self.id,
+        return get_stable_hash(
             self.variable_id,
-            tuple(self.python_libraries),
             self.code_hash,
+            json.dumps(self.python_libraries, sort_keys=True),
             self.ui_type,
             self.ui_label,
-            tuple(self.ui_position),
-            tuple(self.ui_style),
-            tuple(self.input_properties),
-            tuple(self.output_properties),
-            tuple(self.inputs),
-        ))
+            json.dumps(self.ui_position, sort_keys=True),
+            json.dumps(self.ui_style, sort_keys=True),
+            json.dumps(self.inputs, sort_keys=True),
+        )
 
     @property
     def system_function(self):
@@ -139,17 +137,17 @@ class Edge:
         return hash(self) == hash(other)
 
     def __hash__(self):
-        return hash((
+        return get_stable_hash(
             hash(self.source),
             hash(self.target),
             self.ui_type,
             self.ui_label,
-            tuple(self.ui_label_style),
-            tuple(self.ui_label_bg_style),
-            tuple(self.ui_label_bg_padding),
+            json.dumps(self.ui_label_style, sort_keys=True),
+            json.dumps(self.ui_label_bg_style, sort_keys=True),
+            json.dumps(self.ui_label_bg_padding, sort_keys=True),
             self.ui_label_bg_border_radius,
-            tuple(self.ui_style),
-        ))
+            json.dumps(self.ui_style, sort_keys=True),
+        )
 
 
 class Flow:
@@ -158,6 +156,7 @@ class Flow:
                  description: str,
                  owner: str,
                  scheduled: str,
+                 schedule_options: dict[str, Any],
                  tasks: list[Task],
                  edges: list[Edge],
                  is_draft: bool,
@@ -174,6 +173,7 @@ class Flow:
         self.description = description
         self.owner = owner
         self.scheduled = scheduled
+        self.schedule_options = schedule_options
         self.tasks = tasks
         self.edges = edges
         self.write_time = datetime.now(timezone.utc)
@@ -191,16 +191,17 @@ class Flow:
         return hash(self) == hash(other)
 
     def __hash__(self):
-        return hash((
+        task_hashes = sorted(hash(t) for t in self.tasks)  # Task 순서 무시
+        edge_hashes = sorted(hash(e) for e in self.edges)  # Edge 순서 무시
+        return get_stable_hash(
             self.name,
-            self.is_draft,
             self.description,
             self.owner,
             self.scheduled,
-            tuple(self.tasks),
-            tuple(self.edges),
+            task_hashes,
+            edge_hashes,
             self.active_status,
-        ))
+        )
 
     @property
     def file_hash(self):

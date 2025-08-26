@@ -1,5 +1,6 @@
 import base64
 import hashlib
+import json
 from datetime import datetime
 from typing import List
 
@@ -17,6 +18,16 @@ def make_flow_id_by_name(name: str, is_draft: bool = False) -> str:
                 + base64.urlsafe_b64encode(name.encode())
                 .rstrip(b'=').decode('ascii'))
     return f"{dag_name}__draft" if is_draft else dag_name
+
+
+def get_stable_hash(*args):
+    def normalize(value):
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, sort_keys=True)
+        return str(value)
+
+    serialized = "|".join(normalize(arg) for arg in args)
+    return int(get_hash(serialized), 16)
 
 
 def get_hash(data: str | bytes) -> str:

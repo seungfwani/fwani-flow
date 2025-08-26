@@ -16,7 +16,6 @@ from models.db.edge import Edge as DBEdge
 from models.db.flow import Flow as DBFlow, FlowSnapshot
 from models.db.flow_execution_queue import FlowExecutionQueue
 from models.db.task import Task as DBTask, TaskInput
-from models.domain.flow import Flow as DomainFlow
 from models.domain.mapper import flow_api2domain, flow_db2domain, flow_domain2db, task_edge_domain2db, flow_snapshot2api
 
 logger = logging.getLogger()
@@ -56,31 +55,33 @@ class FlowDefinitionService:
         return (cur or 0) + 1
 
     def save_flow_snapshot(self,
-                           flow: DomainFlow,
+                           db_flow: DBFlow,
                            op: SnapshotOperation,
                            message: str | None = None,
                            is_draft: bool = False,
                            upsert_draft: bool = True,
                            ):
         # 스냅샷 페이로드 & 해시 생성
-        payload, payload_hash = build_flow_snapshot(flow)
+        payload, payload_hash = build_flow_snapshot(db_flow)
 
         # 변경점 확인 최적화
         last_snap = (self.meta_db.query(FlowSnapshot)
-                     .filter(FlowSnapshot.flow_id == flow.id)
+                     .filter(FlowSnapshot.flow_id == db_flow.id)
                      .order_by(desc(FlowSnapshot.version))
                      .first())
-        if last_snap and last_snap.payload_hash == payload_hash:
+        if (last_snap
+                and last_snap.flow.is_draft == is_draft
+                and last_snap.payload_hash == payload_hash):
             logger.info("🤷 No changes detected.")
             return last_snap, False
 
         # draft/current 정리
         if is_draft and upsert_draft:
             logger.info("🧹 Delete old draft snapshot.")
-            self.meta_db.query(FlowSnapshot).filter_by(flow_id=flow.id, is_draft=True).delete()
+            self.meta_db.query(FlowSnapshot).filter_by(flow_id=db_flow.id, is_draft=True).delete()
         if not is_draft:
             self.meta_db.query(FlowSnapshot).filter(and_(
-                FlowSnapshot.flow_id == flow.id,
+                FlowSnapshot.flow_id == db_flow.id,
                 FlowSnapshot.is_current == True,
                 FlowSnapshot.version != last_snap.version,
             )).update({"is_current": False})
@@ -95,9 +96,9 @@ class FlowDefinitionService:
                 return last_snap, True
             last_snap.is_current = False
 
-        new_version = self.next_version(flow.id)
+        new_version = self.next_version(db_flow.id)
         snap = FlowSnapshot(
-            flow=flow,
+            flow=db_flow,
             version=new_version,
             op=op.name,
             message=message,
@@ -133,6 +134,7 @@ class FlowDefinitionService:
         flow.file_hash = f["file_hash"]
         flow.is_loaded_by_airflow = f["is_loaded_by_airflow"]
         flow.schedule = f["schedule"]
+        flow.schedule_options = f.get("schedule_options")
         flow.is_deleted = f["is_deleted"]
         flow.active_status = f["active_status"]
         flow.max_retries = f["max_retries"]
@@ -148,8 +150,8 @@ class FlowDefinitionService:
                 python_libraries=t["python_libraries"],
                 impl_namespace=t["impl_namespace"],
                 impl_callable=t["impl_callable"],
-                input_meta_type=t["input_meta_type"],
-                output_meta_type=t["output_meta_type"],
+                input_properties=t["input_properties"],
+                output_properties=t["output_properties"],
                 ui_type=t["ui_type"],
                 ui_label=t["ui_label"],
                 ui_position=t["ui_position"],
@@ -175,15 +177,15 @@ class FlowDefinitionService:
                 to_task_id=e["to_task_id"],
                 ui_type=e["ui_type"],
                 ui_label=e["ui_label"],
-                ui_labelStyle=e["ui_labelStyle"],
-                ui_labelBgStyle=e["ui_labelBgStyle"],
-                ui_labelBgPadding=e["ui_labelBgPadding"],
-                ui_labelBgBorderRadius=e["ui_labelBgBorderRadius"],
+                ui_labelStyle=e["ui_label_style"],
+                ui_labelBgStyle=e["ui_label_bg_style"],
+                ui_labelBgPadding=e["ui_label_bg_padding"],
+                ui_labelBgBorderRadius=e["ui_label_bg_border_radius"],
                 ui_style=e["ui_style"],
             ))
 
         self.meta_db.flush()
-        self.save_flow_snapshot(flow_db2domain(flow),
+        self.save_flow_snapshot(flow,
                                 op=SnapshotOperation.RESTORE,
                                 message=f"이전 버전 restore - v{version}",
                                 is_draft=flow.is_draft, )
@@ -201,7 +203,7 @@ class FlowDefinitionService:
         )
         self.meta_db.add(dummy_flow)
         self.meta_db.flush()
-        _, is_snap_changed = self.save_flow_snapshot(flow_db2domain(dummy_flow),
+        _, is_snap_changed = self.save_flow_snapshot(dummy_flow,
                                                      SnapshotOperation.CREATE,
                                                      message="Dummy 생성",
                                                      is_draft=True,
@@ -220,7 +222,7 @@ class FlowDefinitionService:
             db_flow = flow_domain2db(domain_flow, self.airflow_db)
             self.meta_db.add(db_flow)
             self.meta_db.flush()
-            _, is_snap_changed = self.save_flow_snapshot(flow_db2domain(db_flow),
+            _, is_snap_changed = self.save_flow_snapshot(db_flow,
                                                          SnapshotOperation.CREATE,
                                                          message="신규 등록",
                                                          is_draft=dag.is_draft,
@@ -228,26 +230,19 @@ class FlowDefinitionService:
             if is_snap_changed:
                 db_flow.file_hash = domain_flow.file_hash
             self.meta_db.commit()
-        return flow_db2domain(db_flow)
+            return flow_db2domain(db_flow)
 
     def update_dag(self, origin_dag_id: str, new_dag: DAGRequest):
         if not new_dag:
             logger.info(f"🤷 No dag to update. Do nothing.")
             return None
-        new_flow = flow_api2domain(new_dag)
-        if new_flow.is_draft:  # 수정중
-            _, is_snap_changed = self.save_flow_snapshot(new_flow,
-                                                         SnapshotOperation.UPDATE,
-                                                         message="수정",
-                                                         is_draft=new_dag.is_draft,
-                                                         )
-            return new_flow
-
-        # 1. 기존 Flow 조회
+        # 0. 기존 Flow 조회
         origin_flow = self._get_flow(origin_dag_id)
 
-        # 2. 저장시(is_draft=False) 이름이 바뀐 경우 → 중복 확인 및 갱신
-        if new_flow.name != origin_flow.name:
+        # 1. 변환
+        new_flow = flow_api2domain(new_dag)
+        # 저장시(is_draft=False) 이름이 바뀐 경우 → 중복 확인 및 갱신
+        if not new_flow.is_draft and new_flow.name != origin_flow.name:
             logger.info(f"▶️ Check duplicated name {new_flow.name}.")
             duplicate = (
                 self.meta_db.query(DBFlow)
@@ -263,6 +258,7 @@ class FlowDefinitionService:
         origin_flow.description = new_flow.description
         origin_flow.schedule = new_flow.scheduled
         origin_flow.hash = hash(new_flow)
+        print(origin_flow.hash)
         origin_flow.active_status = new_flow.active_status
         origin_flow.max_retries = new_flow.max_retries
         origin_flow.is_draft = new_flow.is_draft
@@ -274,7 +270,7 @@ class FlowDefinitionService:
         self.meta_db.flush()
 
         try:
-            _, is_snap_changed = self.save_flow_snapshot(flow_db2domain(origin_flow),
+            _, is_snap_changed = self.save_flow_snapshot(origin_flow,
                                                          SnapshotOperation.UPDATE,
                                                          message="필드 수정",
                                                          is_draft=new_dag.is_draft,
@@ -292,7 +288,7 @@ class FlowDefinitionService:
         result = self.airflow_client.update_pause(flow.dag_id, False if active_status else True)
         logger.info(f"🔄 Update airflow is_paused to '{result}'")
         flow.active_status = active_status
-        self.save_flow_snapshot(flow_db2domain(flow), SnapshotOperation.UPDATE, message="activate status 수정")
+        self.save_flow_snapshot(flow, SnapshotOperation.UPDATE, message="activate status 수정")
         self.meta_db.commit()
         return active_status
 
@@ -389,7 +385,7 @@ class FlowDefinitionService:
 
         flow.is_deleted = True
         flow.file_hash = None
-        self.save_flow_snapshot(flow_db2domain(flow), SnapshotOperation.DELETE, message="임시 삭제")
+        self.save_flow_snapshot(flow, SnapshotOperation.DELETE, message="임시 삭제")
         self.meta_db.commit()
 
         delete_dag_file(flow.dag_id)
@@ -399,7 +395,7 @@ class FlowDefinitionService:
     def delete_dag_permanently(self, dag_id: str):
         flow = self._get_flow(dag_id)
 
-        self.save_flow_snapshot(flow_db2domain(flow), SnapshotOperation.DELETE, message="완전 삭제")
+        self.save_flow_snapshot(flow, SnapshotOperation.DELETE, message="완전 삭제")
         self.meta_db.delete(flow)
         self.meta_db.commit()
 
@@ -416,7 +412,7 @@ class FlowDefinitionService:
         domain_flow = flow_db2domain(flow)
         flow.file_hash = domain_flow.file_hash
 
-        self.save_flow_snapshot(domain_flow, SnapshotOperation.RESTORE, message="임시 삭제 flow 복구")
+        self.save_flow_snapshot(flow, SnapshotOperation.RESTORE, message="임시 삭제 flow 복구")
         self.meta_db.commit()
         logger.info(f"♻️ Complete to restore DAG: {flow.name}")
         return flow.id
