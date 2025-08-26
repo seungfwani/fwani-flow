@@ -50,14 +50,13 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
     # 이전 태스크 결과 df 별 컬럼 매핑 생성
     new_series_list = []
     for p in property_mapper:
+        properties.append({
+            "metaTypePropertyName": p.get('name'),
+            "rawDataPropertyName": p.get('name'),
+            "description": p.get("description"),
+            "dataType": p.get('dataType'),
+        })
         if metaTypeProperties := p.get('metaTypeProperties', []):
-            properties.append({
-                "metaTypePropertyName": p.get('name'),
-                "rawDataPropertyName": p.get('name'),
-                "description": p.get("description"),
-                "dataType": p.get('dataType'),
-            })
-
             origin_node_id = metaTypeProperties[0].get("metaTypeId")
             origin_property_id = metaTypeProperties[0].get("propertyId")
             origin_property_name = origin_property_mapper[origin_node_id][origin_property_id]
@@ -86,8 +85,8 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
 
     if response.ok:
         response_json = response.json()
-        if "data" in response_json:
-            print(f"meta type table: {response_json.get('data')}")
+        if "status" in response_json and response_json["status"]:
+            print(f"meta type table: {response_json.get('status')}")
             return new_df
         else:
             error_message = response.json()
@@ -103,10 +102,10 @@ if __name__ == "__main__":
         "host": "http://192.168.109.254:30820",
         "endpoint": "/graphio/v1/meta-type/workflow/create",
         "owner": "00000000-0000-4000-9000-000000000001",
-        "name": "workflow-test-001",
+        "name": "workflow-test-003",
         "description": "workflow-test-001",
         "connectionInstanceId": "00000000-0000-4000-9000-000000000001",
-        "tagIds": ["00000000-0000-4000-9000-000000000001"],
+        "tagIds": ["62f0ec21-bb9b-490b-985b-a33400173105"],
         "metaTypeIds": [
             {
                 "id": "11",
