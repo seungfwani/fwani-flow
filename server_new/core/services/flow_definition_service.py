@@ -70,9 +70,9 @@ class FlowDefinitionService:
                      .order_by(desc(FlowSnapshot.version))
                      .first())
         if (last_snap
-                and last_snap.flow.is_draft == is_draft
+                and last_snap.is_current
                 and last_snap.payload_hash == payload_hash):
-            logger.info("🤷 No changes detected.")
+            logger.info(f"🤷 No changes detected. origin_snap_hash({last_snap.payload_hash}) == now_hash({payload_hash})")
             return last_snap, False
 
         # draft/current 정리
@@ -258,10 +258,8 @@ class FlowDefinitionService:
         origin_flow.description = new_flow.description
         origin_flow.schedule = new_flow.scheduled
         origin_flow.hash = hash(new_flow)
-        print(origin_flow.hash)
         origin_flow.active_status = new_flow.active_status
         origin_flow.max_retries = new_flow.max_retries
-        origin_flow.is_draft = new_flow.is_draft
 
         origin_flow.tasks.clear()
         origin_flow.edges.clear()
@@ -275,6 +273,7 @@ class FlowDefinitionService:
                                                          message="필드 수정",
                                                          is_draft=new_dag.is_draft,
                                                          )
+            origin_flow.is_draft = new_flow.is_draft
             if is_snap_changed:
                 origin_flow.file_hash = new_flow.file_hash
             self.meta_db.commit()
