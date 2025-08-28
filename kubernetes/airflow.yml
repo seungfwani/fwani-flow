@@ -14,62 +14,71 @@ spec:
     metadata:
       labels:
         app: airflow
-    securityContext:
-      fsGroup: 1000  # airflow UID
     spec:
       containers:
         - name: airflow
-          image: apache/airflow:2.10.4-python3.11
-          command: ["/bin/bash", "-c"]
-          args:
-            - |
-              echo "📁 entrypoint.sh 복사 및 실행 권한 부여"
-              cp /entrypoint.sh /app/entrypoint.sh
-              chmod +x /app/entrypoint.sh
-              exec /app/entrypoint.sh
+          image: repo.iris.tools/graphio/workflow/airflow:2.10.4-python3.11-20250828.1
+          command:
+            - /entrypoint.sh
           env:
             - name: LOAD_EXAMPLES
               value: "False"
             - name: AIRFLOW__CORE__EXECUTOR
               value: "LocalExecutor"
+            - name: ROOT_USERNAME
+              value: "root"
+            - name: ROOT_PASSWORD
+              value: "password"
+            - name: DB_USERNAME
+              value: "root"
+            - name: DB_PASSWORD
+              value: "password"
             - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
-              value: "postgresql+psycopg2://airflow:airflow@postgres-svc:5432/airflow"
+              value: postgresql+psycopg2://${DB_USERNAME}:${DB_PASSWORD}@postgresql-svc:5432/graphio?options=-csearch_path=airflow&application_name=airflow
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_SCHEMA
+              value: "airflow"
             - name: AIRFLOW__CORE__DAGS_FOLDER
               value: "/opt/airflow/dags"
             - name: AIRFLOW__LOGGING__BASE_LOG_FOLDER
               value: "/opt/airflow/logs"
             - name: AIRFLOW__WORKFLOW__SHARED_FOLDER
               value: "/app/shared"
-            - name: PYTHONPATH
-              value: "/app/built_in_functions:$PYTHONPATH"
+            - name: AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL
+              value: "10"
+            - name: AIRFLOW__API__AUTH_BACKENDS
+              value: airflow.providers.fab.auth_manager.api.auth.backend.basic_auth
           ports:
             - containerPort: 8080
               name: api-port
               protocol: TCP
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "2"
+              memory: "4Gi"
           volumeMounts:
             - mountPath: /app/shared
               name: ext-volume
               subPath: airflow/shared
-            - mountPath: /app/built_in_functions
+            - mountPath: /app/builtin_functions
               name: ext-volume
-              subPath: airflow/built_in_functions
+              subPath: airflow/builtin_functions
             - mountPath: /opt/airflow/logs
               name: ext-volume
               subPath: airflow/logs
             - mountPath: /opt/airflow/dags
               name: ext-volume
               subPath: airflow/dags
-            - mountPath: /entrypoint.sh
-              name: airflow
-              subPath: entrypoint.sh
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsUser: 0
       volumes:
         - name: ext-volume
           persistentVolumeClaim:
             claimName: pvc-workflow4graphio
-        - configMap:
-            defaultMode: 420
-            name: airflow
-          name: airflow
 ---
 apiVersion: v1
 kind: Service
@@ -87,33 +96,3 @@ spec:
   selector:
     app: airflow
   type: ClusterIP
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  labels:
-      app: airflow
-  name: airflow
-  namespace: workflow4graphio
-data:
-  entrypoint.sh: |-
-    #!/bin/bash
-
-    echo "💡 Airflow 데이터베이스 초기화..."
-    airflow db init
-    
-    echo "🔄 Airflow 사용자 추가..."
-    airflow users create \
-        --username admin \
-        --password admin \
-        --firstname Seunghwan \
-        --lastname Seo \
-        --role Admin \
-        --email seungfwami2@mobigen.com || echo "⚠️ Admin 계정이 이미 존재하거나 생성 실패."
-    
-    
-    #echo "🚀 PyCharm Remote Debug 활성화..."
-    #python -m debugpy --listen 0.0.0.0:5678 --wait-for-client --log-to-stderr -m airflow webserver &  # Debug 모드
-    
-    echo "🚀 Airflow Standalone 실행..."
-    airflow standalone

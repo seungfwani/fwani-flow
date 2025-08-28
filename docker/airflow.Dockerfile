@@ -11,3 +11,5 @@ USER root
 
 USER airflow
 WORKDIR /app
+
+COPY ./docker/airflow.entrypoint.sh /entrypoint.sh

@@ -9,9 +9,10 @@ from config import Config
 from core.database import get_db_context
 from models.db.system_function import SystemFunction
 
-SYSTEM_FUNCTION_CONFIG_DIR = Path(Config.BUILTIN_FUNC_CONFIG_DIR)
+SYSTEM_FUNCTION_CONFIG_DIR = Path(Config.BUILTIN_FUNC_SCRIPT_DIR)
 
 logger = logging.getLogger()
+
 
 def load_system_functions_from_yaml():
     functions = []

@@ -28,6 +28,8 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
         return None
     host = params.get("host")
     endpoint = "/graphio/v1/meta-type/workflow/create"
+    metatype_id = params.get("id")
+    save_type = params.get("saveType", "new")
     owner_id = params.get("owner")
     name = params.get("name")
     description = params.get("description")
@@ -51,7 +53,6 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
     new_series_list = []
     for p in property_mapper:
         properties.append({
-            "metaTypePropertyName": p.get('name'),
             "rawDataPropertyName": p.get('name'),
             "description": p.get("description"),
             "dataType": p.get('dataType'),
@@ -71,6 +72,8 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
     print(new_df)
     url = f"{host.rstrip('/')}/{endpoint.lstrip('/')}"
     payload = {
+        "id": metatype_id,
+        "save_type": save_type,
         "ownerId": owner_id,
         "connectionInstanceId": connection_instance_id,
         "name": name,
@@ -101,6 +104,8 @@ if __name__ == "__main__":
     df = run(df_A, df_B, params={
         "host": "http://192.168.109.254:30820",
         "endpoint": "/graphio/v1/meta-type/workflow/create",
+        "id": "00000000-0000-4000-9000-000000000001",
+        "saveType": "new",
         "owner": "00000000-0000-4000-9000-000000000001",
         "name": "workflow-test-003",
         "description": "workflow-test-001",

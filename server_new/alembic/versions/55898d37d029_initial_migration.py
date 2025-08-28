@@ -1,8 +1,8 @@
 """Initial migration
 
-Revision ID: cba512008680
+Revision ID: 55898d37d029
 Revises: 
-Create Date: 2025-08-26 12:01:54.773967
+Create Date: 2025-08-27 18:44:55.634428
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = 'cba512008680'
+revision: str = '55898d37d029'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -32,16 +32,18 @@ def upgrade() -> None:
     sa.Column('file_hash', sa.String(), nullable=True),
     sa.Column('is_loaded_by_airflow', sa.Boolean(), nullable=True),
     sa.Column('schedule', sa.String(), nullable=True),
+    sa.Column('schedule_options', sa.JSON(), nullable=True),
     sa.Column('is_deleted', sa.Boolean(), nullable=True),
     sa.Column('active_status', sa.Boolean(), nullable=True),
     sa.Column('max_retries', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    schema='workflow'
     )
-    op.create_index(op.f('ix_flow_dag_id'), 'flow', ['dag_id'], unique=True)
-    op.create_index(op.f('ix_flow_id'), 'flow', ['id'], unique=False)
-    op.create_index(op.f('ix_flow_name'), 'flow', ['name'], unique=True)
+    op.create_index(op.f('ix_workflow_flow_dag_id'), 'flow', ['dag_id'], unique=True, schema='workflow')
+    op.create_index(op.f('ix_workflow_flow_id'), 'flow', ['id'], unique=False, schema='workflow')
+    op.create_index(op.f('ix_workflow_flow_name'), 'flow', ['name'], unique=True, schema='workflow')
     op.create_table('function_template',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('name', sa.String(), nullable=True),
@@ -49,9 +51,10 @@ def upgrade() -> None:
     sa.Column('python_libraries', sa.JSON(), nullable=True),
     sa.Column('code_string', sa.Text(), nullable=True),
     sa.Column('code_hash', sa.String(), nullable=True),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    schema='workflow'
     )
-    op.create_index(op.f('ix_function_template_id'), 'function_template', ['id'], unique=False)
+    op.create_index(op.f('ix_workflow_function_template_id'), 'function_template', ['id'], unique=False, schema='workflow')
     op.create_table('system_function',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('name', sa.String(), nullable=True),
@@ -60,14 +63,16 @@ def upgrade() -> None:
     sa.Column('impl_callable', sa.String(), nullable=False),
     sa.Column('python_libraries', sa.JSON(), nullable=True),
     sa.Column('kind', sa.String(), nullable=True),
+    sa.Column('ui_type', sa.String(), server_default='default', nullable=True),
     sa.Column('param_schema', sa.JSON(), nullable=False),
     sa.Column('is_deprecated', sa.Boolean(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    schema='workflow'
     )
-    op.create_index(op.f('ix_system_function_id'), 'system_function', ['id'], unique=False)
-    op.create_index(op.f('ix_system_function_name'), 'system_function', ['name'], unique=False)
+    op.create_index(op.f('ix_workflow_system_function_id'), 'system_function', ['id'], unique=False, schema='workflow')
+    op.create_index(op.f('ix_workflow_system_function_name'), 'system_function', ['name'], unique=False, schema='workflow')
     op.create_table('user',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('username', sa.String(), nullable=True),
@@ -76,9 +81,10 @@ def upgrade() -> None:
     sa.Column('is_admin', sa.Boolean(), server_default='false', nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('email')
+    sa.UniqueConstraint('email'),
+    schema='workflow'
     )
-    op.create_index(op.f('ix_user_id'), 'user', ['id'], unique=False)
+    op.create_index(op.f('ix_workflow_user_id'), 'user', ['id'], unique=False, schema='workflow')
     op.create_table('flow_execution_queue',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('flow_id', sa.String(), nullable=False),
@@ -92,10 +98,11 @@ def upgrade() -> None:
     sa.Column('file_hash', sa.String(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['flow_id'], ['flow.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['flow_id'], ['workflow.flow.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    schema='workflow'
     )
-    op.create_index(op.f('ix_flow_execution_queue_id'), 'flow_execution_queue', ['id'], unique=False)
+    op.create_index(op.f('ix_workflow_flow_execution_queue_id'), 'flow_execution_queue', ['id'], unique=False, schema='workflow')
     op.create_table('flow_snapshot',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('flow_id', sa.String(), nullable=False),
@@ -108,12 +115,13 @@ def upgrade() -> None:
     sa.Column('payload_hash', sa.String(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.CheckConstraint('NOT (is_current AND is_draft)', name='ck_current_xor_draft'),
-    sa.ForeignKeyConstraint(['flow_id'], ['flow.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['flow_id'], ['workflow.flow.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('flow_id', 'version', name='uq_flow_version')
+    sa.UniqueConstraint('flow_id', 'version', name='uq_flow_version'),
+    schema='workflow'
     )
-    op.create_index(op.f('ix_flow_snapshot_flow_id'), 'flow_snapshot', ['flow_id'], unique=False)
-    op.create_index(op.f('ix_flow_snapshot_id'), 'flow_snapshot', ['id'], unique=False)
+    op.create_index(op.f('ix_workflow_flow_snapshot_flow_id'), 'flow_snapshot', ['flow_id'], unique=False, schema='workflow')
+    op.create_index(op.f('ix_workflow_flow_snapshot_id'), 'flow_snapshot', ['id'], unique=False, schema='workflow')
     op.create_table('task',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('flow_id', sa.String(), nullable=False),
@@ -135,11 +143,12 @@ def upgrade() -> None:
     sa.Column('ui_extra_data', sa.JSON(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.Column('updated_at', sa.DateTime(), nullable=True),
-    sa.ForeignKeyConstraint(['flow_id'], ['flow.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['system_function_id'], ['system_function.id'], ),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['flow_id'], ['workflow.flow.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['system_function_id'], ['workflow.system_function.id'], ),
+    sa.PrimaryKeyConstraint('id'),
+    schema='workflow'
     )
-    op.create_index(op.f('ix_task_id'), 'task', ['id'], unique=False)
+    op.create_index(op.f('ix_workflow_task_id'), 'task', ['id'], unique=False, schema='workflow')
     op.create_table('edge',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('flow_id', sa.String(), nullable=False),
@@ -152,48 +161,50 @@ def upgrade() -> None:
     sa.Column('ui_labelBgPadding', sa.JSON(), nullable=True),
     sa.Column('ui_labelBgBorderRadius', sa.Float(), nullable=True),
     sa.Column('ui_style', sa.JSON(), nullable=True),
-    sa.ForeignKeyConstraint(['flow_id'], ['flow.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['from_task_id'], ['task.id'], ondelete='CASCADE'),
-    sa.ForeignKeyConstraint(['to_task_id'], ['task.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['flow_id'], ['workflow.flow.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['from_task_id'], ['workflow.task.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['to_task_id'], ['workflow.task.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    schema='workflow'
     )
-    op.create_index(op.f('ix_edge_id'), 'edge', ['id'], unique=False)
+    op.create_index(op.f('ix_workflow_edge_id'), 'edge', ['id'], unique=False, schema='workflow')
     op.create_table('task_input',
     sa.Column('id', sa.String(), nullable=False),
     sa.Column('task_id', sa.String(), nullable=False),
     sa.Column('key', sa.String(), nullable=False),
     sa.Column('type', sa.String(), server_default='string', nullable=False),
     sa.Column('value', sa.JSON(), nullable=True),
-    sa.ForeignKeyConstraint(['task_id'], ['task.id'], ondelete='CASCADE'),
-    sa.PrimaryKeyConstraint('id')
+    sa.ForeignKeyConstraint(['task_id'], ['workflow.task.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id'),
+    schema='workflow'
     )
-    op.create_index(op.f('ix_task_input_id'), 'task_input', ['id'], unique=False)
+    op.create_index(op.f('ix_workflow_task_input_id'), 'task_input', ['id'], unique=False, schema='workflow')
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_index(op.f('ix_task_input_id'), table_name='task_input')
-    op.drop_table('task_input')
-    op.drop_index(op.f('ix_edge_id'), table_name='edge')
-    op.drop_table('edge')
-    op.drop_index(op.f('ix_task_id'), table_name='task')
-    op.drop_table('task')
-    op.drop_index(op.f('ix_flow_snapshot_id'), table_name='flow_snapshot')
-    op.drop_index(op.f('ix_flow_snapshot_flow_id'), table_name='flow_snapshot')
-    op.drop_table('flow_snapshot')
-    op.drop_index(op.f('ix_flow_execution_queue_id'), table_name='flow_execution_queue')
-    op.drop_table('flow_execution_queue')
-    op.drop_index(op.f('ix_user_id'), table_name='user')
-    op.drop_table('user')
-    op.drop_index(op.f('ix_system_function_name'), table_name='system_function')
-    op.drop_index(op.f('ix_system_function_id'), table_name='system_function')
-    op.drop_table('system_function')
-    op.drop_index(op.f('ix_function_template_id'), table_name='function_template')
-    op.drop_table('function_template')
-    op.drop_index(op.f('ix_flow_name'), table_name='flow')
-    op.drop_index(op.f('ix_flow_id'), table_name='flow')
-    op.drop_index(op.f('ix_flow_dag_id'), table_name='flow')
-    op.drop_table('flow')
+    op.drop_index(op.f('ix_workflow_task_input_id'), table_name='task_input', schema='workflow')
+    op.drop_table('task_input', schema='workflow')
+    op.drop_index(op.f('ix_workflow_edge_id'), table_name='edge', schema='workflow')
+    op.drop_table('edge', schema='workflow')
+    op.drop_index(op.f('ix_workflow_task_id'), table_name='task', schema='workflow')
+    op.drop_table('task', schema='workflow')
+    op.drop_index(op.f('ix_workflow_flow_snapshot_id'), table_name='flow_snapshot', schema='workflow')
+    op.drop_index(op.f('ix_workflow_flow_snapshot_flow_id'), table_name='flow_snapshot', schema='workflow')
+    op.drop_table('flow_snapshot', schema='workflow')
+    op.drop_index(op.f('ix_workflow_flow_execution_queue_id'), table_name='flow_execution_queue', schema='workflow')
+    op.drop_table('flow_execution_queue', schema='workflow')
+    op.drop_index(op.f('ix_workflow_user_id'), table_name='user', schema='workflow')
+    op.drop_table('user', schema='workflow')
+    op.drop_index(op.f('ix_workflow_system_function_name'), table_name='system_function', schema='workflow')
+    op.drop_index(op.f('ix_workflow_system_function_id'), table_name='system_function', schema='workflow')
+    op.drop_table('system_function', schema='workflow')
+    op.drop_index(op.f('ix_workflow_function_template_id'), table_name='function_template', schema='workflow')
+    op.drop_table('function_template', schema='workflow')
+    op.drop_index(op.f('ix_workflow_flow_name'), table_name='flow', schema='workflow')
+    op.drop_index(op.f('ix_workflow_flow_id'), table_name='flow', schema='workflow')
+    op.drop_index(op.f('ix_workflow_flow_dag_id'), table_name='flow', schema='workflow')
+    op.drop_table('flow', schema='workflow')
     # ### end Alembic commands ###

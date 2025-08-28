@@ -17,40 +17,57 @@ spec:
     spec:
       containers:
         - name: workflow-server
-          image: workflow-server:latest
-          securityContext:
-            runAsGroup: 0
-            runAsUser: 1000
-          command: ["/bin/bash", "-c"]
-          args:
-            - |
-              echo "📁 entrypoint.sh 복사 및 실행 권한 부여"
-              cp /entrypoint.sh /app/entrypoint.sh
-              chmod +x /app/entrypoint.sh
-              exec /app/entrypoint.sh
+          image: repo.iris.tools/graphio/workflow/workflow-server:0.1.97-20250828-7f08368
+          imagePullPolicy: IfNotPresent
+          command:
+            - /entrypoint.sh
           env:
             - name: DEBUG
               value: "True"
-            - name: DB_URI
-              value: "postgresql://workflow:workflow@postgres-svc:5432/workflow"
-            - name: AIRFLOW_DB_URI
-              value: "postgresql://airflow:airflow@postgres-svc:5432/airflow"
+            - name: DB_TYPE
+              value: "postgresql"
+            - name: DB_HOST
+              value: "postgresql-svc"
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: "graphio"
+            - name: DB_SCHEMA
+              value: "workflow"
+            - name: DB_USERNAME
+              value: "root"
+            - name: DB_PASSWORD
+              value: "password"
+            - name: AIRFLOW_DB_TYPE
+              value: "postgresql"
+            - name: AIRFLOW_DB_HOST
+              value: "postgresql-svc"
+            - name: AIRFLOW_DB_PORT
+              value: "5432"
+            - name: AIRFLOW_DB_NAME
+              value: "graphio"
+            - name: AIRFLOW_DB_SCHEMA
+              value: "airflow"
+            - name: AIRFLOW_DB_USERNAME
+              value: "root"
+            - name: AIRFLOW_DB_PASSWORD
+              value: "password"
             - name: LOG_DIR
               value: "/app/logs"
             - name: DAG_DIR
               value: "/app/dags"
             - name: SHARED_DIR
               value: "/app/shared"
-            - name: BUILTIN_FUNC_CONFIG_DIR
-              value: "/app/builtin_functions"
+            - name: BUILTIN_FUNC_SCRIPT_DIR
+              value: "/app/builtin_scripts"
             - name: AIRFLOW_HOST
               value: "airflow-svc"
             - name: AIRFLOW_PORT
               value: "8080"
             - name: AIRFLOW_USER
-              value: "admin"
+              value: "root"
             - name: AIRFLOW_PASSWORD
-              value: "admin"
+              value: "password"
           ports:
             - containerPort: 5050
               name: api-port
@@ -59,26 +76,23 @@ spec:
             - mountPath: /app/shared
               name: ext-volume
               subPath: airflow/shared
-            - mountPath: /app/built_in_functions
+            - mountPath: /app/builtin_functions
               name: ext-volume
-              subPath: airflow/built_in_functions
+              subPath: airflow/builtin_functions
             - mountPath: /app/logs
               name: ext-volume
               subPath: workflow/logs
             - mountPath: /app/dags
               name: ext-volume
               subPath: airflow/dags
-            - mountPath: /entrypoint.sh
-              name: workflow-server
-              subPath: entrypoint.sh
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsUser: 0
       volumes:
         - name: ext-volume
           persistentVolumeClaim:
             claimName: pvc-workflow4graphio
-        - configMap:
-            defaultMode: 420
-            name: workflow-server
-          name: workflow-server
 ---
 apiVersion: v1
 kind: Service
@@ -96,23 +110,3 @@ spec:
   selector:
     app: workflow-server
   type: NodePort
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  labels:
-      app: workflow-server
-  name: workflow-server
-  namespace: workflow4graphio
-data:
-  entrypoint.sh: |-
-    #!/bin/bash
-    
-    echo "💡 alembic 데이터베이스 설정..."
-    alembic upgrade head
-    
-    echo "💡 built-in function 복사..."
-    cp /app/builtin_functions/*.py /app/built_in_functions/
-    
-    echo "🚀 Workflow 서버 실행..."
-    python /app/main.py

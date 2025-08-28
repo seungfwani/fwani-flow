@@ -21,13 +21,30 @@ if config.config_file_name is not None:
 # from myapp import mymodel
 # target_metadata = mymodel.Base.metadata
 target_metadata = BaseDB.metadata
+target_metadata.schema = Config.DB_SCHEMA if Config.DB_TYPE == "postgresql" else None
 
 # other values from the config, defined by the needs of env.py,
 # can be acquired:
 # my_important_option = config.get_main_option("my_important_option")
 # ... etc.
-config.set_main_option("sqlalchemy.url", Config.DB_URI)
+if Config.DB_TYPE == "postgresql":
+    config.set_main_option(
+        "sqlalchemy.url",
+        f"{Config.DB_TYPE}://{Config.DB_USERNAME}:{Config.DB_PASSWORD}@{Config.DB_HOST}:{Config.DB_PORT}/{Config.DB_NAME}"
+    )
+else:  # sqlite
+    config.set_main_option(
+        "sqlalchemy.url",
+        f"{Config.DB_TYPE}:///{Config.DB_NAME}"
+    )
 
+def include_name(name, type_, parent_names):
+    """
+    Alembic autogenerate 중 특정 스키마만 관리하도록 설정.
+    """
+    if type_ == "schema":
+        return name == Config.DB_SCHEMA
+    return True
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
@@ -67,9 +84,21 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        # DB 타입에 따라 분기
+        if Config.DB_TYPE == "postgresql":
+            context.configure(
+                connection=connection,
+                target_metadata=target_metadata,
+                include_schemas=True,
+                include_name=include_name,
+                version_table_schema=Config.DB_SCHEMA,
+            )
+        else:  # SQLite
+            context.configure(
+                connection=connection,
+                target_metadata=target_metadata,
+                include_schemas=False,
+            )
 
         with context.begin_transaction():
             context.run_migrations()

@@ -33,6 +33,7 @@ async def get_system_functions(db: Session = Depends(get_db)):
         description=sf.description,
         param_schema=sf.param_schema,
         is_deprecated=sf.is_deprecated,
+        type=sf.ui_type
     ) for sf in data]
 
 
@@ -53,4 +54,5 @@ async def get_system_function(system_function_id: str, db: Session = Depends(get
         description=sf.description,
         param_schema=sf.param_schema,
         is_deprecated=sf.is_deprecated,
+        type=sf.ui_type
     )

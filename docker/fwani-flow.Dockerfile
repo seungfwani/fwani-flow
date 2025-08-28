@@ -4,5 +4,7 @@ COPY ./server_new/requirements.txt /app/
 RUN pip install -r /app/requirements.txt
 
 COPY ./server_new /app
-COPY ./builtin_functions /app/builtin_functions
+COPY ./builtin_functions /app/builtin_scripts
+
 WORKDIR /app
+COPY ./docker/workflow.entrypoint.sh /entrypoint.sh

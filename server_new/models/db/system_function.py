@@ -15,6 +15,7 @@ class SystemFunction(BaseDB):
     impl_callable = Column(String, nullable=False)
     python_libraries = Column(JSON)
     kind = Column(String)
+    ui_type = Column(String, server_default='default')
 
     # 인자 정의
     param_schema = Column(JSON, nullable=False, default={})

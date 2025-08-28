@@ -19,3 +19,4 @@ class SystemFunctionResponse(BaseModel):
                                                           },
                                                       ])
     is_deprecated: bool = Field(False, description="deprecated")
+    type: str = Field("default", description="ui 노드 표시 타입, (input,default,output)")

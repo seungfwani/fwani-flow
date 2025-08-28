@@ -8,8 +8,75 @@ param_schema:
     name: host
     required: true
     value: http://192.168.109.254:30820
+  - type: string
+    name: id
+    required: false
+  - type: string
+    name: saveType
+    required: true
+    value: new
+  - type: string
+    name: owner
+    required: true
+  - type: string
+    name: name
+    required: true
+  - type: string
+    name: description
+    required: false
+  - type: string
+    name: connectionInstanceId
+    required: true
+  - type: list
+    name: tagIds
+    required: false
+    value: []
+  - type: list
+    name: metaTypeIds
+    required: true
+    value:
+      - type: string
+        name: id
+        required: true
+      - type: string
+        name: name
+        required: true
+      - type: list
+        name: properties
+        required: true
+        value:
+        - type: string
+          name: id
+          required: true
+        - type: string
+          name: metaTypePropertyName
+          required: true
+  - type: list
+    name: properties
+    required: true
+    value:
+    - type: string
+      name: name
+      required: true
+    - type: string
+      name: description
+      required: false
+    - type: string
+      name: dataType
+      required: true
+    - type: list
+      name: metaTypeProperties
+      required: true
+      value:
+      - type: string
+        name: metaTypeId
+        required: true
+      - type: string
+        name: propertyId
+        required: true
 python_libraries:
   - pandas==2.3.1
   - requests==2.32.3
 is_deprecated: false
 kind: system
+ui_type: output
