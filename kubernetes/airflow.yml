@@ -37,6 +37,14 @@ spec:
               value: postgresql+psycopg2://${DB_USERNAME}:${DB_PASSWORD}@postgresql-svc:5432/graphio?options=-csearch_path=airflow&application_name=airflow
             - name: AIRFLOW__DATABASE__SQL_ALCHEMY_SCHEMA
               value: "airflow"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_SIZE
+              value: "5"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_MAX_OVERFLOW
+              value: "10"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_RECYCLE
+              value: "1800"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_PRE_PING
+              value: "True"
             - name: AIRFLOW__CORE__DAGS_FOLDER
               value: "/opt/airflow/dags"
             - name: AIRFLOW__LOGGING__BASE_LOG_FOLDER
