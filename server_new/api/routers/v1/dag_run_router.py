@@ -53,9 +53,9 @@ async def run_dag_immediately(dag_id: str,
     if dag:
         dag_service = FlowDefinitionService(db, airflow)
         flow = dag_service.update_dag(dag_id, dag)
-        execution_id = flow_execution_service.run_execution(flow.id)
+        execution_id = flow_execution_service.run_execution(flow.id, True)
     else:
-        execution_id = flow_execution_service.run_execution(dag_id)
+        execution_id = flow_execution_service.run_execution(dag_id, True)
     return {"execution_id": execution_id}
 
 

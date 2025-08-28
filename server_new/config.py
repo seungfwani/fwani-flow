@@ -15,15 +15,15 @@ class Config:
     DB_PORT = os.getenv("DB_PORT", "65432")
     DB_NAME = os.getenv("DB_NAME", "graphio")
     DB_SCHEMA = os.getenv("DB_SCHEMA", "workflow")
-    DB_USERNAME = os.getenv("DB_USERNAME", "workflow")
-    DB_PASSWORD = os.getenv("DB_PASSWORD", "<PASSWORD>")
+    DB_USERNAME = os.getenv("DB_USERNAME", "airflow")
+    DB_PASSWORD = os.getenv("DB_PASSWORD", "airflow")
     AIRFLOW_DB_TYPE = os.getenv("AIRFLOW_DB_TYPE", "postgresql")
     AIRFLOW_DB_HOST = os.getenv("AIRFLOW_DB_HOST", "airflow-svc")
     AIRFLOW_DB_PORT = os.getenv("AIRFLOW_DB_PORT", "8080")
     AIRFLOW_DB_NAME = os.getenv("AIRFLOW_DB_NAME", "graphio")
     AIRFLOW_DB_SCHEMA = os.getenv("AIRFLOW_DB_SCHEMA", "airflow")
     AIRFLOW_DB_USERNAME = os.getenv("AIRFLOW_DB_USERNAME", "airflow")
-    AIRFLOW_DB_PASSWORD = os.getenv("AIRFLOW_DB_PASSWORD", "<PASSWORD>")
+    AIRFLOW_DB_PASSWORD = os.getenv("AIRFLOW_DB_PASSWORD", "airflow")
 
     # 로그 경로
     LOG_DIR = os.getenv("LOG_DIR", "./data/logs")

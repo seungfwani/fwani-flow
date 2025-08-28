@@ -57,9 +57,10 @@ def task_api2domain(tasks: [DAGNode]) -> dict[str, DomainTask]:
     return result
 
 
-def flow_api2domain(dag: DAGRequest):
+def flow_api2domain(dag: DAGRequest, dag_id: str = None):
     tasks = task_api2domain(dag.nodes)
     return DomainFlow(
+        _id=dag_id,
         name=dag.name,
         description=dag.description,
         owner=dag.owner,

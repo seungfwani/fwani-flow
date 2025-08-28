@@ -2,6 +2,7 @@ import json
 from enum import Enum
 
 from models.db.flow import Flow as DBFlow
+from models.domain.flow import Flow as DomainFlow
 from utils.functions import get_hash
 
 
@@ -13,57 +14,51 @@ class SnapshotOperation(Enum):
     PUBLISH = "publish"
 
 
-def _normalize_flow(flow: DBFlow) -> dict:
-    # task 리스트를 variable_id 기준으로 정렬
-    tasks_sorted = sorted(flow.tasks, key=lambda t: t.variable_id)
-
-    # task별 inputs은 key 기준 정렬, id/비본질 필드 제외
-    normal_tasks = []
-    for t in tasks_sorted:
-        normal_tasks.append({
-            "variable_id": t.variable_id,
-            "kind": t.kind,
-            "code_string": t.code_string,
-            "code_hash": t.code_hash,
-            "python_libraries": t.python_libraries,
-            "builtin_func_id": t.system_function_id,
-            "input_properties": t.input_properties,
-            "output_properties": t.output_properties,
-            "ui_type": t.ui_type,
-            "ui_label": t.ui_label,
-            "ui_class": t.ui_class,
-            "ui_position": t.ui_position,
-            "ui_style": t.ui_style,
-            "ui_extra_data": t.ui_extra_data,
-            "inputs": [
-                {
-                    "key": inp.key,
-                    "type": inp.type,
-                    "value": inp.value,
-                }
-                for inp in sorted(t.inputs, key=lambda i: i.key)
-            ],
-        })
-
-    # 플로우 본문에서 변동성 큰 값/파생값 제외하고 핵심만
-    normal_flow = {
-        "name": flow.name,
-        "dag_id": flow.dag_id,
-        "description": flow.description,
-        "owner_id": flow.owner_id,
-        "hash": flow.hash,
-        "schedule": flow.schedule,
-        "is_deleted": flow.is_deleted,
-        "max_retries": flow.max_retries,
+def get_snapshot_payload_hash(payload: dict) -> str:
+    flow = payload["flow"]
+    normalized_payload = {
+        "flow": {
+            "name": flow["name"],
+            "dag_id": flow["dag_id"],
+            "description": flow["description"],
+            "owner_id": flow["owner_id"],
+            "hash": flow["hash"],
+            "schedule": flow["schedule"],
+            "is_deleted": flow["is_deleted"],
+            "max_retries": flow["max_retries"],
+        },
+        "tasks": [
+            {
+                "variable_id": t["variable_id"],
+                "kind": t["kind"],
+                "code_string": t["code_string"],
+                "code_hash": t["code_hash"],
+                "python_libraries": t["python_libraries"],
+                "builtin_func_id": t["builtin_func_id"],
+                "input_properties": t["input_properties"],
+                "output_properties": t["output_properties"],
+                "ui_type": t["ui_type"],
+                "ui_label": t["ui_label"],
+                "ui_class": t["ui_class"],
+                "ui_position": t["ui_position"],
+                "ui_style": t["ui_style"],
+                "ui_extra_data": t["ui_extra_data"],
+                "inputs": [
+                    {
+                        "key": inp["key"],
+                        "type": inp["type"],
+                        "value": inp["value"],
+                    }
+                    for inp in sorted(t["inputs"], key=lambda x: x["key"])
+                ]
+            }
+            for t in sorted(payload["tasks"], key=lambda x: x["variable_id"])
+        ],
     }
-
-    return {
-        "flow": normal_flow,
-        "tasks": normal_tasks,
-    }
+    return get_hash(json.dumps(normalized_payload))
 
 
-def build_flow_snapshot(flow: DBFlow) -> [dict, str]:
+def build_flow_snapshot(flow: DBFlow) -> dict:
     snapshot = {
         "flow": {
             "id": flow.id,
@@ -124,6 +119,67 @@ def build_flow_snapshot(flow: DBFlow) -> [dict, str]:
         ]
     }
 
-    # 2) 의미 기반(정규화) 스냅샷 → 해시 계산
-    normalized = _normalize_flow(flow)
-    return snapshot, get_hash(json.dumps(normalized))
+    return snapshot
+
+
+def build_flow_snapshot_by_domain(new_flow: DomainFlow, dag_id: str) -> dict:
+    snapshot = {
+        "flow": {
+            "id": dag_id,
+            "name": new_flow.name,
+            "is_draft": new_flow.is_draft,
+            "dag_id": new_flow.dag_id,
+            "description": new_flow.description,
+            "owner_id": new_flow.owner,
+            "hash": hash(new_flow),
+            "file_hash": new_flow.file_hash,
+            "schedule": new_flow.scheduled,
+            "schedule_options": new_flow.schedule_options,
+            "is_deleted": new_flow.is_deleted,
+            "active_status": new_flow.active_status,
+            "max_retries": new_flow.max_retries,
+        },
+        "tasks": [
+            {
+                "id": t.id,
+                "variable_id": t.variable_id,
+                "kind": t.kind,
+                "code_string": t.code,
+                "code_hash": t.code_hash,
+                "python_libraries": t.python_libraries,
+                "builtin_func_id": t.builtin_func_id,
+                "input_properties": t.input_properties,
+                "output_properties": t.output_properties,
+                "ui_type": t.ui_type,
+                "ui_label": t.ui_label,
+                "ui_position": t.ui_position,
+                "ui_class": t.ui_class,
+                "ui_style": t.ui_style,
+                "ui_extra_data": t.ui_extra_data,
+                "inputs": [
+                    {
+                        "key": k,
+                        "type": "string",
+                        "value": v,
+                    }
+                    for k, v in t.inputs.items()
+                ]
+            } for t in new_flow.tasks
+        ],
+        "edges": [
+            {
+                "id": e.id,
+                "from_task_id": e.source.id,
+                "to_task_id": e.target.id,
+                "ui_type": e.ui_type,
+                "ui_label": e.ui_label,
+                "ui_label_style": e.ui_label_style,
+                "ui_label_bg_style": e.ui_label_bg_style,
+                "ui_label_bg_padding": e.ui_label_bg_padding,
+                "ui_label_bg_border_radius": e.ui_label_bg_border_radius,
+                "ui_style": e.ui_style,
+            } for e in new_flow.edges
+        ]
+    }
+
+    return snapshot

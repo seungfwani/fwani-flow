@@ -42,13 +42,20 @@ class FlowExecutionService:
             raise WorkflowError(f"없는 실행 {execution_id}")
         return execution
 
-    def _register_execution(self, flow_id: str) -> FlowExecutionQueue:
+    def _register_execution(self, flow_id: str, is_snapshot: bool = False) -> FlowExecutionQueue:
         flow = self._get_flow(flow_id)
+        if is_snapshot:
+            flow_snapshot = flow.flow_snapshots[0]
+            dag_id = flow_snapshot.payload['flow']["dag_id"]
+            file_hash = flow_snapshot.payload['flow']["file_hash"]
+        else:
+            dag_id = flow.dag_id
+            file_hash = flow.file_hash
         flow_execution = FlowExecutionQueue(
             flow_id=flow.id,
-            dag_id=flow.dag_id,
+            dag_id=dag_id,
             status=FlowExecutionStatus.WAITING.value,
-            file_hash=flow.file_hash,
+            file_hash=file_hash,
             scheduled_time=datetime.datetime.now(),
             triggered_time=datetime.datetime.now(),
             data={
@@ -62,10 +69,14 @@ class FlowExecutionService:
 
         return flow_execution
 
-    def _request_airflow_dag_run(self, flow_execution: FlowExecutionQueue):
+    def _request_airflow_dag_run(self, flow_execution: FlowExecutionQueue, is_snapshot: bool = False):
         try:
             if FlowExecutionStatus(flow_execution.status) == FlowExecutionStatus.WAITING:
-                if flow_execution.flow.file_hash != flow_execution.file_hash:
+                if is_snapshot:
+                    file_hash = flow_execution.flow.flow_snapshots[0].payload['flow']["file_hash"]
+                else:
+                    file_hash = flow_execution.flow.file_hash
+                if file_hash != flow_execution.file_hash:
                     flow_execution.status = FlowExecutionStatus.ERROR.value
                 else:
                     # TODO: try count 를 추가해서 airflow 요청을 재시도 하는 로직 필요
@@ -104,10 +115,10 @@ class FlowExecutionService:
         finally:
             self.meta_db.commit()
 
-    def run_execution(self, flow_id: str):
-        flow_execution = self._register_execution(flow_id)
+    def run_execution(self, flow_id: str, is_snapshot: bool = False):
+        flow_execution = self._register_execution(flow_id, is_snapshot)
         # 즉시 실행일 경우 → 바로 실행
-        self._request_airflow_dag_run(flow_execution)
+        self._request_airflow_dag_run(flow_execution, is_snapshot)
         return flow_execution.id
 
     def register_executions(self, dag_ids: list[str]):

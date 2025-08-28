@@ -9,7 +9,8 @@ from sqlalchemy.sql.operators import like_op
 
 from config import Config
 from core.airflow_client import AirflowClient
-from core.snapshot import build_flow_snapshot, SnapshotOperation
+from core.snapshot import build_flow_snapshot, SnapshotOperation, get_snapshot_payload_hash, \
+    build_flow_snapshot_by_domain
 from errors import WorkflowError
 from models.api.dag_model import DAGRequest
 from models.db.edge import Edge as DBEdge
@@ -17,6 +18,7 @@ from models.db.flow import Flow as DBFlow, FlowSnapshot
 from models.db.flow_execution_queue import FlowExecutionQueue
 from models.db.task import Task as DBTask, TaskInput
 from models.domain.mapper import flow_api2domain, flow_db2domain, flow_domain2db, task_edge_domain2db, flow_snapshot2api
+from utils.functions import make_flow_id_by_name
 
 logger = logging.getLogger()
 
@@ -60,9 +62,12 @@ class FlowDefinitionService:
                            message: str | None = None,
                            is_draft: bool = False,
                            upsert_draft: bool = True,
+                           payload: dict = None,
                            ):
         # 스냅샷 페이로드 & 해시 생성
-        payload, payload_hash = build_flow_snapshot(db_flow)
+        if not payload:
+            payload = build_flow_snapshot(db_flow)
+        payload_hash = get_snapshot_payload_hash(payload)
 
         # 변경점 확인 최적화
         last_snap = (self.meta_db.query(FlowSnapshot)
@@ -72,7 +77,8 @@ class FlowDefinitionService:
         if (last_snap
                 and last_snap.is_current
                 and last_snap.payload_hash == payload_hash):
-            logger.info(f"🤷 No changes detected. origin_snap_hash({last_snap.payload_hash}) == now_hash({payload_hash})")
+            logger.info(
+                f"🤷 No changes detected. origin_snap_hash({last_snap.payload_hash}) == now_hash({payload_hash})")
             return last_snap, False
 
         # draft/current 정리
@@ -197,8 +203,10 @@ class FlowDefinitionService:
         logger.info(f"🆕 Create dummy flow")
         now_timestamp = datetime.datetime.now(datetime.timezone.utc)
 
+        name = "Workflow_" + now_timestamp.strftime("%Y-%m-%dT%H:%M:%S.%f%Z")
         dummy_flow = DBFlow(
-            name="Workflow_" + now_timestamp.strftime("%Y-%m-%dT%H:%M:%S.%f%Z"),
+            name=name,
+            dag_id=make_flow_id_by_name(name),
             is_draft=True,
         )
         self.meta_db.add(dummy_flow)
@@ -240,9 +248,22 @@ class FlowDefinitionService:
         origin_flow = self._get_flow(origin_dag_id)
 
         # 1. 변환
-        new_flow = flow_api2domain(new_dag)
+        new_flow = flow_api2domain(new_dag, origin_dag_id)
+        if new_flow.is_draft:  # 수정중
+            # snapshot 만 저장
+            _, is_snap_changed = self.save_flow_snapshot(
+                origin_flow,
+                SnapshotOperation.UPDATE,
+                message="draft=True",
+                is_draft=new_dag.is_draft,
+                payload=build_flow_snapshot_by_domain(new_flow, origin_dag_id)
+            )
+            if is_snap_changed:
+                origin_flow.is_draft = new_flow.is_draft
+            self.meta_db.commit()
+            return new_flow
         # 저장시(is_draft=False) 이름이 바뀐 경우 → 중복 확인 및 갱신
-        if not new_flow.is_draft and new_flow.name != origin_flow.name:
+        if new_flow.name != origin_flow.name:
             logger.info(f"▶️ Check duplicated name {new_flow.name}.")
             duplicate = (
                 self.meta_db.query(DBFlow)
