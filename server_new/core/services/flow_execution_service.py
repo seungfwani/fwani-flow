@@ -51,8 +51,14 @@ class FlowExecutionService:
         else:
             dag_id = flow.dag_id
             file_hash = flow.file_hash
+            flow_snapshot = None
+            for snap in flow.flow_snapshots:
+                if snap.is_current:
+                    flow_snapshot = snap
+                    break
         flow_execution = FlowExecutionQueue(
             flow_id=flow.id,
+            flow_snapshot=flow_snapshot,
             dag_id=dag_id,
             status=FlowExecutionStatus.WAITING.value,
             file_hash=file_hash,

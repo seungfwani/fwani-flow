@@ -11,6 +11,7 @@ class FlowExecutionQueue(BaseDB):
 
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     flow_id = Column(String, ForeignKey("flow.id", ondelete="CASCADE"), nullable=False)
+    flow_snapshot_id = Column(String, ForeignKey("flow_snapshot.id", ondelete="SET NULL"), nullable=True)
     dag_id = Column(String)
     run_id = Column(String)
     status = Column(String, default="waiting")
@@ -23,3 +24,4 @@ class FlowExecutionQueue(BaseDB):
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
     flow = relationship("Flow", back_populates="flow_execution_queues")
+    flow_snapshot = relationship("FlowSnapshot", uselist=False)

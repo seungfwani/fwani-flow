@@ -92,6 +92,10 @@ def flow_db2domain(flow: DBFlow):
         ui_class=task.ui_class,
         ui_extra_data=task.ui_extra_data,
     ) for task in flow.tasks}
+    execution_status = None
+    for execution in flow.flow_execution_queues:
+        if execution.flow_snapshot and execution.flow_snapshot.is_current:
+            execution_status = execution.status
     return DomainFlow(
         name=flow.name,
         description=flow.description,
@@ -116,7 +120,7 @@ def flow_db2domain(flow: DBFlow):
         _id=flow.id,
         updated_at=flow.updated_at,
         active_status=flow.active_status,
-        execution_status=flow.flow_execution_queues[0].status if flow.flow_execution_queues else None,
+        execution_status=execution_status,
     )
 
 
