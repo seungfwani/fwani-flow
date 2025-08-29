@@ -103,15 +103,16 @@ class AirflowClient:
                                     }))
         return active_result
 
-    def run_dag(self, dag_id: str, data: dict = None) -> str:
+    def run_dag(self, dag_id: str, data: dict = None, force: bool = False) -> str:
         """
         DAG 실행 후 run_id 반환
+        :param force: pause 인 경우에도 activate 로 바꾸고 실행 하기 위함
         :param data:
         :param dag_id:
         :return:
         """
         check_dag_of_airflow = self._get(f"dags/{dag_id}")
-        if check_dag_of_airflow.get("is_paused"):
+        if force and check_dag_of_airflow.get("is_paused"):  # force=True 일때만, pause 를 풀고 실행
             logger.info(f"▶️ [AirflowClient] DAG {dag_id} paused. Request activate")
             active_result = self.update_pause(dag_id, False)
             logger.info(f"✅️ [AirflowClient] DAG {dag_id} is activated. {active_result}")

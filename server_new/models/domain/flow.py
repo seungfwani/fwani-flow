@@ -242,7 +242,8 @@ class Flow:
                                               self.tasks,
                                               self.edges,
                                               tags=[self.dag_id, "draft" if self.is_draft else "publish", "generated"],
-                                              schedule=self.scheduled)
+                                              schedule=self.scheduled if not self.is_draft else None,
+                                              )
             with open(dag_file_path, 'w') as dag_file:
                 dag_file.write(file_contents)
             return file_contents

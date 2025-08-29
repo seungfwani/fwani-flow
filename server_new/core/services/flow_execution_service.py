@@ -105,7 +105,7 @@ class FlowExecutionService:
                             logger.debug(f"⚠️ No DAG code in airflow yet.")
 
                         time.sleep(RETRY_INTERVAL)
-                    run_id = self.airflow_client.run_dag(flow_execution.dag_id, flow_execution.data)
+                    run_id = self.airflow_client.run_dag(flow_execution.dag_id, flow_execution.data, force=True)
                     flow_execution.run_id = run_id
                     flow_execution.status = FlowExecutionStatus.TRIGGERED.value
                     flow_execution.triggered_time = datetime.datetime.now(datetime.timezone.utc)
