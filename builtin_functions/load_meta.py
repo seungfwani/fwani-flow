@@ -56,7 +56,7 @@ def run(*_, params: Optional[Dict[str, Any]] = None):
         raise RuntimeError(f"GET {url} failed ({resp.status_code}): {msg}")
 
     try:
-        data = resp.json()
+        data = resp.json().get("data", [])
     except ValueError:
         raise RuntimeError("response is not valid JSON")
 
