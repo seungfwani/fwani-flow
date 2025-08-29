@@ -32,16 +32,18 @@ def task_api2domain(tasks: [DAGNode]) -> dict[str, DomainTask]:
     result = {}
     errors = {}
     for i, task in enumerate(tasks):
+        builtin_function_id = None
+        if task.data.kind.lower() == 'meta':
+            builtin_function_id = task.data.builtin_func_id \
+                if task.data.builtin_func_id \
+                else '00000000-0000-4000-9000-000000000001'
+
         result[task.id] = DomainTask(task.id,
                                      f"task_{i}",
                                      task.data.kind.lower(),
                                      task.data.python_libraries,
                                      task.data.code,
-                                     (
-                                         '00000000-0000-4000-9000-000000000001'
-                                         if task.data.kind.lower() == 'meta' and not task.data.builtin_func_id
-                                         else task.data.builtin_func_id
-                                     ),
+                                     builtin_function_id,
                                      task.type,
                                      task.data.label,
                                      task.position,

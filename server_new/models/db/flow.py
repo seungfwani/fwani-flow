@@ -93,6 +93,7 @@ class FlowSnapshot(BaseDB):
     op = Column(String, nullable=False)  # create/update/delete/publish/restore
     message = Column(String, nullable=True)
     payload = Column(JSON, nullable=False)
+    normalized_payload = Column(JSON)
     payload_hash = Column(String, nullable=False)
     created_at = Column(DateTime, default=func.now())
     __table_args__ = (

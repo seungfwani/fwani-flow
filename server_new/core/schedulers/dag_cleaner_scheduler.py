@@ -17,8 +17,8 @@ def clean_orphan_dag_files(db: Session):
     for folder in base_path.glob("dag_*"):
         if folder.is_dir():
             logger.info(f"📁 Directory to check: {folder}")
-            dag_name = folder.name
-            flow = db.query(Flow).filter(Flow.dag_id.like(f"{dag_name}%")).first()
+            dag_name = folder.name.split("__")[0]
+            flow = db.query(Flow).filter(Flow.dag_id == dag_name).first()
             if flow is None:
                 shutil.rmtree(folder)
                 logger.info(f"🧹 Delete unmanaged DAG directory: {folder}")

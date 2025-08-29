@@ -14,12 +14,11 @@ class SnapshotOperation(Enum):
     PUBLISH = "publish"
 
 
-def get_snapshot_payload_hash(payload: dict) -> str:
+def get_snapshot_payload_hash(payload: dict) -> tuple[dict,str]:
     flow = payload["flow"]
     normalized_payload = {
         "flow": {
             "name": flow["name"],
-            "dag_id": flow["dag_id"],
             "description": flow["description"],
             "owner_id": flow["owner_id"],
             "hash": flow["hash"],
@@ -31,7 +30,6 @@ def get_snapshot_payload_hash(payload: dict) -> str:
             {
                 "variable_id": t["variable_id"],
                 "kind": t["kind"],
-                "code_string": t["code_string"],
                 "code_hash": t["code_hash"],
                 "python_libraries": t["python_libraries"],
                 "builtin_func_id": t["builtin_func_id"],
@@ -55,7 +53,7 @@ def get_snapshot_payload_hash(payload: dict) -> str:
             for t in sorted(payload["tasks"], key=lambda x: x["variable_id"])
         ],
     }
-    return get_hash(json.dumps(normalized_payload))
+    return normalized_payload, get_hash(json.dumps(normalized_payload))
 
 
 def build_flow_snapshot(flow: DBFlow) -> dict:

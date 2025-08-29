@@ -67,7 +67,7 @@ class FlowDefinitionService:
         # 스냅샷 페이로드 & 해시 생성
         if not payload:
             payload = build_flow_snapshot(db_flow)
-        payload_hash = get_snapshot_payload_hash(payload)
+        normalized_payload, payload_hash = get_snapshot_payload_hash(payload)
 
         # 변경점 확인 최적화
         last_snap = (self.meta_db.query(FlowSnapshot)
@@ -98,6 +98,7 @@ class FlowDefinitionService:
                 last_snap.op = op.name
                 last_snap.message = last_snap.message + "\n" + message
                 last_snap.payload = payload
+                last_snap.normalized_payload = normalized_payload
                 last_snap.payload_hash = payload_hash
                 return last_snap, True
             last_snap.is_current = False
@@ -109,6 +110,7 @@ class FlowDefinitionService:
             op=op.name,
             message=message,
             payload=payload,
+            normalized_payload=normalized_payload,
             payload_hash=payload_hash,
             is_draft=is_draft,
             is_current=not is_draft,
@@ -167,7 +169,7 @@ class FlowDefinitionService:
             )
             task.inputs = [
                 TaskInput(
-                    id=inp["id"],
+                    id=inp.get("id"),
                     key=inp["key"],
                     type=inp["type"],
                     value=inp["value"],
@@ -277,6 +279,7 @@ class FlowDefinitionService:
 
         # 3. 필드 갱신
         origin_flow.description = new_flow.description
+        origin_flow.owner_id = new_flow.owner
         origin_flow.schedule = new_flow.scheduled
         origin_flow.schedule_options = new_flow.schedule_options
         origin_flow.hash = hash(new_flow)
