@@ -32,11 +32,10 @@ def task_api2domain(tasks: [DAGNode]) -> dict[str, DomainTask]:
     result = {}
     errors = {}
     for i, task in enumerate(tasks):
-        builtin_function_id = None
-        if task.data.kind.lower() == 'meta':
-            builtin_function_id = task.data.builtin_func_id \
-                if task.data.builtin_func_id \
-                else '00000000-0000-4000-9000-000000000001'
+        if task.data.kind.lower() == 'meta' and not task.data.builtin_func_id:
+            builtin_function_id = '00000000-0000-4000-9000-000000000001'
+        else:
+            builtin_function_id = task.data.builtin_func_id
 
         result[task.id] = DomainTask(task.id,
                                      f"task_{i}",
@@ -267,6 +266,33 @@ def flow_snapshot2api(flow_snapshot: FlowSnapshot):
     if not flow_snapshot:
         return None
     payload = flow_snapshot.payload
+    tasks = []
+    for task in payload["tasks"]:
+        if task["ui_extra_data"]:
+            data = task["ui_extra_data"]
+            data['label'] = task["ui_label"]
+            data['kind'] = task["kind"]
+            data['python_libraries'] = task["python_libraries"]
+            data['code'] = task["code_string"]
+            data['builtin_func_id'] = task.get("builtin_func_id", "")
+            data['inputs'] = {inp['key']: inp['value'] for inp in task["inputs"]}
+        else:
+            data = {
+                "label":  task["ui_label"],
+                "kind": task["kind"],
+                "python_libraries": task["python_libraries"],
+                "code": task["code_string"],
+                "builtin_func_id": task.get("builtin_func_id", ""),
+                "inputs":{inp['key']: inp['value'] for inp in task["inputs"]}
+            }
+        tasks.append(DAGNode(
+            id=task["id"],
+            type=task["ui_type"],
+            position=task["ui_position"],
+            class_=task.get("ui_class"),
+            data=data,
+            style=task["ui_style"],
+        ))
     f = payload['flow']
     return DAGResponse(
         id=f['id'],
@@ -274,23 +300,7 @@ def flow_snapshot2api(flow_snapshot: FlowSnapshot):
         description=f['description'],
         owner=f['owner_id'],
         # TODO: task, edge 변환
-        nodes=[DAGNode(
-            id=t["id"],
-            type=t["ui_type"],
-            position=t["ui_position"],
-            class_=t.get("ui_class"),
-            data={
-                "label": t["ui_label"],
-                "kind": t["kind"],
-                "python_libraries": t["python_libraries"],
-                "code": t["code_string"],
-                "builtin_func_id": t.get("builtin_func_id", ""),
-                "input_properties": t["input_properties"],
-                "output_properties": t["output_properties"],
-                "inputs": {inp['key']: inp['value'] for inp in t["inputs"]},
-            },
-            style=t["ui_style"],
-        ) for t in payload["tasks"]],
+        nodes=tasks,
         edges=[DAGEdge(
             id=e["id"],
             type=e["ui_type"],

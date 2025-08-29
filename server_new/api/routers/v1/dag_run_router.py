@@ -207,7 +207,7 @@ async def get_all_task_instances(execution_id: str,
     """
     flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
     tasks = [TaskExecutionModel.from_data(t) for t in
-             flow_execution_service.get_all_task_instance(execution_id)]
+             flow_execution_service.get_all_task_instance(execution_id, True)]
     status, terminated = flow_execution_service.get_execution_status(execution_id)
     return {
         "status": status,
@@ -231,7 +231,7 @@ async def get_task_logs(execution_id: str,
     DAG 실행의 모든 태스크 상태 조회
     """
     flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
-    return flow_execution_service.get_task_log(execution_id, task_id, try_number)
+    return flow_execution_service.get_task_log(execution_id, task_id, try_number, True)
 
 
 @router.get("/execution/{execution_id}/tasks/{task_id}/result",
@@ -248,4 +248,4 @@ async def get_task_result(execution_id: str,
     DAG 실행의 모든 태스크 상태 조회
     """
     flow_execution_service = FlowExecutionService(db, airflow, airflow_client)
-    return flow_execution_service.get_task_result_data(execution_id, task_id)
+    return flow_execution_service.get_task_result_data(execution_id, task_id, True)

@@ -56,7 +56,7 @@ class Task:
         self.id = id_
         self.variable_id = variable_id
         self.kind = kind
-        self.python_libraries = python_libraries
+        self.python_libraries = python_libraries if kind == 'code' else None
         self.code = code
         self.builtin_func_id = builtin_func_id
         self.code_hash = get_hash(code) if kind == 'code' else None

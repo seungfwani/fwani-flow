@@ -40,11 +40,11 @@ class FlowExecutionStatus(Enum):
             "upstream_failed": cls.FAILED,
         }
         # 직접 매핑된 fallback 우선
-        if value in fallback_map:
+        if value.lower() in fallback_map:
             return fallback_map[value]
         # 혹시 정확히 Enum에 존재하면 그것도 허용
         try:
-            return cls(value)
+            return cls(value.lower())
         except ValueError:
             logger.warning(f'⚠️ Invalid value "{value}" for flow execution status')
             return cls.ERROR

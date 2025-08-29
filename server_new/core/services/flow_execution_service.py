@@ -167,21 +167,23 @@ class FlowExecutionService:
                                             AirflowDagRun.run_id == execution.run_id))
                                .first())
             if airflow_dag_run:
-                execution.status = airflow_dag_run.state
+                execution.status = FlowExecutionStatus.from_str(airflow_dag_run.state).value
                 self.meta_db.commit()
             return execution.status, False
         return execution.status, True
 
-    def get_all_task_instance(self, execution_id: str):
+    def get_all_task_instance(self, execution_id: str, is_snapshot: bool = False):
         execution = self._get_flow_execution(execution_id)
         task_instances = (self.airflow_db.query(AirflowTaskInstance)
                           .filter(and_(AirflowTaskInstance.dag_id == execution.dag_id,
                                        AirflowTaskInstance.run_id == execution.run_id))
                           .all())
-        task_dict = {task.variable_id: task for task in execution.flow.tasks}
-
+        if is_snapshot:
+            task_dict = {task["variable_id"]: task['id'] for task in execution.flow.flow_snapshots[0].payload['tasks']}
+        else:
+            task_dict = {task.variable_id: task.id for task in execution.flow.tasks}
         return [DomainTaskInstance(
-            task_id=task_dict[ti.task_id].id,
+            task_id=task_dict[ti.task_id],
             execution_date=ti.execution_date,
             start_date=ti.start_date,
             end_date=ti.end_date,
@@ -192,23 +194,36 @@ class FlowExecutionService:
             try_number=ti.try_number,
         ) for ti in task_instances]
 
-    def get_task_log(self, execution_id: str, task_id: str, try_number: int = None):
+    def _get_task_variable_id(self, execution: FlowExecutionQueue, task_id: str, is_snapshot: bool = False):
+        task_variable_id = None
+        if is_snapshot:
+            for t in execution.flow.flow_snapshots[0].payload['tasks']:
+                if t['id'] == task_id:
+                    task_variable_id = t['variable_id']
+                    break
+        else:
+            for t in execution.flow.tasks:
+                if t.id == task_id:
+                    task_variable_id = t.variable_id
+                    break
+        if task_variable_id is None:
+            raise WorkflowError(f"execution({execution.id}) 에 해당하는 task({task_id})를 찾을 수 없습니다.")
+        return task_variable_id
+
+    def get_task_log(self, execution_id: str, task_id: str, try_number: int = None, is_snapshot: bool = False):
         result = {
             "status": None,
             "log": None,
         }
         execution = self._get_flow_execution(execution_id)
-        task = None
-        for t in execution.flow.tasks:
-            if t.id == task_id:
-                task = t
-                break
-        if task is None:
+        try:
+            task_variable_id = self._get_task_variable_id(execution, task_id, is_snapshot)
+        except WorkflowError:
             return result
         task_instance = (self.airflow_db.query(AirflowTaskInstance)
                          .filter(and_(AirflowTaskInstance.dag_id == execution.dag_id,
                                       AirflowTaskInstance.run_id == execution.run_id,
-                                      AirflowTaskInstance.task_id == task.variable_id))
+                                      AirflowTaskInstance.task_id == task_variable_id))
                          .first())
         if task_instance is None:
             return result
@@ -221,20 +236,14 @@ class FlowExecutionService:
         result["log"] = log
         return result
 
-    def get_task_result_data(self, execution_id: str, task_id: str):
+    def get_task_result_data(self, execution_id: str, task_id: str, is_snapshot: bool = False):
         execution = self._get_flow_execution(execution_id)
-        task = None
-        for t in execution.flow.tasks:
-            if t.id == task_id:
-                task = t
-                break
-        if task is None:
-            raise WorkflowError(f"execution({execution_id}) 에 해당하는 task({task_id})를 찾을 수 없습니다.")
+        task_variable_id = self._get_task_variable_id(execution, task_id, is_snapshot)
 
         pkl_path = os.path.join(Config.SHARED_DIR,
                                 f"dag_id={execution.dag_id}",
                                 f"run_id={execution.run_id}",
-                                f"task_id={task.variable_id}",
+                                f"task_id={task_variable_id}",
                                 "result.pkl")
         if os.path.exists(pkl_path):
             try:

@@ -25,7 +25,7 @@ def run(*_, params: Optional[Dict[str, Any]] = None):
     if _ := params.get("is_test", True):
         endpoint_tpl = "/inspect/sample-data/{meta_type_id}"
     else:
-        endpoint_tpl = "/meta_type_table/{meta_type_id}"
+        endpoint_tpl = "/meta-type-table/{meta_type_id}"
     endpoint_tpl = f"{endpoint_base}{endpoint_tpl}"
 
     host = params.get("host")
@@ -46,17 +46,14 @@ def run(*_, params: Optional[Dict[str, Any]] = None):
         logger.exception("request failed: %s", e)
         raise
 
-    if not resp.ok:
-        # 가능한 범위에서 상세 메시지 추출
-        try:
-            payload = resp.json()
-            msg = payload.get("error") or payload.get("message") or str(payload)
-        except ValueError:
-            msg = resp.text
-        raise RuntimeError(f"GET {url} failed ({resp.status_code}): {msg}")
+    if not resp.ok:  # 요청 실패
+        raise RuntimeError(f"GET {url} failed ({resp.status_code}): {resp.text}")
 
     try:
-        data = resp.json().get("data", [])
+        payload = resp.json()
+        if error_ := payload.get("error"):
+            raise RuntimeError(f"GET {url} failed : {error_.get('errorMessage')}")
+        data = resp.json().get("data")
     except ValueError:
         raise RuntimeError("response is not valid JSON")
 
@@ -73,10 +70,11 @@ def run(*_, params: Optional[Dict[str, Any]] = None):
 
 if __name__ == "__main__":
     df = run(params={
-        "host": "http://192.168.109.254:31550",
-        "endpoint": "/graphio/v1/meta-type/meta-type-table/{meta_type_id}",
-        "metaId": "0aa770a1-5641-4022-8af4-fc0ae916f91d",
-        "timeout_sec": 20
+        "host": "http://192.168.109.254:30820",
+        'metaId': '2ebd6c98-6086-4c6e-b5ea-224e971e4dbc',
+        'headers': {},
+        'timeout_sec': None,
+        'is_test': False
     })
     pd.options.display.max_colwidth = 1000
     print(df)

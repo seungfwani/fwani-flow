@@ -7,7 +7,7 @@ param_schema:
   - type: string
     name: host
     required: true
-    value: http://192.168.109.254:30820
+    value: http://ontology-svc:8080
   - type: string
     name: metaId
     required: true
