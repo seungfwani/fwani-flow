@@ -66,7 +66,7 @@ def start_server():
     uvicorn.run("main:init_app",
                 host="0.0.0.0",
                 port=5050,
-                reload=True,
+                reload=Config.RELOAD,
                 log_config=LOG_CONFIG,
                 log_level=Config.LOG_LEVEL.lower(),
                 )

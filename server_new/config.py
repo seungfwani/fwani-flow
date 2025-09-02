@@ -4,6 +4,7 @@ import os
 class Config:
     # 기본 설정
     DEBUG = os.getenv("DEBUG", "True").lower() == "true"
+    RELOAD = os.getenv("RELOAD", "False").lower() == "true"
     TESTING = os.getenv("TESTING", "False").lower() == "true"
     SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-key")
     AUTH_PROVIDER = os.getenv("AUTH_PROVIDER", "local")
