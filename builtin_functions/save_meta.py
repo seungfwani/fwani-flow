@@ -34,6 +34,7 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
     name = params.get("name")
     description = params.get("description")
     connection_instance_id = params.get("connectionInstanceId")
+    schema_name = params.get("schemaName")
     tag_ids = params.get("tagIds", [])
     meta_type_ids = params.get("metaTypeIds", [])
     property_mapper = params.get("properties", [])
@@ -76,6 +77,7 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
         "save_type": save_type,
         "ownerId": owner_id,
         "connectionInstanceId": connection_instance_id,
+        "schemaName": schema_name,
         "name": name,
         "description": description,
         "tagIds": tag_ids,
