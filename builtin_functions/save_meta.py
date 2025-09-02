@@ -59,7 +59,7 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
         })
         if metaTypeProperties := p.get('metaTypeProperties', []):
             origin_node_id = metaTypeProperties[0].get("metaTypeId")
-            origin_property_id = metaTypeProperties[0].get("propertyId")
+            origin_property_id = metaTypeProperties[0].get("metaTypePropertyId")
             origin_property_name = origin_property_mapper[origin_node_id][origin_property_id]
             df_idx = before_task_index[origin_node_id]
             selected_series = dfs[df_idx][origin_property_name].rename(p.get('name'))

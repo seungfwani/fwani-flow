@@ -363,6 +363,8 @@ class FlowDefinitionService:
             query = query.filter(like_op(DBFlow.name, f"%{name}%"))
         if sort:
             field, direction = sort.split("_")
+            if field == "owner":
+                field = "owner_id"
             column_attr = getattr(DBFlow, field, None)
             if column_attr:
                 if direction.lower() == "asc":
