@@ -29,7 +29,6 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
     host = params.get("host")
     endpoint = "/graphio/v1/meta-type/workflow/create"
     metatype_id = params.get("id")
-    save_type = params.get("saveType", "new")
     owner_id = params.get("owner")
     name = params.get("name")
     description = params.get("description")
@@ -74,7 +73,6 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
     url = f"{host.rstrip('/')}/{endpoint.lstrip('/')}"
     payload = {
         "id": metatype_id,
-        "save_type": save_type,
         "ownerId": owner_id,
         "connectionInstanceId": connection_instance_id,
         "schemaName": schema_name,
@@ -106,12 +104,12 @@ if __name__ == "__main__":
     df = run(df_A, df_B, params={
         "host": "http://192.168.109.254:30820",
         "endpoint": "/graphio/v1/meta-type/workflow/create",
-        "id": "00000000-0000-4000-9000-000000000001",
+        "id": "00000000-0000-4000-9000-000000000003",
         "saveType": "new",
-        "owner": "00000000-0000-4000-9000-000000000001",
+        "owner": None,
         "name": "workflow-test-003",
         "description": "workflow-test-001",
-        "connectionInstanceId": "00000000-0000-4000-9000-000000000001",
+        "connectionInstanceId": "c5f92508-4317-4e3c-9e1c-0571c8d23a2a",
         "tagIds": ["62f0ec21-bb9b-490b-985b-a33400173105"],
         "metaTypeIds": [
             {
@@ -159,7 +157,7 @@ if __name__ == "__main__":
                 "metaTypeProperties": [
                     {
                         "metaTypeId": "11",
-                        "propertyId": "11-p1",
+                        "metaTypePropertyId": "11-p1",
                     }
                 ]
             },
@@ -170,7 +168,7 @@ if __name__ == "__main__":
                 "metaTypeProperties": [
                     {
                         "metaTypeId": "22",
-                        "propertyId": "22-p1",
+                        "metaTypePropertyId": "22-p1",
                     }
                 ]
             },
