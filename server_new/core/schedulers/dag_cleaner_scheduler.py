@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session
 
 from config import Config
 from core.database import SessionLocalBaseDB
-from models.db.flow import Flow
+from core.snapshot import SnapshotOperation
+from models.db.flow import Flow, FlowSnapshot
 
 logger = logging.getLogger()
 
@@ -24,10 +25,18 @@ def clean_orphan_dag_files(db: Session):
                 logger.info(f"🧹 Delete unmanaged DAG directory: {folder}")
     logger.info("✅ Complete to clean DAG directory")
 
+def clean_dummy_dags(db: Session):
+    logger.info("▶️ Start to clean Dummy DAGs")
+    db.query(FlowSnapshot).filter(FlowSnapshot.version == 1,
+                                  FlowSnapshot.op == SnapshotOperation.CREATE.name,
+                                  FlowSnapshot.message == Config.DUMMY_MSG,
+                                  ).delete()
+    logger.info("✅ Complete to clean Dummy DAGs")
 
 def dag_cleaner_job():
     db = SessionLocalBaseDB()
     try:
         clean_orphan_dag_files(db)
+        clean_dummy_dags(db)
     finally:
         db.close()

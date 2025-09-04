@@ -8,6 +8,7 @@ class Config:
     TESTING = os.getenv("TESTING", "False").lower() == "true"
     SECRET_KEY = os.getenv("SECRET_KEY", "super-secret-key")
     AUTH_PROVIDER = os.getenv("AUTH_PROVIDER", "local")
+    DUMMY_MSG = "Dummy 생성"
 
     # 데이터베이스 설정
     DB_ENGINE = os.getenv("DB_ENGINE", "sqlite")

@@ -81,6 +81,11 @@ class FlowDefinitionService:
                 f"🤷 No changes detected. origin_snap_hash({last_snap.payload_hash}) == now_hash({payload_hash})")
             return last_snap, False
 
+        if last_snap and last_snap.version == 1 and last_snap.message == Config.DUMMY_MSG:
+            if not payload.get("tasks", []):
+                logger.info("🤷 No changes detected from Dummy.")
+                return last_snap, False
+
         # draft/current 정리
         if is_draft and upsert_draft:
             logger.info("🧹 Delete old draft snapshot.")
@@ -215,7 +220,7 @@ class FlowDefinitionService:
         self.meta_db.flush()
         _, is_snap_changed = self.save_flow_snapshot(dummy_flow,
                                                      SnapshotOperation.CREATE,
-                                                     message="Dummy 생성",
+                                                     message=Config.DUMMY_MSG,
                                                      is_draft=True,
                                                      )
         self.meta_db.commit()
@@ -293,7 +298,7 @@ class FlowDefinitionService:
         self.meta_db.flush()
 
         try:
-            _, is_snap_changed = self.save_flow_snapshot(origin_flow,
+            snap, is_snap_changed = self.save_flow_snapshot(origin_flow,
                                                          SnapshotOperation.UPDATE,
                                                          message="필드 수정",
                                                          is_draft=new_dag.is_draft,
