@@ -345,18 +345,26 @@ class FlowDefinitionService:
         if execution_status:
             FEQ1 = aliased(FlowExecutionQueue)
             FEQ2 = aliased(FlowExecutionQueue)
+            FS = aliased(FlowSnapshot)
+            current_snapshots = (
+                self.meta_db.query(
+                    FS.flow_id.label("flow_id"),
+                    FS.id.label("snapshot_id")
+                )
+                .filter(FS.is_current.is_(True))
+                .subquery()
+            )
             subquery = (self.meta_db
                         .query(FEQ1.flow_id.label("flow_id"),
                                func.max(FEQ1.updated_at).label("updated_at"))
+                        .join(current_snapshots, FEQ1.flow_snapshot_id == current_snapshots.c.snapshot_id)
                         .group_by(FEQ1.flow_id)
                         .subquery())
-            query = (query.outerjoin(subquery, DBFlow.id == subquery.c.flow_id)
+            query = (query
+                     .outerjoin(subquery, DBFlow.id == subquery.c.flow_id)
                      .outerjoin(FEQ2, and_(FEQ2.flow_id == subquery.c.flow_id,
                                            FEQ2.updated_at == subquery.c.updated_at)))
-            filters = []
-            for es in execution_status:
-                filters.append(FEQ2.status == es)
-            query = query.filter(or_(*filters))
+            query = query.filter(FEQ2.status.in_(execution_status))
         if active_status:
             query = query.filter(or_(*[DBFlow.active_status == i for i in active_status]))
         if name:

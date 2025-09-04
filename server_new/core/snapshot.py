@@ -129,7 +129,7 @@ def build_flow_snapshot_by_domain(new_flow: DomainFlow, dag_id: str) -> dict:
             "dag_id": new_flow.dag_id,
             "description": new_flow.description,
             "owner_id": new_flow.owner,
-            "hash": hash(new_flow),
+            "hash": str(hash(new_flow)),
             "file_hash": new_flow.file_hash,
             "schedule": new_flow.scheduled,
             "schedule_options": new_flow.schedule_options,
