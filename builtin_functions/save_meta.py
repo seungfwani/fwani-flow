@@ -69,7 +69,6 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
 
     new_df = pd.concat(new_series_list, axis=1)
     new_df = new_df.replace({np.nan: None})
-    print(new_df)
     url = f"{host.rstrip('/')}/{endpoint.lstrip('/')}"
     payload = {
         "id": metatype_id,
@@ -83,7 +82,6 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
         "dataFrame": new_df.to_dict(orient='records'),
     }  # body 데이터 (dict 형태)
     headers = {"Content-Type": "application/json"}  # JSON 형식 요청
-    print(json.dumps(payload, indent=4, ensure_ascii=False))
     response = requests.post(url, json=payload, headers=headers)
 
     if response.ok:
@@ -94,8 +92,10 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
         else:
             error_message = response.json()
             print(f"An Error Occured : {error_message}")
+            raise Exception(f"{error_message}")
     else:
         print("An Error Occured : " + response.text)
+        raise Exception(response.text)
 
 
 if __name__ == "__main__":
