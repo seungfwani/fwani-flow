@@ -27,10 +27,14 @@ def clean_orphan_dag_files(db: Session):
 
 def clean_dummy_dags(db: Session):
     logger.info("▶️ Start to clean Dummy DAGs")
-    db.query(FlowSnapshot).filter(FlowSnapshot.version == 1,
+    dummy_snaps = db.query(FlowSnapshot).filter(FlowSnapshot.version == 1,
                                   FlowSnapshot.op == SnapshotOperation.CREATE.name,
                                   FlowSnapshot.message == Config.DUMMY_MSG,
-                                  ).delete()
+                                  ).all()
+    for snap in dummy_snaps:
+        logger.info(f"Delete dummy DAG {snap.flow.id}")
+        db.delete(snap.flow)
+    db.commit()
     logger.info("✅ Complete to clean Dummy DAGs")
 
 def dag_cleaner_job():
