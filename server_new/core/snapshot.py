@@ -14,7 +14,7 @@ class SnapshotOperation(Enum):
     PUBLISH = "publish"
 
 
-def get_snapshot_payload_hash(payload: dict) -> tuple[dict,str]:
+def get_snapshot_payload_hash(payload: dict) -> tuple[dict, str]:
     flow = payload["flow"]
     normalized_payload = {
         "flow": {
@@ -128,7 +128,7 @@ def build_flow_snapshot_by_domain(new_flow: DomainFlow, dag_id: str) -> dict:
             "is_draft": new_flow.is_draft,
             "dag_id": new_flow.dag_id,
             "description": new_flow.description,
-            "owner_id": new_flow.owner,
+            "owner_id": new_flow.owner_id,
             "hash": str(hash(new_flow)),
             "file_hash": new_flow.file_hash,
             "schedule": new_flow.scheduled,

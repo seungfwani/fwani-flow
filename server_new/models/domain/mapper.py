@@ -64,7 +64,7 @@ def flow_api2domain(dag: DAGRequest, dag_id: str = None):
         _id=dag_id,
         name=dag.name,
         description=dag.description,
-        owner=dag.owner,
+        owner_id=dag.owner_id,
         scheduled=dag.schedule,
         schedule_options=dag.schedule_options,
         tasks=list(tasks.values()),
@@ -99,7 +99,7 @@ def flow_db2domain(flow: DBFlow):
     return DomainFlow(
         name=flow.name,
         description=flow.description,
-        owner=flow.owner_id,
+        owner_id=flow.owner_id,
         scheduled=flow.schedule,
         schedule_options=flow.schedule_options,
         tasks=list(tasks_cache.values()),
@@ -158,7 +158,7 @@ def flow_domain2api(flow: DomainFlow):
         id=flow.id,
         name=flow.name,
         description=flow.description,
-        owner=flow.owner,
+        owner_id=flow.owner_id,
         # TODO: task, edge 변환
         nodes=tasks,
         edges=[DAGEdge(
@@ -253,7 +253,7 @@ def flow_domain2db(domain_flow: DomainFlow, airflow_db: Session):
         name=domain_flow.name,
         dag_id=domain_flow.dag_id,
         description=domain_flow.description,
-        owner_id=domain_flow.owner,
+        owner_id=domain_flow.owner_id,
         hash=hash(domain_flow),
         schedule=domain_flow.scheduled,
         schedule_options=domain_flow.schedule_options,
@@ -282,12 +282,12 @@ def flow_snapshot2api(flow_snapshot: FlowSnapshot):
             data['inputs'] = {inp['key']: inp['value'] for inp in task["inputs"]}
         else:
             data = {
-                "label":  task["ui_label"],
+                "label": task["ui_label"],
                 "kind": task["kind"],
                 "python_libraries": task["python_libraries"],
                 "code": task["code_string"],
                 "builtin_func_id": task.get("builtin_func_id", ""),
-                "inputs":{inp['key']: inp['value'] for inp in task["inputs"]}
+                "inputs": {inp['key']: inp['value'] for inp in task["inputs"]}
             }
         tasks.append(DAGNode(
             id=task["id"],
@@ -302,7 +302,7 @@ def flow_snapshot2api(flow_snapshot: FlowSnapshot):
         id=f['id'],
         name=f['name'],
         description=f['description'],
-        owner=f['owner_id'],
+        owner_id=f['owner_id'],
         # TODO: task, edge 변환
         nodes=tasks,
         edges=[DAGEdge(

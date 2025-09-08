@@ -1,4 +1,3 @@
-import json
 import logging
 from typing import Any, Dict, Optional
 
@@ -29,7 +28,7 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
     host = params.get("host")
     endpoint = "/graphio/v1/meta-type/workflow/create"
     metatype_id = params.get("id")
-    owner_id = params.get("owner")
+    owner_id = params.get("ownerId")
     name = params.get("name")
     description = params.get("description")
     connection_instance_id = params.get("connectionInstanceId")
@@ -106,7 +105,7 @@ if __name__ == "__main__":
         "endpoint": "/graphio/v1/meta-type/workflow/create",
         "id": "00000000-0000-4000-9000-000000000003",
         "saveType": "new",
-        "owner": None,
+        "ownerId": None,
         "name": "workflow-test-003",
         "description": "workflow-test-001",
         "connectionInstanceId": "c5f92508-4317-4e3c-9e1c-0571c8d23a2a",

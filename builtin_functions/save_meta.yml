@@ -16,7 +16,7 @@ param_schema:
     required: true
     value: new
   - type: string
-    name: owner
+    name: ownerId
     required: true
   - type: string
     name: name

@@ -3,7 +3,7 @@ import logging
 import os
 import shutil
 
-from sqlalchemy import or_, and_, func, asc, desc
+from sqlalchemy import or_, and_, func, asc, desc, inspect, literal
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.sql.operators import like_op
 
@@ -16,6 +16,7 @@ from models.api.dag_model import DAGRequest
 from models.db.edge import Edge as DBEdge
 from models.db.flow import Flow as DBFlow, FlowSnapshot
 from models.db.flow_execution_queue import FlowExecutionQueue
+from models.db.keycloak_mapper import KeycloakUserEntity
 from models.db.task import Task as DBTask, TaskInput
 from models.domain.mapper import flow_api2domain, flow_db2domain, flow_domain2db, task_edge_domain2db, flow_snapshot2api
 from utils.functions import make_flow_id_by_name
@@ -284,7 +285,7 @@ class FlowDefinitionService:
 
         # 3. 필드 갱신
         origin_flow.description = new_flow.description
-        origin_flow.owner_id = new_flow.owner
+        origin_flow.owner_id = new_flow.owner_id
         origin_flow.schedule = new_flow.scheduled
         origin_flow.schedule_options = new_flow.schedule_options
         origin_flow.hash = hash(new_flow)
@@ -299,10 +300,10 @@ class FlowDefinitionService:
 
         try:
             snap, is_snap_changed = self.save_flow_snapshot(origin_flow,
-                                                         SnapshotOperation.UPDATE,
-                                                         message="필드 수정",
-                                                         is_draft=new_dag.is_draft,
-                                                         )
+                                                            SnapshotOperation.UPDATE,
+                                                            message="필드 수정",
+                                                            is_draft=new_dag.is_draft,
+                                                            )
             origin_flow.is_draft = new_flow.is_draft
             if is_snap_changed:
                 origin_flow.file_hash = new_flow.file_hash
@@ -377,13 +378,24 @@ class FlowDefinitionService:
         if sort:
             field, direction = sort.split("_")
             if field == "owner":
-                field = "owner_id"
-            column_attr = getattr(DBFlow, field, None)
-            if column_attr:
-                if direction.lower() == "asc":
-                    query = query.order_by(asc(column_attr))
-                elif direction.lower() == "desc":
-                    query = query.order_by(desc(column_attr))
+                insp = inspect(self.meta_db.bind)
+                if insp.has_table("user_entity", schema="keycloak"):
+                    column_ = func.coalesce(KeycloakUserEntity.username, literal(None)).label("owner_name")
+                    query = (query
+                             .outerjoin(KeycloakUserEntity, DBFlow.owner_id == KeycloakUserEntity.id)
+                             .with_entities(DBFlow, )
+                             )
+                    if direction.lower() == "asc":
+                        query = query.order_by(asc(column_))
+                    elif direction.lower() == "desc":
+                        query = query.order_by(desc(column_))
+            else:
+                column_attr = getattr(DBFlow, field, None)
+                if column_attr:
+                    if direction.lower() == "asc":
+                        query = query.order_by(asc(column_attr))
+                    elif direction.lower() == "desc":
+                        query = query.order_by(desc(column_attr))
         if not include_deleted:
             query = query.filter(DBFlow.is_deleted == False)
 

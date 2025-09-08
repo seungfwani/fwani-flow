@@ -154,7 +154,7 @@ class Flow:
     def __init__(self,
                  name: str,
                  description: str,
-                 owner: str,
+                 owner_id: str,
                  scheduled: str,
                  schedule_options: dict[str, Any],
                  tasks: list[Task],
@@ -171,7 +171,7 @@ class Flow:
         self.name = name
         self.dag_id = make_flow_id_by_name(name, is_draft)
         self.description = description
-        self.owner = owner
+        self.owner_id = owner_id
         self.scheduled = scheduled
         self.schedule_options = schedule_options
         self.tasks = tasks
@@ -196,7 +196,7 @@ class Flow:
         return get_stable_hash(
             self.name,
             self.description,
-            self.owner,
+            self.owner_id,
             self.scheduled,
             task_hashes,
             edge_hashes,

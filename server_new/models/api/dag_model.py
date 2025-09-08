@@ -158,7 +158,7 @@ class DAGEdge(BaseModel):
 class DAGRequest(BaseModel):
     name: str = Field(..., description="DAG Name", examples=["DAG Name"])
     description: Optional[str] = Field(None, description="DAG Description", examples=["DAG Description"])
-    owner: Optional[str] = Field(None, description="DAG Owner", examples=["DAG Owner"])
+    owner_id: Optional[str] = Field(None, description="DAG Owner id", examples=["DAG Owner id"])
     nodes: List[DAGNode]
     edges: List[DAGEdge]
     schedule: Optional[str] = Field(None, description="DAG schedule", examples=["0 9 * * *"])
@@ -182,7 +182,7 @@ class DAGResponse(BaseModel):
     id: str = Field(..., description="Generated DAG ID", examples=["00000000-0000-4000-9000-000000000000"])
     name: str = Field(..., description="DAG Name", examples=["DAG Name"])
     description: Optional[str] = Field(None, description="DAG Description", examples=["DAG Description"])
-    owner: Optional[str] = Field(None, description="DAG Description", examples=["DAG Description"])
+    owner_id: Optional[str] = Field(None, description="DAG Owner id", examples=["DAG Owner id"])
     nodes: List[DAGNode]
     edges: List[DAGEdge]
     schedule: Optional[str] = Field(None, description="DAG schedule", examples=["0 9 * * *"])

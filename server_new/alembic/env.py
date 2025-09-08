@@ -38,6 +38,7 @@ else:  # sqlite
         f"{Config.DB_TYPE}:///{Config.DB_NAME}"
     )
 
+
 def include_name(name, type_, parent_names):
     """
     Alembic autogenerate 중 특정 스키마만 관리하도록 설정.
@@ -45,6 +46,13 @@ def include_name(name, type_, parent_names):
     if type_ == "schema":
         return name == Config.DB_SCHEMA
     return True
+
+
+def include_object(object, name, type_, reflected, compare_to):
+    if type_ == "table" and object.info.get("skip_autogenerate", False):
+        return False
+    return True
+
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
@@ -90,6 +98,7 @@ def run_migrations_online() -> None:
                 connection=connection,
                 target_metadata=target_metadata,
                 include_schemas=True,
+                include_object=include_object,
                 include_name=include_name,
                 version_table_schema=Config.DB_SCHEMA,
             )
@@ -98,6 +107,7 @@ def run_migrations_online() -> None:
                 connection=connection,
                 target_metadata=target_metadata,
                 include_schemas=False,
+                include_object=include_object,
             )
 
         with context.begin_transaction():

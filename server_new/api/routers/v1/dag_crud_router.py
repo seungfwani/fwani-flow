@@ -34,7 +34,7 @@ router = APIRouter(
                                      "id": "f9d52759-4e66-4d99-8279-a0b236b9fdc9",
                                      "name": "Workflow_2025-05-23 12:12:12.234",
                                      "description": None,
-                                     "owner": None,
+                                     "owner_id": None,
                                      "nodes": [],
                                      "edges": [],
                                      "schedule": None,
@@ -73,7 +73,7 @@ async def create_dummy(db: Session = Depends(get_db), airflow: Session = Depends
                                      "id": "f9d52759-4e66-4d99-8279-a0b236b9fdc9",
                                      "name": "DAG Na23me",
                                      "description": "DAG Description",
-                                     "owner": "DAG Owner",
+                                     "owner_id": "DAG Owner",
                                      "nodes": [
                                          {
                                              "id": "3b6d1e59-2847-4f87-9baf-2581b65f353c",
@@ -182,7 +182,7 @@ async def save_dag(dag: DAGRequest, db: Session = Depends(get_db), airflow: Sess
                                       "id": "f9d52759-4e66-4d99-8279-a0b236b9fdc9",
                                       "name": "DAG Na23me",
                                       "description": "DAG Description",
-                                      "owner": "DAG Owner",
+                                      "owner_id": "DAG Owner",
                                       "nodes": [
                                           {
                                               "id": "3b6d1e59-2847-4f87-9baf-2581b65f353c",
@@ -514,7 +514,7 @@ def parse_comma_query(default: None, alias: str, description: str, cast: Callabl
                                             "id": "f9d52759-4e66-4d99-8279-a0b236b9fdc9",
                                             "name": "DAG Na23me",
                                             "description": "DAG Description",
-                                            "owner": "DAG Owner",
+                                            "owner_id": "DAG Owner",
                                             "nodes": [
                                                 {
                                                     "id": "3b6d1e59-2847-4f87-9baf-2581b65f353c",
@@ -696,7 +696,7 @@ async def get_dag_snapshots(dag_id: str, db: Session = Depends(get_db)):
                                         "id": "f9d52759-4e66-4d99-8279-a0b236b9fdc9",
                                         "name": "DAG Na23me",
                                         "description": "DAG Description",
-                                        "owner": "DAG Owner",
+                                        "owner_id": "DAG Owner",
                                         "nodes": [
                                             {
                                                 "id": "3b6d1e59-2847-4f87-9baf-2581b65f353c",
