@@ -21,7 +21,7 @@ def get_snapshot_payload_hash(payload: dict) -> tuple[dict, str]:
             "name": flow["name"],
             "description": flow["description"],
             "owner_id": flow["owner_id"],
-            "hash": flow["hash"],
+            "hash": str(flow["hash"]),
             "schedule": flow["schedule"],
             "is_deleted": flow["is_deleted"],
             "max_retries": flow["max_retries"],

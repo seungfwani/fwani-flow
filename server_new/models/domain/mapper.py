@@ -245,7 +245,7 @@ def task_edge_domain2db(flow: DBFlow, domain_tasks: list[DomainTask], domain_edg
             ui_style=domain_edge.ui_style,
         )
         edges.append(db_edge)
-    return list(tasks_cache.values()), edges
+    return sorted(tasks_cache.values(), key=lambda t: t.variable_id), edges
 
 
 def flow_domain2db(domain_flow: DomainFlow, airflow_db: Session):
