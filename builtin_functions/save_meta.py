@@ -73,7 +73,7 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
         "id": metatype_id,
         "ownerId": owner_id,
         "connectionInstanceId": connection_instance_id,
-        "schemaName": schema_name,
+        "metaTypeTableSchema": schema_name,
         "name": name,
         "description": description,
         "tagIds": tag_ids,
