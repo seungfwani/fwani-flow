@@ -37,7 +37,6 @@ def get_snapshot_payload_hash(payload: dict) -> tuple[dict, str]:
                 "output_properties": t["output_properties"],
                 "ui_type": t["ui_type"],
                 "ui_label": t["ui_label"],
-                "ui_class": t["ui_class"],
                 "ui_position": t["ui_position"],
                 "ui_style": t["ui_style"],
                 "ui_extra_data": t["ui_extra_data"],
