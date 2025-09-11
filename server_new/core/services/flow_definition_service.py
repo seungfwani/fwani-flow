@@ -82,7 +82,9 @@ class FlowDefinitionService:
                 f"🤷 No changes detected. origin_snap_hash({last_snap.payload_hash}) == now_hash({payload_hash})")
             return last_snap, False
 
-        if last_snap and last_snap.version == 1 and last_snap.message == Config.DUMMY_MSG:
+        if (last_snap and last_snap.version == 1
+                and last_snap.op == SnapshotOperation.CREATE.name
+                and last_snap.message == Config.DUMMY_MSG):
             if not payload.get("tasks", []):
                 logger.info("🤷 No changes detected from Dummy.")
                 return last_snap, False
@@ -259,7 +261,7 @@ class FlowDefinitionService:
         new_flow = flow_api2domain(new_dag, origin_dag_id)
         if new_flow.is_draft:  # 수정중
             # snapshot 만 저장
-            _, is_snap_changed = self.save_flow_snapshot(
+            snap, is_snap_changed = self.save_flow_snapshot(
                 origin_flow,
                 SnapshotOperation.UPDATE,
                 message="draft=True",
@@ -268,6 +270,17 @@ class FlowDefinitionService:
             )
             if is_snap_changed:
                 origin_flow.is_draft = new_flow.is_draft
+                origin_flow.description = new_flow.description
+                origin_flow.owner_id = new_flow.owner_id
+                origin_flow.schedule = new_flow.scheduled
+                origin_flow.schedule_options = new_flow.schedule_options
+            else:
+                if (snap.version == 1
+                        and snap.op == SnapshotOperation.CREATE.name
+                        and snap.message == Config.DUMMY_MSG):
+                    if not snap.payload.get("tasks", []):
+                        logger.warning("🧹 Delete unchanged Dummy Flow")
+                        self.meta_db.delete(origin_flow)
             self.meta_db.commit()
             return new_flow
         # 저장시(is_draft=False) 이름이 바뀐 경우 → 중복 확인 및 갱신
@@ -315,12 +328,15 @@ class FlowDefinitionService:
 
     def update_dag_active_status(self, dag_id: str, active_status: bool) -> bool:
         flow = self._get_flow(dag_id)
-        result = self.airflow_client.update_pause(flow.dag_id, False if active_status else True)
-        logger.info(f"🔄 Update airflow is_paused to '{result}'")
-        flow.active_status = active_status
-        self.save_flow_snapshot(flow, SnapshotOperation.UPDATE, message="activate status 수정")
+        try:
+            result = self.airflow_client.update_pause(flow.dag_id, False if active_status else True)
+            logger.info(f"🔄 Update airflow is_paused to '{result}'")
+            flow.active_status = active_status
+            self.save_flow_snapshot(flow, SnapshotOperation.UPDATE, message="activate status 수정")
+        except Exception as e:
+            logger.warning(f"❌ Failed to update airflow is_paused to '{active_status}'", exc_info=e)
         self.meta_db.commit()
-        return active_status
+        return flow.active_status
 
     def get_dag_total_count(self):
         return self.meta_db.query(func.count(DBFlow.id)).filter(DBFlow.is_deleted == False).scalar()

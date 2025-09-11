@@ -169,7 +169,7 @@ class DAGRequest(BaseModel):
     @field_validator("schedule")
     @classmethod
     def check_schedule_format(cls, v):
-        if v is None:
+        if not v:
             return v
         if re.match(CRON_REGEX, v):
             return v
