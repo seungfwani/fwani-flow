@@ -140,7 +140,7 @@ class FlowExecutionService:
         execution = self._get_flow_execution(execution_id)
 
         status = self.airflow_client.kill(execution.dag_id, execution.run_id)
-        execution.status = FlowExecutionStatus.from_str(status)
+        execution.status = FlowExecutionStatus.from_str(status).value
         self.meta_db.commit()
         return True
 
@@ -238,7 +238,7 @@ class FlowExecutionService:
         status, log = self.airflow_client.get_task_log(execution.dag_id, execution.run_id, task_instance.task_id,
                                                        request_try_number)
         result["try_number"] = request_try_number
-        result["status"] = FlowExecutionStatus.from_str(status)
+        result["status"] = FlowExecutionStatus.from_str(status).value
         result["log"] = log
         return result
 
