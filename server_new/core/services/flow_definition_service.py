@@ -75,19 +75,18 @@ class FlowDefinitionService:
                      .filter(FlowSnapshot.flow_id == db_flow.id)
                      .order_by(desc(FlowSnapshot.version))
                      .first())
-        if (last_snap
-                and last_snap.is_current
-                and last_snap.payload_hash == payload_hash):
-            logger.info(
-                f"🤷 No changes detected. origin_snap_hash({last_snap.payload_hash}) == now_hash({payload_hash})")
-            return last_snap, False
-
-        if (last_snap and last_snap.version == 1
-                and last_snap.op == SnapshotOperation.CREATE.name
-                and last_snap.message == Config.DUMMY_MSG):
-            if not payload.get("tasks", []):
-                logger.info("🤷 No changes detected from Dummy.")
+        if last_snap:
+            logger.info(f"🔄 last hash: {last_snap.payload_hash}, new hash: {payload_hash}")
+            if last_snap.is_current and last_snap.payload_hash == payload_hash:
+                logger.info(
+                    f"🤷 No changes detected from current.")
                 return last_snap, False
+            elif last_snap.op == SnapshotOperation.DUMMY.name:
+                if is_draft and not payload.get("tasks", []):
+                    logger.info("🤷 No changes detected from Dummy.")
+                    return last_snap, False
+        else:
+            logger.info(f"🆕 new hash: {payload_hash}")
 
         # draft/current 정리
         if is_draft and upsert_draft:
@@ -222,7 +221,7 @@ class FlowDefinitionService:
         self.meta_db.add(dummy_flow)
         self.meta_db.flush()
         _, is_snap_changed = self.save_flow_snapshot(dummy_flow,
-                                                     SnapshotOperation.CREATE,
+                                                     SnapshotOperation.DUMMY,
                                                      message=Config.DUMMY_MSG,
                                                      is_draft=True,
                                                      )
@@ -275,9 +274,7 @@ class FlowDefinitionService:
                 origin_flow.schedule = new_flow.scheduled
                 origin_flow.schedule_options = new_flow.schedule_options
             else:
-                if (snap.version == 1
-                        and snap.op == SnapshotOperation.CREATE.name
-                        and snap.message == Config.DUMMY_MSG):
+                if snap.op == SnapshotOperation.DUMMY.name:
                     if not snap.payload.get("tasks", []):
                         logger.warning("🧹 Delete unchanged Dummy Flow")
                         self.meta_db.delete(origin_flow)
@@ -339,7 +336,9 @@ class FlowDefinitionService:
         return flow.active_status
 
     def get_dag_total_count(self):
-        return self.meta_db.query(func.count(DBFlow.id)).filter(DBFlow.is_deleted == False).scalar()
+        return (self.meta_db.query(func.count(DBFlow.id))
+                .filter(~DBFlow.flow_snapshots.any(FlowSnapshot.op == "DUMMY"))
+                .filter(DBFlow.is_deleted == False).scalar())
 
     def get_active_flows(self) -> list[DBFlow]:
         return self.meta_db.query(DBFlow).filter(DBFlow.is_deleted == False).all()

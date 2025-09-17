@@ -7,6 +7,7 @@ from utils.functions import get_hash
 
 
 class SnapshotOperation(Enum):
+    DUMMY = "dummy"
     CREATE = "create"
     UPDATE = "update"
     DELETE = "delete"

@@ -450,14 +450,14 @@ async def delete_dag_temporary(dag_id: str, db: Session = Depends(get_db)):
 @api_response_wrapper
 async def delete_dag_list(dag_ids: MultipleRequest, db: Session = Depends(get_db)):
     """
-    여러 DAG 임시 삭제 (airflow 에서만 삭제)
+    여러 DAG 완전 삭제 (metadata + airflow DAG 삭제)
 
     (주의!) 실행 기록도 삭제됩니다.
     """
     dag_service = FlowDefinitionService(db)
     result = []
     for dag_id in dag_ids.ids:
-        result.append({"id": dag_service.delete_dag_temporary(dag_id)})
+        result.append({"id": dag_service.delete_dag_permanently(dag_id)})
     return result
 
 
