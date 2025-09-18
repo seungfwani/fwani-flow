@@ -180,7 +180,7 @@ class Flow:
         self.dag_id = make_flow_id_by_name(name, is_draft)
         self.description = description
         self.owner_id = owner_id
-        self.scheduled = scheduled
+        self.scheduled = scheduled if scheduled else None
         self.schedule_options = schedule_options
         self.tasks = tasks
         self.edges = edges
