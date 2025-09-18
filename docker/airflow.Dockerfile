@@ -12,4 +12,8 @@ USER root
 USER airflow
 WORKDIR /app
 
-COPY ./docker/airflow.entrypoint.sh /entrypoint.sh
+COPY ./docker/airflow.docker_init.sh /docker-init.sh
+COPY ./docker/airflow.scheduler.entrypoint.sh /scheduler-entrypoint.sh
+COPY ./docker/airflow.triggerer.entrypoint.sh /triggerer-entrypoint.sh
+COPY ./docker/airflow.webserver.entrypoint.sh /webserver-entrypoint.sh
+COPY ./docker/airflow.worker.entrypoint.sh /worker-entrypoint.sh

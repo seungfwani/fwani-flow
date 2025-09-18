@@ -2,6 +2,7 @@ import datetime
 import logging
 import os
 import shutil
+from pathlib import Path
 
 from sqlalchemy import or_, and_, func, asc, desc, inspect, literal
 from sqlalchemy.orm import Session, aliased
@@ -483,21 +484,18 @@ class FlowDefinitionService:
         logger.info(f"♻️ Complete to restore DAG: {flow.name}")
         return flow.id
 
-
-def delete_dag_file(dag_id: str):
-    logger.info(f"▶️ Start to delete dag file {dag_id}")
-    dag_dir_path = os.path.join(Config.DAG_DIR, dag_id)
-    dag_file_path = os.path.join(dag_dir_path, "dag.py")
-    if os.path.exists(dag_file_path):
-        os.remove(dag_file_path)
-        logger.info(f"🧹 Delete DAG file: {dag_file_path}")
-    else:
-        logger.warning(f"⚠️ No DAG file: {dag_file_path}")
-    # 디렉토리 삭제 시도
-    try:
-        shutil.rmtree(dag_dir_path)
-        logger.info(f"🧹 Complete to delete directory: {dag_dir_path}")
-    except FileNotFoundError:
-        logger.warning(f"⚠️ No DAG directory: {dag_dir_path}")
-    except Exception as e:
-        logger.error(f"❌ Failed to delete DAG directory: {e}")
+    def delete_dag_file(self, dag_id: str):
+        logger.info(f"▶️ Start to delete dag file {dag_id}")
+        flow = self._get_flow(dag_id)
+        base_path = Path(Config.DAG_DIR)
+        # 디렉토리 삭제 시도
+        try:
+            for folder in base_path.glob(f"{flow.dag_id}*"):  # 최대 두개 나옴, pub버전, draft버전
+                if folder.is_dir():
+                    shutil.rmtree(folder)
+                    logger.info(f"🧹 Delete DAG directory: {folder}")
+            logger.info(f"🧹 Complete to delete directory: {dag_id}")
+        except FileNotFoundError:
+            logger.warning(f"⚠️ No DAG directory: {dag_id}")
+        except Exception as e:
+            logger.error(f"❌ Failed to delete DAG({dag_id}) directory: {e}")
