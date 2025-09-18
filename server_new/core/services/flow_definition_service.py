@@ -1,6 +1,5 @@
 import datetime
 import logging
-import os
 import shutil
 from pathlib import Path
 
@@ -455,7 +454,7 @@ class FlowDefinitionService:
         self.save_flow_snapshot(flow, SnapshotOperation.DELETE, message="임시 삭제")
         self.meta_db.commit()
 
-        self.delete_dag_file(flow.dag_id)
+        delete_dag_file(flow)
         logger.info(f"🧹 Complete to delete dag temporary: {flow.name}")
         return dag_id
 
@@ -466,7 +465,7 @@ class FlowDefinitionService:
         self.meta_db.delete(flow)
         self.meta_db.commit()
 
-        self.delete_dag_file(flow.dag_id)
+        delete_dag_file(flow)
         logger.info(f"🧹 Complete to delete dag permanently: {flow.name}")
         return dag_id
 
@@ -484,18 +483,18 @@ class FlowDefinitionService:
         logger.info(f"♻️ Complete to restore DAG: {flow.name}")
         return flow.id
 
-    def delete_dag_file(self, dag_id: str):
-        logger.info(f"▶️ Start to delete dag file {dag_id}")
-        flow = self._get_flow(dag_id)
-        base_path = Path(Config.DAG_DIR)
-        # 디렉토리 삭제 시도
-        try:
-            for folder in base_path.glob(f"{flow.dag_id}*"):  # 최대 두개 나옴, pub버전, draft버전
-                if folder.is_dir():
-                    shutil.rmtree(folder)
-                    logger.info(f"🧹 Delete DAG directory: {folder}")
-            logger.info(f"🧹 Complete to delete directory: {dag_id}")
-        except FileNotFoundError:
-            logger.warning(f"⚠️ No DAG directory: {dag_id}")
-        except Exception as e:
-            logger.error(f"❌ Failed to delete DAG({dag_id}) directory: {e}")
+
+def delete_dag_file(flow: DBFlow):
+    logger.info(f"▶️ Start to delete dag file {flow.id}")
+    base_path = Path(Config.DAG_DIR)
+    # 디렉토리 삭제 시도
+    try:
+        for folder in base_path.glob(f"{flow.dag_id}*"):  # 최대 두개 나옴, pub버전, draft버전
+            if folder.is_dir():
+                shutil.rmtree(folder)
+                logger.info(f"🧹 Delete DAG directory: {folder}")
+        logger.info(f"🧹 Complete to delete directory: {flow.id}")
+    except FileNotFoundError:
+        logger.warning(f"⚠️ No DAG directory: {flow.id}")
+    except Exception as e:
+        logger.error(f"❌ Failed to delete DAG({flow.id}) directory: {e}")
