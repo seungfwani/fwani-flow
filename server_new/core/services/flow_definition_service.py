@@ -455,7 +455,7 @@ class FlowDefinitionService:
         self.save_flow_snapshot(flow, SnapshotOperation.DELETE, message="임시 삭제")
         self.meta_db.commit()
 
-        delete_dag_file(flow.dag_id)
+        self.delete_dag_file(flow.dag_id)
         logger.info(f"🧹 Complete to delete dag temporary: {flow.name}")
         return dag_id
 
@@ -466,7 +466,7 @@ class FlowDefinitionService:
         self.meta_db.delete(flow)
         self.meta_db.commit()
 
-        delete_dag_file(flow.dag_id)
+        self.delete_dag_file(flow.dag_id)
         logger.info(f"🧹 Complete to delete dag permanently: {flow.name}")
         return dag_id
 
