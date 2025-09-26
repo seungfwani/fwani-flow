@@ -49,6 +49,7 @@ from {{ dag_id }}.func_{{ task.variable_id }} import wrapper_run as run_{{ task.
     {% else -%}
     requirements={{ task.system_function.python_libraries }},
     {% endif %}
+    venv_cache_path="/opt/airflow/.venv_cache",
 )
 {% endfor %}
 
