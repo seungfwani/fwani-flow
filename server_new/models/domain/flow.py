@@ -251,6 +251,7 @@ class Flow:
                                               self.edges,
                                               tags=[self.dag_id, "draft" if self.is_draft else "publish", "generated"],
                                               schedule=self.scheduled if not self.is_draft else None,
+                                              retries=self.max_retries,
                                               )
             with open(dag_file_path, 'w') as dag_file:
                 dag_file.write(file_contents)

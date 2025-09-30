@@ -8,7 +8,7 @@ from jinja2 import Environment, FileSystemLoader
 logger = logging.getLogger()
 
 
-def render_dag_script(dag_id, tasks, edges, tags=None, schedule=None):
+def render_dag_script(dag_id, tasks, edges, tags=None, schedule=None, retries=0):
     logger.info(f"▶️ render dag with {dag_id}, {tasks}, {edges}")
     base_directory = os.path.dirname(os.path.abspath(__file__))
     template_directory = os.path.join(base_directory, "templates")
@@ -27,6 +27,7 @@ def render_dag_script(dag_id, tasks, edges, tags=None, schedule=None):
         tags=tags,
         tasks=tasks,
         edges=edges,
+        retries=retries
     )
 
 

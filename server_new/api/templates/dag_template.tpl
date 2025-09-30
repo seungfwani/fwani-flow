@@ -11,7 +11,7 @@ from airflow.operators.python import PythonVirtualenvOperator
 default_args = {
     'owner': 'code_generator',
     'start_date': days_ago(1),
-    'retries': 1,
+    'retries': {{ retries }},
 }
 dag = DAG(
     dag_id='{{ dag_id }}',
