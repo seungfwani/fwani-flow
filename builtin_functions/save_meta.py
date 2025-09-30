@@ -22,9 +22,6 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
     if not params:
         raise ValueError("params is required")
 
-    if _ := params.get("is_test", True):
-        print("⚠️ This is test. So do not request Save API")
-        return None
     host = params.get("host")
     endpoint = "/graphio/v1/meta-type/workflow/create"
     metatype_id = params.get("id")
@@ -68,6 +65,10 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
 
     new_df = pd.concat(new_series_list, axis=1)
     new_df = new_df.replace({np.nan: None})
+
+    if _ := params.get("is_test", True):
+        print("⚠️ This is test. So do not request Save API")
+        return new_df
     url = f"{host.rstrip('/')}/{endpoint.lstrip('/')}"
     payload = {
         "id": metatype_id,
