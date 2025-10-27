@@ -59,6 +59,31 @@ async def create_dummy(db: Session = Depends(get_db), airflow: Session = Depends
     dag_service = FlowDefinitionService(db, airflow)
     return flow_domain2api(dag_service.create_dummy())
 
+@router.get("/dag-owner",
+            response_model=APIResponse[List[str]],
+            responses={
+                200: {
+                    "content": {
+                        "application/json": {
+                            "example": {
+                                "success": True,
+                                "message": "요청이 정상 처리 되었습니다.",
+                                "data": ["owner_id"],
+                                "error": {}
+                            }
+                        }
+                    }
+                }
+            }
+            )
+@api_response_wrapper
+async def get_dag_owner_list(db: Session = Depends(get_db)):
+    """
+    DAG 소유자 UUID 목록 (중복 제거)
+    """
+    dag_service = FlowDefinitionService(db)
+    return dag_service.get_dag_owner_list()
+
 
 @router.post("/dag",
              response_model=APIResponse[DAGResponse],
@@ -617,6 +642,7 @@ async def get_dag_list(
                                                                "execution_status",
                                                                "execution status filter (ex. success,failed)",
                                                                str)),
+        owner: set[str] = Depends(parse_comma_query(None, "owner", "owner id filter (ex. owner_id, ...)", str)),
         name: str = Query(None, description="dag name filter"),
         sort: str = Query(None, description="dag sort filter"),
         offset: int = Query(0, description="dag list offset"),
@@ -629,6 +655,7 @@ async def get_dag_list(
     dag_service = FlowDefinitionService(db)
     dag_list, result_count, filtered_count, total_count = dag_service.get_dag_list(active_status,
                                                                                    execution_status,
+                                                                                   owner,
                                                                                    name,
                                                                                    sort,
                                                                                    offset,

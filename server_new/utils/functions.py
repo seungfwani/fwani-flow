@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import json
+import re
 from datetime import datetime
 from typing import List
 
@@ -62,3 +63,9 @@ def to_bool(v: str) -> bool:
     if v in ("true", "1"): return True
     if v in ("false", "0"): return False
     raise ValueError(f"Invalid boolean: {v}")
+
+def to_snake(s: str) -> str:
+    # CamelCase / camelCase / kebab-case -> snake_case 로 변환
+    s = re.sub(r'(.)([A-Z][a-z0-9]+)', r'\1_\2', s)
+    s = re.sub(r'([a-z0-9])([A-Z])', r'\1_\2', s)
+    return s.replace("-", "_").lower()

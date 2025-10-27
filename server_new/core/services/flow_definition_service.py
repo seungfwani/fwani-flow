@@ -19,7 +19,7 @@ from models.db.flow_execution_queue import FlowExecutionQueue
 from models.db.keycloak_mapper import KeycloakUserEntity
 from models.db.task import Task as DBTask, TaskInput
 from models.domain.mapper import flow_api2domain, flow_db2domain, flow_domain2db, task_edge_domain2db, flow_snapshot2api
-from utils.functions import make_flow_id_by_name
+from utils.functions import make_flow_id_by_name, to_snake
 
 logger = logging.getLogger()
 
@@ -349,6 +349,7 @@ class FlowDefinitionService:
     def get_dag_list(self,
                      active_status: set[bool],
                      execution_status: set[str],
+                     owner: set[str],
                      name: str,
                      sort: str,
                      offset: int = 0,
@@ -357,6 +358,7 @@ class FlowDefinitionService:
         logger.info(f"▶️ Get dag list filter:"
                     f" active_status={active_status},"
                     f" execution_status={execution_status},"
+                    f" owner={owner},"
                     f" name={name},"
                     f" sort={sort},"
                     f" offset={offset},"
@@ -387,6 +389,8 @@ class FlowDefinitionService:
             query = query.filter(FEQ2.status.in_(execution_status))
         if active_status:
             query = query.filter(or_(*[DBFlow.active_status == i for i in active_status]))
+        if owner:
+            query = query.filter(DBFlow.owner_id.in_(owner))
         if name:
             query = query.filter(like_op(DBFlow.name, f"%{name}%"))
         if sort:
@@ -404,6 +408,7 @@ class FlowDefinitionService:
                     elif direction.lower() == "desc":
                         query = query.order_by(desc(column_))
             else:
+                field = to_snake(field)
                 column_attr = getattr(DBFlow, field, None)
                 if column_attr:
                     if direction.lower() == "asc":
@@ -425,6 +430,19 @@ class FlowDefinitionService:
         result_count = len(flows)
 
         return [flow_db2domain(dbflow) for dbflow in flows], result_count, filtered_count, total_count
+
+    def get_dag_owner_list(self):
+        dag_list = self.meta_db.query(DBFlow).filter(DBFlow.is_deleted == False)
+
+        # owner_id 중복 제거한 목록 조회
+        query = (
+            dag_list.with_entities(DBFlow.owner_id)
+            .filter(DBFlow.owner_id.isnot(None))
+            .distinct()
+        )
+
+        owner_ids: list[str] = [row.owner_id for row in query.all()]
+        return owner_ids
 
     def get_dag(self, dag_id):
         query = (self.meta_db.query(FlowSnapshot)
