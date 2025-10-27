@@ -642,6 +642,7 @@ async def get_dag_list(
                                                                "execution_status",
                                                                "execution status filter (ex. success,failed)",
                                                                str)),
+        owner: set[str] = Depends(parse_comma_query(None, "owner", "owner id filter (ex. owner_id, ...)", str)),
         name: str = Query(None, description="dag name filter"),
         sort: str = Query(None, description="dag sort filter"),
         offset: int = Query(0, description="dag list offset"),
@@ -654,6 +655,7 @@ async def get_dag_list(
     dag_service = FlowDefinitionService(db)
     dag_list, result_count, filtered_count, total_count = dag_service.get_dag_list(active_status,
                                                                                    execution_status,
+                                                                                   owner,
                                                                                    name,
                                                                                    sort,
                                                                                    offset,

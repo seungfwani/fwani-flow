@@ -349,6 +349,7 @@ class FlowDefinitionService:
     def get_dag_list(self,
                      active_status: set[bool],
                      execution_status: set[str],
+                     owner: set[str],
                      name: str,
                      sort: str,
                      offset: int = 0,
@@ -357,6 +358,7 @@ class FlowDefinitionService:
         logger.info(f"▶️ Get dag list filter:"
                     f" active_status={active_status},"
                     f" execution_status={execution_status},"
+                    f" owner={owner},"
                     f" name={name},"
                     f" sort={sort},"
                     f" offset={offset},"
@@ -387,6 +389,8 @@ class FlowDefinitionService:
             query = query.filter(FEQ2.status.in_(execution_status))
         if active_status:
             query = query.filter(or_(*[DBFlow.active_status == i for i in active_status]))
+        if owner:
+            query = query.filter(DBFlow.owner_id.in_(owner))
         if name:
             query = query.filter(like_op(DBFlow.name, f"%{name}%"))
         if sort:
