@@ -19,7 +19,7 @@ from models.db.flow_execution_queue import FlowExecutionQueue
 from models.db.keycloak_mapper import KeycloakUserEntity
 from models.db.task import Task as DBTask, TaskInput
 from models.domain.mapper import flow_api2domain, flow_db2domain, flow_domain2db, task_edge_domain2db, flow_snapshot2api
-from utils.functions import make_flow_id_by_name
+from utils.functions import make_flow_id_by_name, to_snake
 
 logger = logging.getLogger()
 
@@ -404,6 +404,7 @@ class FlowDefinitionService:
                     elif direction.lower() == "desc":
                         query = query.order_by(desc(column_))
             else:
+                field = to_snake(field)
                 column_attr = getattr(DBFlow, field, None)
                 if column_attr:
                     if direction.lower() == "asc":
