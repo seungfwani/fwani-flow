@@ -59,6 +59,31 @@ async def create_dummy(db: Session = Depends(get_db), airflow: Session = Depends
     dag_service = FlowDefinitionService(db, airflow)
     return flow_domain2api(dag_service.create_dummy())
 
+@router.get("/dag-owner",
+            response_model=APIResponse[List[str]],
+            responses={
+                200: {
+                    "content": {
+                        "application/json": {
+                            "example": {
+                                "success": True,
+                                "message": "요청이 정상 처리 되었습니다.",
+                                "data": ["owner_id"],
+                                "error": {}
+                            }
+                        }
+                    }
+                }
+            }
+            )
+@api_response_wrapper
+async def get_dag_owner_list(db: Session = Depends(get_db)):
+    """
+    DAG 소유자 UUID 목록 (중복 제거)
+    """
+    dag_service = FlowDefinitionService(db)
+    return dag_service.get_dag_owner_list()
+
 
 @router.post("/dag",
              response_model=APIResponse[DAGResponse],

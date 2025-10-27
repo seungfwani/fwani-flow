@@ -427,6 +427,19 @@ class FlowDefinitionService:
 
         return [flow_db2domain(dbflow) for dbflow in flows], result_count, filtered_count, total_count
 
+    def get_dag_owner_list(self):
+        dag_list = self.meta_db.query(DBFlow).filter(DBFlow.is_deleted == False)
+
+        # owner_id 중복 제거한 목록 조회
+        query = (
+            dag_list.with_entities(DBFlow.owner_id)
+            .filter(DBFlow.owner_id.isnot(None))
+            .distinct()
+        )
+
+        owner_ids: list[str] = [row.owner_id for row in query.all()]
+        return owner_ids
+
     def get_dag(self, dag_id):
         query = (self.meta_db.query(FlowSnapshot)
                  .filter(FlowSnapshot.flow_id == dag_id)
