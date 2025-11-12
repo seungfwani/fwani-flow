@@ -74,7 +74,7 @@ def flow_api2domain(dag: DAGRequest, dag_id: str = None):
     )
 
 
-def flow_db2domain(flow: DBFlow):
+def flow_db2domain(flow: DBFlow, execution_status: str = None):
     tasks_cache: dict[str, DomainTask] = {task.id: DomainTask(
         task.id,
         task.variable_id,
@@ -92,10 +92,6 @@ def flow_db2domain(flow: DBFlow):
         ui_class=task.ui_class,
         ui_extra_data=task.ui_extra_data,
     ) for task in flow.tasks}
-    execution_status = None
-    for execution in flow.flow_execution_queues:
-        if execution.flow_snapshot and execution.flow_snapshot.is_current:
-            execution_status = execution.status
     return DomainFlow(
         name=flow.name,
         description=flow.description,
