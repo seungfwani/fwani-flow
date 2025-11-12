@@ -381,7 +381,7 @@ class FlowDefinitionService:
                     .join(current_snapshots, FEQ1.flow_snapshot_id == current_snapshots.c.snapshot_id)
                     .group_by(FEQ1.flow_id)
                     .subquery())
-        query = (self.meta_db.query(DBFlow)
+        query = (self.meta_db.query(DBFlow, FEQ2.status.label("execution_status"))
                  .outerjoin(subquery, DBFlow.id == subquery.c.flow_id)
                  .outerjoin(FEQ2, and_(FEQ2.flow_id == subquery.c.flow_id,
                                        FEQ2.updated_at == subquery.c.updated_at)))
@@ -429,7 +429,7 @@ class FlowDefinitionService:
         flows = query.all()
         result_count = len(flows)
 
-        return [flow_db2domain(dbflow) for dbflow in flows], result_count, filtered_count, total_count
+        return [flow_db2domain(dbflow, execution_status) for dbflow, execution_status in flows], result_count, filtered_count, total_count
 
     def get_dag_owner_list(self):
         dag_list = self.meta_db.query(DBFlow).filter(DBFlow.is_deleted == False)
