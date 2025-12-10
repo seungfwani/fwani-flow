@@ -420,7 +420,11 @@ class FlowDefinitionService:
 
         # limit 전 토탈 카운트 체크
         total_count = self.get_dag_total_count()
-        filtered_count = query.count()
+        filtered_count = (query
+                          .order_by(None)  # 불필요한 ORDER BY 제거 (성능)
+                          .with_entities(DBFlow.id)  # id 컬럼만 선택
+                          .distinct()
+                          .count())
 
         # limit 적용
         query = query.offset(offset).limit(limit)
@@ -429,7 +433,8 @@ class FlowDefinitionService:
         flows = query.all()
         result_count = len(flows)
 
-        return [flow_db2domain(dbflow, execution_status) for dbflow, execution_status in flows], result_count, filtered_count, total_count
+        return [flow_db2domain(dbflow, execution_status) for dbflow, execution_status in
+                flows], result_count, filtered_count, total_count
 
     def get_dag_owner_list(self):
         dag_list = self.meta_db.query(DBFlow).filter(DBFlow.is_deleted == False)
