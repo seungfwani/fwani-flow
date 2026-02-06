@@ -36,18 +36,18 @@ today=$(date +%Y%m%d)
 
 echo "🔄 Build Airflow Image..."
 docker buildx build --platform=linux/amd64 \
-    -t repo.iris.tools/graphio/workflow/airflow:2.10.4-python3.11-${today}.${order} \
+    -t repo.iris.tools/graphio-dev//airflow:2.10.4-python3.11-${today}.${order} \
     -f docker/airflow.Dockerfile \
     $basePath
-docker push repo.iris.tools/graphio/workflow/airflow:2.10.4-python3.11-${today}.${order}
+docker push repo.iris.tools/graphio-dev/airflow:2.10.4-python3.11-${today}.${order}
 echo "✅ Complete build Airflow Image"
 
 headHash=$(git rev-parse --short=7 HEAD)
 
 echo "🔄 Build Workflow Server Image..."
 docker buildx build --platform=linux/amd64 \
-    -t repo.iris.tools/graphio/workflow/workflow-server:${version}-${today}-${headHash} \
+    -t repo.iris.tools/graphio-dev/workflow-server:${version}-${today}-${headHash} \
     -f docker/fwani-flow.Dockerfile \
     $basePath
-docker push repo.iris.tools/graphio/workflow/workflow-server:${version}-${today}-${headHash}
+docker push repo.iris.tools/graphio-dev/workflow-server:${version}-${today}-${headHash}
 echo "✅ Complete build Workflow Server Image"
