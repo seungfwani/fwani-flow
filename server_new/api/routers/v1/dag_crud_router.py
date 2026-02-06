@@ -52,12 +52,13 @@ router = APIRouter(
              }
              )
 @api_response_wrapper
-async def create_dummy(db: Session = Depends(get_db), airflow: Session = Depends(get_airflow)):
+async def create_dummy(owner_id: str = None, db: Session = Depends(get_db), airflow: Session = Depends(get_airflow)):
     """
     DAG 저장 api
     """
     dag_service = FlowDefinitionService(db, airflow)
-    return flow_domain2api(dag_service.create_dummy())
+    return flow_domain2api(dag_service.create_dummy(owner_id=owner_id))
+
 
 @router.get("/dag-owner",
             response_model=APIResponse[List[str]],

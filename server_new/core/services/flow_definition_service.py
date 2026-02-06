@@ -208,7 +208,7 @@ class FlowDefinitionService:
         logger.info(f"✅ Success to restore snapshot {version}.")
         return flow.id
 
-    def create_dummy(self):
+    def create_dummy(self, owner_id: str = None):
         logger.info(f"🆕 Create dummy flow")
         now_timestamp = datetime.datetime.now(datetime.timezone.utc)
 
@@ -216,6 +216,7 @@ class FlowDefinitionService:
         dummy_flow = DBFlow(
             name=name,
             dag_id=make_flow_id_by_name(name),
+            owner_id=owner_id,
             is_draft=True,
         )
         self.meta_db.add(dummy_flow)
