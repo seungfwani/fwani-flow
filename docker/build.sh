@@ -36,7 +36,7 @@ today=$(date +%Y%m%d)
 
 echo "🔄 Build Airflow Image..."
 docker buildx build --platform=linux/amd64 \
-    -t repo.iris.tools/graphio-dev//airflow:2.10.4-python3.11-${today}.${order} \
+    -t repo.iris.tools/graphio-dev/airflow:2.10.4-python3.11-${today}.${order} \
     -f docker/airflow.Dockerfile \
     $basePath
 docker push repo.iris.tools/graphio-dev/airflow:2.10.4-python3.11-${today}.${order}
