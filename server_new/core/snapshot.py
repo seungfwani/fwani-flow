@@ -17,6 +17,20 @@ class SnapshotOperation(Enum):
 
 def get_snapshot_payload_hash(payload: dict) -> tuple[dict, str]:
     flow = payload["flow"]
+    tasks = payload.get("tasks", [])
+    task_id_to_variable_id = {t["id"]: t["variable_id"] for t in tasks}
+    edges_raw = payload.get("edges", [])
+    edges_normalized = []
+    for e in edges_raw:
+        from_id = e.get("from_task_id")
+        to_id = e.get("to_task_id")
+        if from_id in task_id_to_variable_id and to_id in task_id_to_variable_id:
+            edges_normalized.append({
+                "from_variable_id": task_id_to_variable_id[from_id],
+                "to_variable_id": task_id_to_variable_id[to_id],
+            })
+    edges_normalized.sort(key=lambda x: (x["from_variable_id"], x["to_variable_id"]))
+
     normalized_payload = {
         "flow": {
             "name": flow["name"],
@@ -33,7 +47,7 @@ def get_snapshot_payload_hash(payload: dict) -> tuple[dict, str]:
                 "kind": t["kind"],
                 "code_hash": t["code_hash"],
                 "python_libraries": t["python_libraries"],
-                "builtin_func_id": t["builtin_func_id"],
+                "builtin_func_id": t.get("builtin_func_id") or t.get("system_function_id"),
                 "input_properties": t["input_properties"],
                 "output_properties": t["output_properties"],
                 "ui_type": t["ui_type"],
@@ -50,74 +64,34 @@ def get_snapshot_payload_hash(payload: dict) -> tuple[dict, str]:
                     for inp in sorted(t["inputs"], key=lambda x: x["key"])
                 ]
             }
-            for t in sorted(payload["tasks"], key=lambda x: x["variable_id"])
+            for t in sorted(tasks, key=lambda x: x["variable_id"])
         ],
+        "edges": edges_normalized,
     }
     return normalized_payload, get_hash(json.dumps(normalized_payload))
 
 
-def build_flow_snapshot(flow: DBFlow) -> dict:
-    snapshot = {
+def build_minimal_payload_from_flow(flow: DBFlow) -> dict:
+    """Minimal snapshot payload from flow meta only (no tasks/edges). For DUMMY or meta-only updates."""
+    return {
         "flow": {
             "id": flow.id,
             "name": flow.name,
-            "is_draft": flow.is_draft,
+            "is_draft": getattr(flow, "is_draft", False),
             "dag_id": flow.dag_id,
             "description": flow.description,
             "owner_id": flow.owner_id,
-            "hash": flow.hash,
-            "file_hash": flow.file_hash,
+            "hash": getattr(flow, "hash", None),
+            "file_hash": getattr(flow, "file_hash", None),
             "schedule": flow.schedule,
             "schedule_options": flow.schedule_options,
-            "is_deleted": flow.is_deleted,
-            "active_status": flow.active_status,
-            "max_retries": flow.max_retries,
+            "is_deleted": getattr(flow, "is_deleted", False),
+            "active_status": getattr(flow, "active_status", False),
+            "max_retries": getattr(flow, "max_retries", 0),
         },
-        "tasks": [
-            {
-                "id": t.id,
-                "variable_id": t.variable_id,
-                "kind": t.kind,
-                "code_string": t.code_string,
-                "code_hash": t.code_hash,
-                "python_libraries": t.python_libraries,
-                "builtin_func_id": t.system_function_id,
-                "input_properties": t.input_properties,
-                "output_properties": t.output_properties,
-                "ui_type": t.ui_type,
-                "ui_label": t.ui_label,
-                "ui_position": t.ui_position,
-                "ui_class": t.ui_class,
-                "ui_style": t.ui_style,
-                "ui_extra_data": t.ui_extra_data,
-                "inputs": [
-                    {
-                        "id": inp.id,
-                        "key": inp.key,
-                        "type": inp.type,
-                        "value": inp.value,
-                    }
-                    for inp in t.inputs
-                ]
-            } for t in flow.tasks
-        ],
-        "edges": [
-            {
-                "id": e.id,
-                "from_task_id": e.from_task_id,
-                "to_task_id": e.to_task_id,
-                "ui_type": e.ui_type,
-                "ui_label": e.ui_label,
-                "ui_label_style": e.ui_labelStyle,
-                "ui_label_bg_style": e.ui_labelBgStyle,
-                "ui_label_bg_padding": e.ui_labelBgPadding,
-                "ui_label_bg_border_radius": e.ui_labelBgBorderRadius,
-                "ui_style": e.ui_style,
-            } for e in flow.edges
-        ]
+        "tasks": [],
+        "edges": [],
     }
-
-    return snapshot
 
 
 def build_flow_snapshot_by_domain(new_flow: DomainFlow, dag_id: str) -> dict:

@@ -29,8 +29,6 @@ class Flow(BaseDB):
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
 
-    tasks = relationship("Task", back_populates="flow", cascade="all, delete-orphan", passive_deletes=True)
-    edges = relationship("Edge", back_populates="flow", cascade="all, delete-orphan", passive_deletes=True)
     flow_snapshots = relationship("FlowSnapshot",
                                   back_populates="flow",
                                   cascade="all, delete-orphan",
@@ -54,24 +52,10 @@ class Flow(BaseDB):
     def __eq__(self, other):
         if not isinstance(other, Flow):
             return False
-        return all([
-            self.name == other.name,
-            self.description == other.description,
-            self.owner_id == other.owner_id,
-            self.schedule == other.schedule,
-            self.tasks == other.tasks,
-            self.edges == other.edges,
-        ])
+        return self.id == other.id
 
     def __hash__(self):
-        return hash((
-            self.name,
-            self.description,
-            self.owner_id,
-            self.schedule,
-            tuple(self.tasks),
-            tuple(self.edges),
-        ))
+        return hash(self.id)
 
     @validates("name")
     def _update_dag_id(self, key, name):

@@ -5,9 +5,7 @@ from sqlalchemy.orm import Session
 from errors import WorkflowError
 from models.api.dag_model import DAGRequest, DAGNode, DAGEdge, DAGResponse
 from models.db.airflow_mapper import AirflowDag
-from models.db.edge import Edge as DBEdge
 from models.db.flow import Flow as DBFlow, FlowSnapshot
-from models.db.task import Task as DBTask, TaskInput
 from models.domain.flow import Flow as DomainFlow, Edge as DomainEdge, Task as DomainTask
 
 
@@ -74,52 +72,6 @@ def flow_api2domain(dag: DAGRequest, dag_id: str = None):
     )
 
 
-def flow_db2domain(flow: DBFlow, execution_status: str = None):
-    tasks_cache: dict[str, DomainTask] = {task.id: DomainTask(
-        task.id,
-        task.variable_id,
-        task.kind,
-        task.python_libraries,
-        task.code_string,
-        task.system_function_id,
-        task.ui_type,
-        task.ui_label,
-        task.ui_position,
-        task.ui_style,
-        task.input_properties,
-        task.output_properties,
-        {inp.key: inp.value for inp in task.inputs},
-        ui_class=task.ui_class,
-        ui_extra_data=task.ui_extra_data,
-    ) for task in flow.tasks}
-    return DomainFlow(
-        name=flow.name,
-        description=flow.description,
-        owner_id=flow.owner_id,
-        scheduled=flow.schedule,
-        schedule_options=flow.schedule_options,
-        tasks=list(tasks_cache.values()),
-        edges=[DomainEdge(
-            id_=edge.id,
-            source=tasks_cache[edge.from_task_id],
-            target=tasks_cache[edge.to_task_id],
-            ui_type=edge.ui_type,
-            ui_label=edge.ui_label,
-            ui_label_style=edge.ui_labelStyle,
-            ui_label_bg_style=edge.ui_labelBgStyle,
-            ui_label_bg_padding=edge.ui_labelBgPadding,
-            ui_label_bg_border_radius=edge.ui_labelBgBorderRadius,
-            ui_style=edge.ui_style,
-        ) for edge in flow.edges],
-        is_draft=flow.is_draft,
-        max_retries=flow.max_retries,
-        _id=flow.id,
-        updated_at=flow.updated_at,
-        active_status=flow.active_status,
-        execution_status=execution_status,
-    )
-
-
 def flow_domain2api(flow: DomainFlow):
     if not flow:
         return None
@@ -179,87 +131,64 @@ def flow_domain2api(flow: DomainFlow):
     )
 
 
-def task_edge_domain2db(flow: DBFlow, domain_tasks: list[DomainTask], domain_edges: list[DomainEdge]):
-    def task_domain2db(flow_: DBFlow, domain_task: DomainTask):
-        task = DBTask(
-            flow=flow_,
-            id=domain_task.id,
-            variable_id=domain_task.variable_id,
-            kind=domain_task.kind,
-            input_properties=domain_task.input_properties,
-            output_properties=domain_task.output_properties,
-            ui_type=domain_task.ui_type,
-            ui_label=domain_task.ui_label,
-            ui_position=domain_task.ui_position,
-            ui_style=domain_task.ui_style,
-            ui_class=domain_task.ui_class,
-            ui_extra_data=domain_task.ui_extra_data,
+def payload_to_domain_flow(payload: dict) -> DomainFlow:
+    """Build DomainFlow from snapshot payload for DAG file write / file_hash."""
+    f = payload["flow"]
+    task_list = payload.get("tasks", [])
+    edge_list = payload.get("edges", [])
+    tasks_by_id: dict[str, DomainTask] = {}
+    for t in task_list:
+        inputs = {inp["key"]: inp["value"] for inp in t.get("inputs", [])}
+        builtin = t.get("builtin_func_id") or t.get("system_function_id")
+        dt = DomainTask(
+            t["id"],
+            t["variable_id"],
+            t["kind"],
+            t.get("python_libraries") or [],
+            t.get("code_string") or "",
+            builtin,
+            t.get("ui_type", "default"),
+            t.get("ui_label", ""),
+            t.get("ui_position", {"x": 0, "y": 0}),
+            t.get("ui_style") or {},
+            t.get("input_properties") or [],
+            t.get("output_properties") or [],
+            inputs,
+            ui_class=t.get("ui_class"),
+            ui_extra_data=t.get("ui_extra_data"),
         )
-        if domain_task.kind == "code":
-            task.python_libraries = domain_task.python_libraries
-            task.code_string = domain_task.code
-            task.code_hash = domain_task.code_hash
-        elif domain_task.kind in ["meta", "system"]:
-            task.system_function_id = domain_task.builtin_func_id
-            # task.python_libraries = ["pandas", "requests"]
-            # task.impl_namespace = "builtin_functions"
-            # task.impl_callable = "run"
-        # else:  # system
-        # task.python_libraries = ["pandas", "requests"]
-        # task.impl_namespace = "builtin_functions"
-        # task.impl_callable = "run"
-        task_inputs = []
-        for k, v in domain_task.inputs.items():
-            task_inputs.append(TaskInput(task=task, key=k, value=v))
-        task.inputs = task_inputs
-        return task
-
-    tasks_cache: dict[str, DBTask] = {}
-    for task in domain_tasks:
-        tasks_cache[task.id] = task_domain2db(flow, task)
-
-    edges: list[DBEdge] = []
-
-    # 모든 edge 반복하며 task + edge 생성
-    for domain_edge in domain_edges:
-        source_key = domain_edge.source.id
-        target_key = domain_edge.target.id
-        source_task = tasks_cache[source_key]
-        target_task = tasks_cache[target_key]
-
-        db_edge = DBEdge(
-            flow=flow,
-            id=domain_edge.id,
-            from_task=source_task,
-            to_task=target_task,
-            ui_type=domain_edge.ui_type,
-            ui_label=domain_edge.ui_label,
-            ui_labelStyle=domain_edge.ui_label_style,
-            ui_labelBgStyle=domain_edge.ui_label_bg_style,
-            ui_labelBgPadding=domain_edge.ui_label_bg_padding,
-            ui_labelBgBorderRadius=domain_edge.ui_label_bg_border_radius,
-            ui_style=domain_edge.ui_style,
-        )
-        edges.append(db_edge)
-    return sorted(tasks_cache.values(), key=lambda t: t.variable_id), edges
-
-
-def flow_domain2db(domain_flow: DomainFlow, airflow_db: Session):
-    flow = DBFlow(
-        name=domain_flow.name,
-        dag_id=domain_flow.dag_id,
-        description=domain_flow.description,
-        owner_id=domain_flow.owner_id,
-        hash=hash(domain_flow),
-        schedule=domain_flow.scheduled,
-        schedule_options=domain_flow.schedule_options,
-        max_retries=domain_flow.max_retries,
-        is_draft=domain_flow.is_draft,
-        is_loaded_by_airflow=check_loaded_by_airflow(domain_flow.write_time, domain_flow.dag_id, airflow_db),
+        tasks_by_id[t["id"]] = dt
+    edges = []
+    for e in edge_list:
+        sid, tid = e["from_task_id"], e["to_task_id"]
+        if sid not in tasks_by_id or tid not in tasks_by_id:
+            continue
+        edges.append(DomainEdge(
+            e["id"],
+            tasks_by_id[sid],
+            tasks_by_id[tid],
+            e.get("ui_type", "default"),
+            e.get("ui_label"),
+            e.get("ui_label_style", {}),
+            e.get("ui_label_bg_style", {}),
+            e.get("ui_label_bg_padding", []),
+            e.get("ui_label_bg_border_radius", 0),
+            e.get("ui_style", {}),
+        ))
+    return DomainFlow(
+        name=f["name"],
+        description=f.get("description"),
+        owner_id=f.get("owner_id"),
+        scheduled=f.get("schedule"),
+        schedule_options=f.get("schedule_options", {}),
+        tasks=list(tasks_by_id.values()),
+        edges=edges,
+        is_draft=f.get("is_draft", False),
+        max_retries=f.get("max_retries", 0),
+        _id=f.get("id"),
+        active_status=f.get("active_status", False),
+        is_deleted=f.get("is_deleted", False),
     )
-    # 관계 설정
-    flow.tasks, flow.edges = task_edge_domain2db(flow, domain_flow.tasks, domain_flow.edges)
-    return flow
 
 
 def flow_snapshot2api(flow_snapshot: FlowSnapshot):
