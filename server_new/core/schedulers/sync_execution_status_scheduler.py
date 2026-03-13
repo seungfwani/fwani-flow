@@ -41,17 +41,18 @@ def sync_dag_run_job(since_minutes: int = 60):
                          .first())
 
             if not execution:
-                logger.info(f"🔄️ add new execution for {dag_run.dag_id}, {dag_run.run_id}")
                 flow = (meta_db.query(Flow)
                         .filter(Flow.dag_id == dag_run.dag_id)
                         .first())
-
-                # 현재 스냅샷 찾기 (조인/서브쿼리로 한 번에 가져와도 좋음)
+                if flow is None:
+                    continue
+                logger.info(f"🔄️ add new execution for {dag_run.dag_id}, {dag_run.run_id}")
                 current_flow_snapshot = next(
                     (snap for snap in flow.flow_snapshots if snap.is_current),
-                    None
+                    None,
                 )
-
+                if current_flow_snapshot is None and flow.flow_snapshots:
+                    current_flow_snapshot = max(flow.flow_snapshots, key=lambda s: s.version)
                 meta_db.add(FlowExecutionQueue(
                     flow=flow,
                     flow_snapshot=current_flow_snapshot,

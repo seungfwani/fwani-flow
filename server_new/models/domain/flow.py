@@ -56,13 +56,11 @@ class Task:
         self.id = id_
         self.variable_id = variable_id
         self.kind = kind
+        # server_new/requirements.txt 와 동일한 버전으로 고정 (pickle 호환 등)
+        DEFAULT_PYTHON_LIBS = ['pandas==2.3.1', 'requests==2.32.3']
         if kind == 'code':
-            libs = [lib.split('==')[0] for lib in python_libraries]
-            if 'pandas' not in libs:
-                python_libraries.append('pandas')
-            if 'requests' not in libs:
-                python_libraries.append('requests')
-            self.python_libraries = python_libraries
+            base = [lib for lib in python_libraries if lib.split('==')[0] not in ('pandas', 'requests')]
+            self.python_libraries = base + DEFAULT_PYTHON_LIBS
         else:
             self.python_libraries = None
         self.code = code

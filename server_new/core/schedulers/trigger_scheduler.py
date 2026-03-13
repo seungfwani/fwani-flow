@@ -24,7 +24,12 @@ def process_trigger_queue(db: Session):
         for execution in waiting_execution:
             try:
                 if execution.status == FlowExecutionStatus.WAITING.value:
-                    if execution.flow.file_hash != execution.file_hash:
+                    expected_hash = (
+                        execution.flow_snapshot.payload["flow"]["file_hash"]
+                        if execution.flow_snapshot is not None
+                        else execution.flow.file_hash
+                    )
+                    if expected_hash != execution.file_hash:
                         logger.info("⚠️ Do not run. Cause file hash mismatch.")
                         execution.status = FlowExecutionStatus.ERROR.value
                     else:

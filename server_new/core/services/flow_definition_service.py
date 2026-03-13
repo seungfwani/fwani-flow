@@ -9,16 +9,18 @@ from sqlalchemy.sql.operators import like_op
 
 from config import Config
 from core.airflow_client import AirflowClient
-from core.snapshot import build_flow_snapshot, SnapshotOperation, get_snapshot_payload_hash, \
-    build_flow_snapshot_by_domain
+from core.snapshot import (
+    SnapshotOperation,
+    get_snapshot_payload_hash,
+    build_flow_snapshot_by_domain,
+    build_minimal_payload_from_flow,
+)
 from errors import WorkflowError
-from models.api.dag_model import DAGRequest
-from models.db.edge import Edge as DBEdge
+from models.api.dag_model import DAGRequest, DAGResponse
 from models.db.flow import Flow as DBFlow, FlowSnapshot
 from models.db.flow_execution_queue import FlowExecutionQueue
 from models.db.keycloak_mapper import KeycloakUserEntity
-from models.db.task import Task as DBTask, TaskInput
-from models.domain.mapper import flow_api2domain, flow_db2domain, flow_domain2db, task_edge_domain2db, flow_snapshot2api
+from models.domain.mapper import flow_api2domain, flow_snapshot2api, payload_to_domain_flow
 from utils.functions import make_flow_id_by_name, to_snake
 
 logger = logging.getLogger()
@@ -65,9 +67,10 @@ class FlowDefinitionService:
                            upsert_draft: bool = True,
                            payload: dict = None,
                            ):
-        # 스냅샷 페이로드 & 해시 생성
-        if not payload:
-            payload = build_flow_snapshot(db_flow)
+        if payload is None:
+            raise ValueError("save_flow_snapshot requires payload")
+        payload["flow"]["is_draft"] = is_draft
+        payload["flow"]["active_status"] = getattr(db_flow, "active_status", False)
         normalized_payload, payload_hash = get_snapshot_payload_hash(payload)
 
         # 변경점 확인 최적화
@@ -92,18 +95,18 @@ class FlowDefinitionService:
         if is_draft and upsert_draft:
             logger.info("🧹 Delete old draft snapshot.")
             self.meta_db.query(FlowSnapshot).filter_by(flow_id=db_flow.id, is_draft=True).delete()
-        if not is_draft:
+        if not is_draft and last_snap is not None:
             self.meta_db.query(FlowSnapshot).filter(and_(
                 FlowSnapshot.flow_id == db_flow.id,
                 FlowSnapshot.is_current == True,
                 FlowSnapshot.version != last_snap.version,
             )).update({"is_current": False})
-            if last_snap and not last_snap.is_current:
+            if not last_snap.is_current:
                 logger.info(f"▶️ Make current snapshot to {last_snap.version}.")
                 last_snap.is_current = True
                 last_snap.is_draft = False
                 last_snap.op = op.name
-                last_snap.message = last_snap.message + "\n" + message
+                last_snap.message = (last_snap.message or "") + "\n" + (message or "")
                 last_snap.payload = payload
                 last_snap.normalized_payload = normalized_payload
                 last_snap.payload_hash = payload_hash
@@ -132,78 +135,28 @@ class FlowDefinitionService:
               .filter_by(flow_id=flow_id, version=version)
               .one())
         data = fs.payload
-
         flow = self._get_flow(flow_id)
-
-        # 기존 task/edge 삭제 후 스냅샷으로 재구성
-        flow.tasks.clear()
-        flow.edges.clear()
-
         f = data["flow"]
         flow.name = f["name"]
         flow.is_draft = f["is_draft"]
         flow.dag_id = f["dag_id"]
         flow.description = f["description"]
         flow.owner_id = f["owner_id"]
-        flow.hash = f["hash"]
-        flow.file_hash = f["file_hash"]
-        flow.is_loaded_by_airflow = f["is_loaded_by_airflow"]
-        flow.schedule = f["schedule"]
+        flow.hash = f.get("hash")
+        flow.file_hash = f.get("file_hash")
+        flow.is_loaded_by_airflow = f.get("is_loaded_by_airflow")
+        flow.schedule = f.get("schedule")
         flow.schedule_options = f.get("schedule_options")
-        flow.is_deleted = f["is_deleted"]
-        flow.active_status = f["active_status"]
-        flow.max_retries = f["max_retries"]
-
-        # tasks 복원
-        for t in data["tasks"]:
-            task = DBTask(
-                id=t["id"],
-                variable_id=t["variable_id"],
-                kind=t["kind"],
-                code_string=t["code_string"],
-                code_hash=t["code_hash"],
-                python_libraries=t["python_libraries"],
-                impl_namespace=t["impl_namespace"],
-                impl_callable=t["impl_callable"],
-                input_properties=t["input_properties"],
-                output_properties=t["output_properties"],
-                ui_type=t["ui_type"],
-                ui_label=t["ui_label"],
-                ui_position=t["ui_position"],
-                ui_class=t["ui_class"],
-                ui_style=t["ui_style"],
-                ui_extra_data=t["ui_extra_data"],
-            )
-            task.inputs = [
-                TaskInput(
-                    id=inp.get("id"),
-                    key=inp["key"],
-                    type=inp["type"],
-                    value=inp["value"],
-                ) for inp in t["inputs"]
-            ]
-            flow.tasks.append(task)
-
-        # edges 복원
-        for e in data["edges"]:
-            flow.edges.append(DBEdge(
-                id=e["id"],
-                from_task_id=e["from_task_id"],
-                to_task_id=e["to_task_id"],
-                ui_type=e["ui_type"],
-                ui_label=e["ui_label"],
-                ui_labelStyle=e["ui_label_style"],
-                ui_labelBgStyle=e["ui_label_bg_style"],
-                ui_labelBgPadding=e["ui_label_bg_padding"],
-                ui_labelBgBorderRadius=e["ui_label_bg_border_radius"],
-                ui_style=e["ui_style"],
-            ))
-
-        self.meta_db.flush()
-        self.save_flow_snapshot(flow,
-                                op=SnapshotOperation.RESTORE,
-                                message=f"이전 버전 restore - v{version}",
-                                is_draft=flow.is_draft, )
+        flow.is_deleted = f.get("is_deleted")
+        flow.active_status = f.get("active_status")
+        flow.max_retries = f.get("max_retries")
+        self.save_flow_snapshot(
+            flow,
+            op=SnapshotOperation.RESTORE,
+            message=f"이전 버전 restore - v{version}",
+            is_draft=flow.is_draft,
+            payload=data,
+        )
         self.meta_db.commit()
         logger.info(f"✅ Success to restore snapshot {version}.")
         return flow.id
@@ -221,34 +174,56 @@ class FlowDefinitionService:
         )
         self.meta_db.add(dummy_flow)
         self.meta_db.flush()
-        _, is_snap_changed = self.save_flow_snapshot(dummy_flow,
-                                                     SnapshotOperation.DUMMY,
-                                                     message=Config.DUMMY_MSG,
-                                                     is_draft=True,
-                                                     )
+        snap, _ = self.save_flow_snapshot(
+            dummy_flow,
+            SnapshotOperation.DUMMY,
+            message=Config.DUMMY_MSG,
+            is_draft=True,
+            payload=build_minimal_payload_from_flow(dummy_flow),
+        )
         self.meta_db.commit()
-        return flow_db2domain(dummy_flow)
+        return payload_to_domain_flow(snap.payload)
 
     def save_dag(self, dag: DAGRequest):
         existing = self.find_existing_flow(dag.name)
-
         if existing:
             raise WorkflowError("DAG already exists")
-        else:
-            logger.info(f"🆕 Create New DAG: {dag.name}")
-            domain_flow = flow_api2domain(dag)
-            db_flow = flow_domain2db(domain_flow, self.airflow_db)
-            self.meta_db.add(db_flow)
-            self.meta_db.flush()
-            _, is_snap_changed = self.save_flow_snapshot(db_flow,
-                                                         SnapshotOperation.CREATE,
-                                                         message="신규 등록",
-                                                         is_draft=dag.is_draft,
-                                                         )
-            if is_snap_changed:
-                db_flow.file_hash = domain_flow.file_hash
-            self.meta_db.commit()
-            return flow_db2domain(db_flow)
+        logger.info(f"🆕 Create New DAG: {dag.name}")
+        domain_flow = flow_api2domain(dag)
+        flow_id = str(__import__("uuid").uuid4())
+        payload = build_flow_snapshot_by_domain(domain_flow, flow_id)
+        db_flow = DBFlow(
+            id=flow_id,
+            name=domain_flow.name,
+            dag_id=domain_flow.dag_id,
+            description=domain_flow.description,
+            owner_id=domain_flow.owner_id,
+            schedule=domain_flow.scheduled,
+            schedule_options=domain_flow.schedule_options,
+            max_retries=domain_flow.max_retries,
+            is_draft=domain_flow.is_draft,
+        )
+        self.meta_db.add(db_flow)
+        self.meta_db.flush()
+        _, is_snap_changed = self.save_flow_snapshot(
+            db_flow,
+            SnapshotOperation.CREATE,
+            message="신규 등록",
+            is_draft=dag.is_draft,
+            payload=payload,
+        )
+        if is_snap_changed:
+            domain_for_file = payload_to_domain_flow(payload)
+            domain_for_file.write_file()
+            db_flow.file_hash = domain_for_file.file_hash
+        self.meta_db.commit()
+        snap = (
+            self.meta_db.query(FlowSnapshot)
+            .filter_by(flow_id=db_flow.id)
+            .order_by(desc(FlowSnapshot.version))
+            .first()
+        )
+        return payload_to_domain_flow(snap.payload)
 
     def update_dag(self, origin_dag_id: str, new_dag: DAGRequest):
         if not new_dag:
@@ -294,7 +269,6 @@ class FlowDefinitionService:
             origin_flow.name = new_flow.name
             origin_flow.dag_id = new_flow.dag_id
 
-        # 3. 필드 갱신
         origin_flow.description = new_flow.description
         origin_flow.owner_id = new_flow.owner_id
         origin_flow.schedule = new_flow.scheduled
@@ -303,26 +277,35 @@ class FlowDefinitionService:
         origin_flow.active_status = new_flow.active_status
         origin_flow.max_retries = new_flow.max_retries
 
-        origin_flow.tasks.clear()
-        origin_flow.edges.clear()
-
-        origin_flow.tasks, origin_flow.edges = task_edge_domain2db(origin_flow, new_flow.tasks, new_flow.edges)
-        self.meta_db.flush()
-
+        payload = build_flow_snapshot_by_domain(new_flow, origin_dag_id)
         try:
-            snap, is_snap_changed = self.save_flow_snapshot(origin_flow,
-                                                            SnapshotOperation.UPDATE,
-                                                            message="필드 수정",
-                                                            is_draft=new_dag.is_draft,
-                                                            )
+            snap, is_snap_changed = self.save_flow_snapshot(
+                origin_flow,
+                SnapshotOperation.UPDATE,
+                message="필드 수정",
+                is_draft=new_dag.is_draft,
+                payload=payload,
+            )
             origin_flow.is_draft = new_flow.is_draft
             if is_snap_changed:
-                origin_flow.file_hash = new_flow.file_hash
+                domain_for_file = payload_to_domain_flow(payload)
+                domain_for_file.write_file()
+                origin_flow.file_hash = domain_for_file.file_hash
             self.meta_db.commit()
-            return flow_db2domain(origin_flow)
+            return payload_to_domain_flow(snap.payload)
         except Exception as e:
             self.meta_db.rollback()
             raise WorkflowError(f"❌ DAG 업데이트 실패: {e}")
+
+    def _get_current_snapshot_payload(self, db_flow: DBFlow) -> dict:
+        current = (
+            self.meta_db.query(FlowSnapshot)
+            .filter_by(flow_id=db_flow.id, is_current=True)
+            .first()
+        )
+        if current:
+            return current.payload
+        return build_minimal_payload_from_flow(db_flow)
 
     def update_dag_active_status(self, dag_id: str, active_status: bool) -> bool:
         flow = self._get_flow(dag_id)
@@ -330,7 +313,11 @@ class FlowDefinitionService:
             result = self.airflow_client.update_pause(flow.dag_id, False if active_status else True)
             logger.info(f"🔄 Update airflow is_paused to '{result}'")
             flow.active_status = active_status
-            self.save_flow_snapshot(flow, SnapshotOperation.UPDATE, message="activate status 수정")
+            payload = self._get_current_snapshot_payload(flow)
+            payload["flow"]["active_status"] = active_status
+            self.save_flow_snapshot(
+                flow, SnapshotOperation.UPDATE, message="activate status 수정", payload=payload
+            )
         except Exception as e:
             logger.warning(f"❌ Failed to update airflow is_paused to '{active_status}'", exc_info=e)
         self.meta_db.commit()
@@ -386,6 +373,7 @@ class FlowDefinitionService:
                  .outerjoin(subquery, DBFlow.id == subquery.c.flow_id)
                  .outerjoin(FEQ2, and_(FEQ2.flow_id == subquery.c.flow_id,
                                        FEQ2.updated_at == subquery.c.updated_at)))
+        query = query.filter(~DBFlow.flow_snapshots.any(FlowSnapshot.op == "DUMMY"))
         if execution_status:
             query = query.filter(FEQ2.status.in_(execution_status))
         if active_status:
@@ -427,15 +415,34 @@ class FlowDefinitionService:
                           .distinct()
                           .count())
 
-        # limit 적용
         query = query.offset(offset).limit(limit)
-
-        # get list
-        flows = query.all()
-        result_count = len(flows)
-
-        return [flow_db2domain(dbflow, execution_status) for dbflow, execution_status in
-                flows], result_count, filtered_count, total_count
+        rows = query.all()
+        result_count = len(rows)
+        if not rows:
+            return [], result_count, filtered_count, total_count
+        flow_ids = [r[0].id for r in rows]
+        display_snapshots = (
+            self.meta_db.query(FlowSnapshot)
+            .filter(
+                FlowSnapshot.flow_id.in_(flow_ids),
+                or_(FlowSnapshot.is_current == True, FlowSnapshot.is_draft == True),
+            )
+            .all()
+        )
+        snap_by_flow_and_draft = {(s.flow_id, s.is_draft): s for s in display_snapshots}
+        result = []
+        for db_flow, execution_status in rows:
+            snap = snap_by_flow_and_draft.get((db_flow.id, db_flow.is_draft))
+            if snap is None:
+                continue
+            resp = flow_snapshot2api(snap)
+            if resp is not None:
+                result.append(resp.model_copy(update={
+                    "execution_status": execution_status,
+                    "is_draft": db_flow.is_draft,
+                    "active_status": db_flow.active_status,
+                }))
+        return result, len(result), filtered_count, total_count
 
     def get_dag_owner_list(self):
         dag_list = self.meta_db.query(DBFlow).filter(DBFlow.is_deleted == False)
@@ -471,10 +478,12 @@ class FlowDefinitionService:
 
     def delete_dag_temporary(self, dag_id: str):
         flow = self._get_flow(dag_id)
-
         flow.is_deleted = True
         flow.file_hash = None
-        self.save_flow_snapshot(flow, SnapshotOperation.DELETE, message="임시 삭제")
+        payload = self._get_current_snapshot_payload(flow)
+        payload["flow"]["is_deleted"] = True
+        payload["flow"]["file_hash"] = None
+        self.save_flow_snapshot(flow, SnapshotOperation.DELETE, message="임시 삭제", payload=payload)
         self.meta_db.commit()
 
         delete_dag_file(flow)
@@ -483,8 +492,9 @@ class FlowDefinitionService:
 
     def delete_dag_permanently(self, dag_id: str):
         flow = self._get_flow(dag_id)
-
-        self.save_flow_snapshot(flow, SnapshotOperation.DELETE, message="완전 삭제")
+        payload = self._get_current_snapshot_payload(flow)
+        payload["flow"]["is_deleted"] = True
+        self.save_flow_snapshot(flow, SnapshotOperation.DELETE, message="완전 삭제", payload=payload)
         self.meta_db.delete(flow)
         self.meta_db.commit()
 
@@ -496,12 +506,14 @@ class FlowDefinitionService:
         flow = self.meta_db.query(DBFlow).filter(DBFlow.id == dag_id).first()
         if not flow or not flow.is_deleted:
             raise WorkflowError(f"Flow({dag_id}) not found")
-
         flow.is_deleted = False
-        domain_flow = flow_db2domain(flow)
+        payload = self._get_current_snapshot_payload(flow)
+        payload["flow"]["is_deleted"] = False
+        domain_flow = payload_to_domain_flow(payload)
         flow.file_hash = domain_flow.file_hash
-
-        self.save_flow_snapshot(flow, SnapshotOperation.RESTORE, message="임시 삭제 flow 복구")
+        self.save_flow_snapshot(
+            flow, SnapshotOperation.RESTORE, message="임시 삭제 flow 복구", payload=payload
+        )
         self.meta_db.commit()
         logger.info(f"♻️ Complete to restore DAG: {flow.name}")
         return flow.id

@@ -44,18 +44,29 @@ class FlowExecutionService:
 
     def _register_execution(self, flow_id: str, is_snapshot: bool = False) -> FlowExecutionQueue:
         flow = self._get_flow(flow_id)
+        flow_snapshot = None
         if is_snapshot:
-            flow_snapshot = flow.flow_snapshots[0]
-            dag_id = flow_snapshot.payload['flow']["dag_id"]
-            file_hash = flow_snapshot.payload['flow']["file_hash"]
+            # dag 수정 후 실행: flow가 draft면 draft 스냅샷, 아니면 current 스냅샷으로 실행
+            for snap in flow.flow_snapshots:
+                if flow.is_draft and snap.is_draft:
+                    flow_snapshot = snap
+                    break
+                if not flow.is_draft and snap.is_current:
+                    flow_snapshot = snap
+                    break
+            if not flow_snapshot:
+                raise WorkflowError(
+                    "Draft 스냅샷이 없습니다." if flow.is_draft else "Current 스냅샷이 없습니다."
+                )
+            dag_id = flow_snapshot.payload["flow"]["dag_id"]
+            file_hash = flow_snapshot.payload["flow"]["file_hash"]
         else:
-            dag_id = flow.dag_id
-            file_hash = flow.file_hash
-            flow_snapshot = None
             for snap in flow.flow_snapshots:
                 if snap.is_current:
                     flow_snapshot = snap
                     break
+            dag_id = flow.dag_id
+            file_hash = flow.file_hash if flow_snapshot is None else flow_snapshot.payload["flow"]["file_hash"]
         flow_execution = FlowExecutionQueue(
             flow_id=flow.id,
             flow_snapshot=flow_snapshot,
@@ -78,8 +89,8 @@ class FlowExecutionService:
     def _request_airflow_dag_run(self, flow_execution: FlowExecutionQueue, is_snapshot: bool = False):
         try:
             if FlowExecutionStatus(flow_execution.status) == FlowExecutionStatus.WAITING:
-                if is_snapshot:
-                    file_hash = flow_execution.flow.flow_snapshots[0].payload['flow']["file_hash"]
+                if flow_execution.flow_snapshot is not None:
+                    file_hash = flow_execution.flow_snapshot.payload["flow"]["file_hash"]
                 else:
                     file_hash = flow_execution.flow.file_hash
                 if file_hash != flow_execution.file_hash:
@@ -184,10 +195,12 @@ class FlowExecutionService:
                           .filter(and_(AirflowTaskInstance.dag_id == execution.dag_id,
                                        AirflowTaskInstance.run_id == execution.run_id))
                           .all())
-        if is_snapshot:
-            task_dict = {task["variable_id"]: task['id'] for task in execution.flow.flow_snapshots[0].payload['tasks']}
-        else:
-            task_dict = {task.variable_id: task.id for task in execution.flow.tasks}
+        if execution.flow_snapshot is None:
+            raise WorkflowError(
+                f"실행({execution_id})에 스냅샷이 연결되어 있지 않습니다. "
+                "태스크 목록을 조회할 수 없습니다."
+            )
+        task_dict = {t["variable_id"]: t["id"] for t in execution.flow_snapshot.payload["tasks"]}
         return [DomainTaskInstance(
             task_id=task_dict[ti.task_id],
             execution_date=ti.execution_date,
@@ -202,16 +215,15 @@ class FlowExecutionService:
 
     def _get_task_variable_id(self, execution: FlowExecutionQueue, task_id: str, is_snapshot: bool = False):
         task_variable_id = None
-        if is_snapshot:
-            for t in execution.flow.flow_snapshots[0].payload['tasks']:
-                if t['id'] == task_id:
-                    task_variable_id = t['variable_id']
-                    break
-        else:
-            for t in execution.flow.tasks:
-                if t.id == task_id:
-                    task_variable_id = t.variable_id
-                    break
+        if execution.flow_snapshot is None:
+            raise WorkflowError(
+                f"실행({execution.id})에 스냅샷이 연결되어 있지 않습니다. "
+                "태스크 매핑을 조회할 수 없습니다."
+            )
+        for t in execution.flow_snapshot.payload["tasks"]:
+            if t["id"] == task_id:
+                task_variable_id = t["variable_id"]
+                break
         if task_variable_id is None:
             raise WorkflowError(f"execution({execution.id}) 에 해당하는 task({task_id})를 찾을 수 없습니다.")
         return task_variable_id

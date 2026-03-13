@@ -14,7 +14,7 @@ class Config:
     DB_ENGINE = os.getenv("DB_ENGINE", "sqlite")
     DB_TYPE = os.getenv("DB_TYPE", "postgresql")
     DB_HOST = os.getenv("DB_HOST", "localhost")
-    DB_PORT = os.getenv("DB_PORT", "65432")
+    DB_PORT = os.getenv("DB_PORT", "5433")
     DB_NAME = os.getenv("DB_NAME", "graphio")
     DB_SCHEMA = os.getenv("DB_SCHEMA", "workflow")
     DB_USERNAME = os.getenv("DB_USERNAME", "airflow")

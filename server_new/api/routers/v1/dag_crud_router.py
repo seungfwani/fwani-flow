@@ -666,7 +666,7 @@ async def get_dag_list(
         "total_count": total_count,
         "filtered_count": filtered_count,
         "result_count": result_count,
-        "list": [flow_domain2api(dag) for dag in dag_list],
+        "list": dag_list,
     }
 
 
