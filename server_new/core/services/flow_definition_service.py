@@ -16,11 +16,16 @@ from core.snapshot import (
     build_minimal_payload_from_flow,
 )
 from errors import WorkflowError
-from models.api.dag_model import DAGRequest, DAGResponse
+from models.api.dag_model import DAGRequest
 from models.db.flow import Flow as DBFlow, FlowSnapshot
 from models.db.flow_execution_queue import FlowExecutionQueue
 from models.db.keycloak_mapper import KeycloakUserEntity
-from models.domain.mapper import flow_api2domain, flow_snapshot2api, payload_to_domain_flow
+from models.domain.mapper import (
+    flow_api2domain,
+    flow_snapshot2api,
+    flow_to_dag_list_response,
+    payload_to_domain_flow,
+)
 from utils.functions import make_flow_id_by_name, to_snake
 
 logger = logging.getLogger()
@@ -390,7 +395,7 @@ class FlowDefinitionService:
                     column_ = func.coalesce(KeycloakUserEntity.username, literal(None)).label("owner_name")
                     query = (query
                              .outerjoin(KeycloakUserEntity, DBFlow.owner_id == KeycloakUserEntity.id)
-                             .with_entities(DBFlow, )
+                             .with_entities(DBFlow, FEQ2.status.label("execution_status"))
                              )
                     if direction.lower() == "asc":
                         query = query.order_by(asc(column_))
@@ -421,27 +426,21 @@ class FlowDefinitionService:
         if not rows:
             return [], result_count, filtered_count, total_count
         flow_ids = [r[0].id for r in rows]
-        display_snapshots = (
-            self.meta_db.query(FlowSnapshot)
+        display_pairs = (
+            self.meta_db.query(FlowSnapshot.flow_id, FlowSnapshot.is_draft)
             .filter(
                 FlowSnapshot.flow_id.in_(flow_ids),
                 or_(FlowSnapshot.is_current == True, FlowSnapshot.is_draft == True),
             )
+            .distinct()
             .all()
         )
-        snap_by_flow_and_draft = {(s.flow_id, s.is_draft): s for s in display_snapshots}
+        valid_display = set(display_pairs)
         result = []
         for db_flow, execution_status in rows:
-            snap = snap_by_flow_and_draft.get((db_flow.id, db_flow.is_draft))
-            if snap is None:
+            if (db_flow.id, db_flow.is_draft) not in valid_display:
                 continue
-            resp = flow_snapshot2api(snap)
-            if resp is not None:
-                result.append(resp.model_copy(update={
-                    "execution_status": execution_status,
-                    "is_draft": db_flow.is_draft,
-                    "active_status": db_flow.active_status,
-                }))
+            result.append(flow_to_dag_list_response(db_flow, execution_status))
         return result, len(result), filtered_count, total_count
 
     def get_dag_owner_list(self):

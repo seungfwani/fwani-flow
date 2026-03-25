@@ -252,6 +252,25 @@ def flow_snapshot2api(flow_snapshot: FlowSnapshot):
     )
 
 
+def flow_to_dag_list_response(db_flow: DBFlow, execution_status: str | None) -> DAGResponse:
+    """목록용: 메타는 flow 행 기준, 그래프는 비움. 상세는 flow_snapshot2api 사용."""
+    return DAGResponse(
+        id=db_flow.id,
+        name=db_flow.name,
+        description=db_flow.description,
+        owner_id=db_flow.owner_id,
+        nodes=[],
+        edges=[],
+        schedule=db_flow.schedule,
+        schedule_options=db_flow.schedule_options or {},
+        is_draft=db_flow.is_draft,
+        max_retries=db_flow.max_retries or 0,
+        updated_at=db_flow.updated_at,
+        active_status=db_flow.active_status,
+        execution_status=execution_status,
+    )
+
+
 def check_loaded_by_airflow(write_file_time: datetime.datetime, dag_id: str, airflow_db: Session):
     airflow_dag = airflow_db.query(AirflowDag).filter(AirflowDag.dag_id == dag_id).first()
     if airflow_dag is None:
