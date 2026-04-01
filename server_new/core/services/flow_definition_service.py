@@ -68,13 +68,14 @@ class FlowDefinitionService:
                            db_flow: DBFlow,
                            op: SnapshotOperation,
                            message: str | None = None,
-                           is_draft: bool = False,
+                           is_draft: bool | None = None,
                            upsert_draft: bool = True,
                            payload: dict = None,
                            ):
         if payload is None:
             raise ValueError("save_flow_snapshot requires payload")
-        payload["flow"]["is_draft"] = is_draft
+        resolved_is_draft = db_flow.is_draft if is_draft is None else is_draft
+        payload["flow"]["is_draft"] = resolved_is_draft
         payload["flow"]["active_status"] = getattr(db_flow, "active_status", False)
         normalized_payload, payload_hash = get_snapshot_payload_hash(payload)
 
@@ -90,17 +91,17 @@ class FlowDefinitionService:
                     f"🤷 No changes detected from current.")
                 return last_snap, False
             elif last_snap.op == SnapshotOperation.DUMMY.name:
-                if is_draft and not payload.get("tasks", []):
+                if resolved_is_draft and not payload.get("tasks", []):
                     logger.info("🤷 No changes detected from Dummy.")
                     return last_snap, False
         else:
             logger.info(f"🆕 new hash: {payload_hash}")
 
         # draft/current 정리
-        if is_draft and upsert_draft:
+        if resolved_is_draft and upsert_draft:
             logger.info("🧹 Delete old draft snapshot.")
             self.meta_db.query(FlowSnapshot).filter_by(flow_id=db_flow.id, is_draft=True).delete()
-        if not is_draft and last_snap is not None:
+        if not resolved_is_draft and last_snap is not None:
             self.meta_db.query(FlowSnapshot).filter(and_(
                 FlowSnapshot.flow_id == db_flow.id,
                 FlowSnapshot.is_current == True,
@@ -127,8 +128,8 @@ class FlowDefinitionService:
             payload=payload,
             normalized_payload=normalized_payload,
             payload_hash=payload_hash,
-            is_draft=is_draft,
-            is_current=not is_draft,
+            is_draft=resolved_is_draft,
+            is_current=not resolved_is_draft,
         )
         logger.info(f"🆕 Create new snapshot to {snap.version}.")
         self.meta_db.add(snap)
