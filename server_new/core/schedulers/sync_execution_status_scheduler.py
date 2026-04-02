@@ -7,6 +7,7 @@ from sqlalchemy import and_
 from core.airflow_client import get_airflow_client_context
 from core.database import SessionLocalBaseDB, SessionLocalAirflowDB
 from models.db.flow import Flow
+from models.db.flow_snapshot_role import FlowSnapshotRole
 from models.db.flow_execution_queue import FlowExecutionQueue
 from models.domain.enums import FlowExecutionStatus
 
@@ -48,7 +49,7 @@ def sync_dag_run_job(since_minutes: int = 60):
                     continue
                 logger.info(f"🔄️ add new execution for {dag_run.dag_id}, {dag_run.run_id}")
                 current_flow_snapshot = next(
-                    (snap for snap in flow.flow_snapshots if snap.is_current),
+                    (snap for snap in flow.flow_snapshots if snap.role == FlowSnapshotRole.PUBLISHED.value),
                     None,
                 )
                 if current_flow_snapshot is None and flow.flow_snapshots:

@@ -1,3 +1,4 @@
+import copy
 import datetime
 import logging
 import shutil
@@ -11,6 +12,7 @@ from config import Config
 from core.airflow_client import AirflowClient
 from core.snapshot import (
     SnapshotOperation,
+    SnapshotTarget,
     get_snapshot_payload_hash,
     build_flow_snapshot_by_domain,
     build_minimal_payload_from_flow,
@@ -18,6 +20,7 @@ from core.snapshot import (
 from errors import WorkflowError
 from models.api.dag_model import DAGRequest
 from models.db.flow import Flow as DBFlow, FlowSnapshot
+from models.db.flow_snapshot_role import FlowSnapshotRole
 from models.db.flow_execution_queue import FlowExecutionQueue
 from models.db.keycloak_mapper import KeycloakUserEntity
 from models.domain.mapper import (
@@ -64,62 +67,248 @@ class FlowDefinitionService:
                .scalar())
         return (cur or 0) + 1
 
+    def _demote_published_snapshots(self, flow_id: str) -> None:
+        self.meta_db.query(FlowSnapshot).filter(
+            FlowSnapshot.flow_id == flow_id,
+            FlowSnapshot.role == FlowSnapshotRole.PUBLISHED.value,
+        ).update({"role": FlowSnapshotRole.ARCHIVED.value}, synchronize_session=False)
+
+    def _draft_snapshot_exists(self, flow_id: str) -> bool:
+        return (
+            self.meta_db.query(FlowSnapshot.id)
+            .filter(
+                FlowSnapshot.flow_id == flow_id,
+                FlowSnapshot.role == FlowSnapshotRole.DRAFT.value,
+            )
+            .first()
+            is not None
+        )
+
+    def _sync_flow_list_from_snapshots(self, db_flow: DBFlow) -> None:
+        """목록용 flow 행을 스냅샷과 맞춘다. 공개본(role=published) 페이로드가 메타 단일 출처, Flow.is_draft는 드래프트 행 존재 여부."""
+        draft_exists = self._draft_snapshot_exists(db_flow.id)
+        current = (
+            self.meta_db.query(FlowSnapshot)
+            .filter_by(flow_id=db_flow.id, role=FlowSnapshotRole.PUBLISHED.value)
+            .order_by(desc(FlowSnapshot.version))
+            .first()
+        )
+        if current:
+            f = current.payload["flow"]
+            db_flow.name = f["name"]
+            db_flow.dag_id = f.get("dag_id") or db_flow.dag_id
+            db_flow.description = f.get("description")
+            db_flow.owner_id = f.get("owner_id")
+            db_flow.schedule = f.get("schedule")
+            db_flow.schedule_options = f.get("schedule_options")
+            db_flow.max_retries = f.get("max_retries", 0) or 0
+            db_flow.active_status = f.get("active_status", False)
+            db_flow.is_deleted = f.get("is_deleted", False)
+            h = f.get("hash")
+            if h is not None:
+                db_flow.hash = str(h)
+            if "is_loaded_by_airflow" in f:
+                db_flow.is_loaded_by_airflow = f["is_loaded_by_airflow"]
+        db_flow.is_draft = draft_exists
+
+    def _clear_stale_draft_flags_below_current(
+        self,
+        db_flow: DBFlow,
+        *,
+        publish_supersedes_version: int | None = None,
+    ) -> None:
+        """레거시 draft 행을 archived로 정리한다.
+
+        - publish_supersedes_version 이 None이면: 공개 헤드보다 낮은 버전의 draft 전부 archived.
+        - 새 공개 행을 추가해 헤드가 올라간 경우: 이전 공개 헤드 버전(publish_supersedes_version) 이하의 draft만
+          archived 해서, 그보다 큰 버전의 워킹 드래프트는 유지한다.
+        """
+        current = (
+            self.meta_db.query(FlowSnapshot)
+            .filter_by(flow_id=db_flow.id, role=FlowSnapshotRole.PUBLISHED.value)
+            .order_by(desc(FlowSnapshot.version))
+            .first()
+        )
+        if current is None:
+            return
+        q = self.meta_db.query(FlowSnapshot).filter(
+            FlowSnapshot.flow_id == db_flow.id,
+            FlowSnapshot.version < current.version,
+            FlowSnapshot.role == FlowSnapshotRole.DRAFT.value,
+        )
+        if publish_supersedes_version is not None:
+            q = q.filter(FlowSnapshot.version <= publish_supersedes_version)
+        n = q.update({"role": FlowSnapshotRole.ARCHIVED.value}, synchronize_session=False)
+        if n:
+            extra = (
+                f", cutoff<=v{publish_supersedes_version}"
+                if publish_supersedes_version is not None
+                else ""
+            )
+            logger.info(
+                f"🧹 Set role=archived on {n} stale draft row(s) (published v{current.version}{extra})"
+            )
+
+    def _finalize_snapshot_write(
+        self,
+        db_flow: DBFlow,
+        *,
+        cleanup_stale_drafts_below_current: bool = False,
+        publish_supersedes_version: int | None = None,
+    ) -> None:
+        self.meta_db.flush()
+        if cleanup_stale_drafts_below_current:
+            self._clear_stale_draft_flags_below_current(
+                db_flow, publish_supersedes_version=publish_supersedes_version
+            )
+        self._sync_flow_list_from_snapshots(db_flow)
+
     def save_flow_snapshot(self,
                            db_flow: DBFlow,
                            op: SnapshotOperation,
+                           snapshot_target: SnapshotTarget,
                            message: str | None = None,
-                           is_draft: bool | None = None,
                            upsert_draft: bool = True,
                            payload: dict = None,
                            ):
         if payload is None:
             raise ValueError("save_flow_snapshot requires payload")
-        resolved_is_draft = db_flow.is_draft if is_draft is None else is_draft
-        payload["flow"]["is_draft"] = resolved_is_draft
+        is_draft_slot = snapshot_target == SnapshotTarget.DRAFT
+        payload["flow"]["is_draft"] = is_draft_slot
         payload["flow"]["active_status"] = getattr(db_flow, "active_status", False)
         normalized_payload, payload_hash = get_snapshot_payload_hash(payload)
 
-        # 변경점 확인 최적화
-        last_snap = (self.meta_db.query(FlowSnapshot)
-                     .filter(FlowSnapshot.flow_id == db_flow.id)
-                     .order_by(desc(FlowSnapshot.version))
-                     .first())
+        current_snap = (
+            self.meta_db.query(FlowSnapshot)
+            .filter_by(flow_id=db_flow.id, role=FlowSnapshotRole.PUBLISHED.value)
+            .order_by(desc(FlowSnapshot.version))
+            .first()
+        )
+        draft_snap = (
+            self.meta_db.query(FlowSnapshot)
+            .filter_by(flow_id=db_flow.id, role=FlowSnapshotRole.DRAFT.value)
+            .order_by(desc(FlowSnapshot.version))
+            .first()
+        )
+        last_snap = (
+            self.meta_db.query(FlowSnapshot)
+            .filter(FlowSnapshot.flow_id == db_flow.id)
+            .order_by(desc(FlowSnapshot.version))
+            .first()
+        )
         if last_snap:
             logger.info(f"🔄 last hash: {last_snap.payload_hash}, new hash: {payload_hash}")
-            if last_snap.is_current and last_snap.payload_hash == payload_hash:
-                logger.info(
-                    f"🤷 No changes detected from current.")
-                return last_snap, False
-            elif last_snap.op == SnapshotOperation.DUMMY.name:
-                if resolved_is_draft and not payload.get("tasks", []):
-                    logger.info("🤷 No changes detected from Dummy.")
-                    return last_snap, False
         else:
             logger.info(f"🆕 new hash: {payload_hash}")
 
-        # draft/current 정리
-        if resolved_is_draft and upsert_draft:
-            logger.info("🧹 Delete old draft snapshot.")
-            self.meta_db.query(FlowSnapshot).filter_by(flow_id=db_flow.id, is_draft=True).delete()
-        if not resolved_is_draft and last_snap is not None:
-            self.meta_db.query(FlowSnapshot).filter(and_(
-                FlowSnapshot.flow_id == db_flow.id,
-                FlowSnapshot.is_current == True,
-                FlowSnapshot.version != last_snap.version,
-            )).update({"is_current": False})
-            if not last_snap.is_current:
-                logger.info(f"▶️ Make current snapshot to {last_snap.version}.")
-                last_snap.is_current = True
-                last_snap.is_draft = False
-                last_snap.op = op.name
-                last_snap.message = (last_snap.message or "") + "\n" + (message or "")
-                last_snap.payload = payload
-                last_snap.normalized_payload = normalized_payload
-                last_snap.payload_hash = payload_hash
-                return last_snap, True
-            last_snap.is_current = False
+        def _append_message(row: FlowSnapshot) -> None:
+            row.message = (row.message or "") + "\n" + (message or "")
 
+        if is_draft_slot:
+            if draft_snap is not None:
+                if draft_snap.payload_hash == payload_hash:
+                    if current_snap and current_snap.payload_hash == payload_hash:
+                        logger.info(
+                            "🤷 Draft equals stored draft and published; drop redundant draft."
+                        )
+                        if upsert_draft:
+                            self.meta_db.delete(draft_snap)
+                        self._finalize_snapshot_write(db_flow)
+                        return current_snap, False
+                    logger.info("🤷 No changes detected vs existing draft.")
+                    self._finalize_snapshot_write(db_flow)
+                    return draft_snap, False
+                if (
+                    draft_snap.op == SnapshotOperation.DUMMY.name
+                    and not payload.get("tasks", [])
+                ):
+                    logger.info("🤷 No changes detected from Dummy.")
+                    self._finalize_snapshot_write(db_flow)
+                    return draft_snap, False
+                logger.info(f"📝 Update draft snapshot v{draft_snap.version}.")
+                draft_snap.op = op.name
+                draft_snap.message = message
+                draft_snap.payload = payload
+                draft_snap.normalized_payload = normalized_payload
+                draft_snap.payload_hash = payload_hash
+                self._finalize_snapshot_write(db_flow)
+                return draft_snap, True
+
+            if current_snap and current_snap.payload_hash == payload_hash:
+                logger.info("🤷 Draft payload matches published; drop redundant draft if any.")
+                if upsert_draft:
+                    self.meta_db.query(FlowSnapshot).filter_by(
+                        flow_id=db_flow.id, role=FlowSnapshotRole.DRAFT.value
+                    ).delete()
+                self._finalize_snapshot_write(db_flow)
+                return current_snap, False
+            if last_snap and last_snap.op == SnapshotOperation.DUMMY.name and not payload.get(
+                "tasks", []
+            ):
+                logger.info("🤷 No changes detected from Dummy.")
+                self._finalize_snapshot_write(db_flow)
+                return last_snap, False
+
+            if upsert_draft:
+                self.meta_db.query(FlowSnapshot).filter_by(
+                    flow_id=db_flow.id, role=FlowSnapshotRole.DRAFT.value
+                ).delete()
+            new_version = self.next_version(db_flow.id)
+            snap = FlowSnapshot(
+                flow=db_flow,
+                version=new_version,
+                op=op.name,
+                message=message,
+                payload=payload,
+                normalized_payload=normalized_payload,
+                payload_hash=payload_hash,
+                role=FlowSnapshotRole.DRAFT.value,
+            )
+            logger.info(f"🆕 Create new draft snapshot to {snap.version}.")
+            self.meta_db.add(snap)
+            self._finalize_snapshot_write(db_flow)
+            return snap, True
+
+        if current_snap is None and draft_snap is not None:
+            logger.info(f"▶️ Promote lone draft v{draft_snap.version} to published.")
+            self._demote_published_snapshots(db_flow.id)
+            draft_snap.role = FlowSnapshotRole.PUBLISHED.value
+            draft_snap.op = op.name
+            _append_message(draft_snap)
+            draft_snap.payload = payload
+            draft_snap.normalized_payload = normalized_payload
+            draft_snap.payload_hash = payload_hash
+            self._finalize_snapshot_write(
+                db_flow, cleanup_stale_drafts_below_current=True
+            )
+            return draft_snap, True
+
+        if current_snap is not None and current_snap.payload_hash == payload_hash:
+            logger.info("🤷 No changes detected vs published (current).")
+            self._finalize_snapshot_write(db_flow)
+            return current_snap, False
+
+        if draft_snap is not None and draft_snap.payload_hash == payload_hash:
+            logger.info(f"▶️ Publish: promote draft v{draft_snap.version} (same payload hash).")
+            superseded_pub_ver = current_snap.version
+            self._demote_published_snapshots(db_flow.id)
+            draft_snap.role = FlowSnapshotRole.PUBLISHED.value
+            draft_snap.op = op.name
+            _append_message(draft_snap)
+            draft_snap.payload = payload
+            draft_snap.normalized_payload = normalized_payload
+            draft_snap.payload_hash = payload_hash
+            self._finalize_snapshot_write(
+                db_flow,
+                cleanup_stale_drafts_below_current=True,
+                publish_supersedes_version=superseded_pub_ver,
+            )
+            return draft_snap, True
+
+        superseded_pub_ver = current_snap.version
+        self._demote_published_snapshots(db_flow.id)
         new_version = self.next_version(db_flow.id)
+        payload["flow"]["active_status"] = False
         snap = FlowSnapshot(
             flow=db_flow,
             version=new_version,
@@ -128,11 +317,15 @@ class FlowDefinitionService:
             payload=payload,
             normalized_payload=normalized_payload,
             payload_hash=payload_hash,
-            is_draft=resolved_is_draft,
-            is_current=not resolved_is_draft,
+            role=FlowSnapshotRole.PUBLISHED.value,
         )
-        logger.info(f"🆕 Create new snapshot to {snap.version}.")
+        logger.info(f"🆕 Create new published snapshot to {snap.version}.")
         self.meta_db.add(snap)
+        self._finalize_snapshot_write(
+            db_flow,
+            cleanup_stale_drafts_below_current=True,
+            publish_supersedes_version=superseded_pub_ver,
+        )
         return snap, True
 
     def restore_flow_by_snapshot(self, flow_id: str, version: int):
@@ -140,27 +333,13 @@ class FlowDefinitionService:
         fs = (self.meta_db.query(FlowSnapshot)
               .filter_by(flow_id=flow_id, version=version)
               .one())
-        data = fs.payload
+        data = copy.deepcopy(fs.payload)
         flow = self._get_flow(flow_id)
-        f = data["flow"]
-        flow.name = f["name"]
-        flow.is_draft = f["is_draft"]
-        flow.dag_id = f["dag_id"]
-        flow.description = f["description"]
-        flow.owner_id = f["owner_id"]
-        flow.hash = f.get("hash")
-        flow.file_hash = f.get("file_hash")
-        flow.is_loaded_by_airflow = f.get("is_loaded_by_airflow")
-        flow.schedule = f.get("schedule")
-        flow.schedule_options = f.get("schedule_options")
-        flow.is_deleted = f.get("is_deleted")
-        flow.active_status = f.get("active_status")
-        flow.max_retries = f.get("max_retries")
         self.save_flow_snapshot(
             flow,
             op=SnapshotOperation.RESTORE,
+            snapshot_target=SnapshotTarget.DRAFT if fs.role == FlowSnapshotRole.DRAFT.value else SnapshotTarget.PUBLISHED,
             message=f"이전 버전 restore - v{version}",
-            is_draft=flow.is_draft,
             payload=data,
         )
         self.meta_db.commit()
@@ -183,8 +362,8 @@ class FlowDefinitionService:
         snap, _ = self.save_flow_snapshot(
             dummy_flow,
             SnapshotOperation.DUMMY,
+            snapshot_target=SnapshotTarget.DRAFT,
             message=Config.DUMMY_MSG,
-            is_draft=True,
             payload=build_minimal_payload_from_flow(dummy_flow),
         )
         self.meta_db.commit()
@@ -214,8 +393,8 @@ class FlowDefinitionService:
         _, is_snap_changed = self.save_flow_snapshot(
             db_flow,
             SnapshotOperation.CREATE,
+            snapshot_target=SnapshotTarget.DRAFT if dag.is_draft else SnapshotTarget.PUBLISHED,
             message="신규 등록",
-            is_draft=dag.is_draft,
             payload=payload,
         )
         if is_snap_changed:
@@ -245,21 +424,14 @@ class FlowDefinitionService:
             snap, is_snap_changed = self.save_flow_snapshot(
                 origin_flow,
                 SnapshotOperation.UPDATE,
+                snapshot_target=SnapshotTarget.DRAFT,
                 message="draft=True",
-                is_draft=new_dag.is_draft,
                 payload=build_flow_snapshot_by_domain(new_flow, origin_dag_id)
             )
-            if is_snap_changed:
-                origin_flow.is_draft = new_flow.is_draft
-                origin_flow.description = new_flow.description
-                origin_flow.owner_id = new_flow.owner_id
-                origin_flow.schedule = new_flow.scheduled
-                origin_flow.schedule_options = new_flow.schedule_options
-            else:
-                if snap.op == SnapshotOperation.DUMMY.name:
-                    if not snap.payload.get("tasks", []):
-                        logger.warning("🧹 Delete unchanged Dummy Flow")
-                        self.meta_db.delete(origin_flow)
+            if not is_snap_changed and snap.op == SnapshotOperation.DUMMY.name:
+                if not snap.payload.get("tasks", []):
+                    logger.warning("🧹 Delete unchanged Dummy Flow")
+                    self.meta_db.delete(origin_flow)
             self.meta_db.commit()
             return new_flow
         # 저장시(is_draft=False) 이름이 바뀐 경우 → 중복 확인 및 갱신
@@ -272,27 +444,16 @@ class FlowDefinitionService:
             )
             if duplicate:
                 raise WorkflowError(f"Flow 이름 '{new_flow.name}' 은 이미 존재합니다.")
-            origin_flow.name = new_flow.name
-            origin_flow.dag_id = new_flow.dag_id
-
-        origin_flow.description = new_flow.description
-        origin_flow.owner_id = new_flow.owner_id
-        origin_flow.schedule = new_flow.scheduled
-        origin_flow.schedule_options = new_flow.schedule_options
-        origin_flow.hash = hash(new_flow)
-        origin_flow.active_status = new_flow.active_status
-        origin_flow.max_retries = new_flow.max_retries
 
         payload = build_flow_snapshot_by_domain(new_flow, origin_dag_id)
         try:
             snap, is_snap_changed = self.save_flow_snapshot(
                 origin_flow,
                 SnapshotOperation.UPDATE,
+                snapshot_target=SnapshotTarget.PUBLISHED,
                 message="필드 수정",
-                is_draft=new_dag.is_draft,
                 payload=payload,
             )
-            origin_flow.is_draft = new_flow.is_draft
             if is_snap_changed:
                 domain_for_file = payload_to_domain_flow(payload)
                 domain_for_file.write_file()
@@ -306,7 +467,7 @@ class FlowDefinitionService:
     def _get_current_snapshot_payload(self, db_flow: DBFlow) -> dict:
         current = (
             self.meta_db.query(FlowSnapshot)
-            .filter_by(flow_id=db_flow.id, is_current=True)
+            .filter_by(flow_id=db_flow.id, role=FlowSnapshotRole.PUBLISHED.value)
             .first()
         )
         if current:
@@ -319,11 +480,30 @@ class FlowDefinitionService:
             result = self.airflow_client.update_pause(flow.dag_id, False if active_status else True)
             logger.info(f"🔄 Update airflow is_paused to '{result}'")
             flow.active_status = active_status
-            payload = self._get_current_snapshot_payload(flow)
-            payload["flow"]["active_status"] = active_status
-            self.save_flow_snapshot(
-                flow, SnapshotOperation.UPDATE, message="activate status 수정", payload=payload
+            current_snap = (
+                self.meta_db.query(FlowSnapshot)
+                .filter_by(flow_id=flow.id, role=FlowSnapshotRole.PUBLISHED.value)
+                .order_by(desc(FlowSnapshot.version))
+                .first()
             )
+            if current_snap is not None:
+                payload = copy.deepcopy(current_snap.payload)
+                payload["flow"]["active_status"] = active_status
+                normalized_payload, payload_hash = get_snapshot_payload_hash(payload)
+                current_snap.payload = payload
+                current_snap.normalized_payload = normalized_payload
+                current_snap.payload_hash = payload_hash
+                self._finalize_snapshot_write(flow)
+            else:
+                payload = self._get_current_snapshot_payload(flow)
+                payload["flow"]["active_status"] = active_status
+                self.save_flow_snapshot(
+                    flow,
+                    SnapshotOperation.UPDATE,
+                    snapshot_target=SnapshotTarget.PUBLISHED,
+                    message="activate status 수정",
+                    payload=payload,
+                )
         except Exception as e:
             logger.warning(f"❌ Failed to update airflow is_paused to '{active_status}'", exc_info=e)
         self.meta_db.commit()
@@ -366,7 +546,7 @@ class FlowDefinitionService:
                 FS.flow_id.label("flow_id"),
                 FS.id.label("snapshot_id")
             )
-            .filter(FS.is_current.is_(True))
+            .filter(FS.role == FlowSnapshotRole.PUBLISHED.value)
             .subquery()
         )
         subquery = (self.meta_db
@@ -428,18 +608,20 @@ class FlowDefinitionService:
             return [], result_count, filtered_count, total_count
         flow_ids = [r[0].id for r in rows]
         display_pairs = (
-            self.meta_db.query(FlowSnapshot.flow_id, FlowSnapshot.is_draft)
+            self.meta_db.query(FlowSnapshot.flow_id)
             .filter(
                 FlowSnapshot.flow_id.in_(flow_ids),
-                or_(FlowSnapshot.is_current == True, FlowSnapshot.is_draft == True),
+                FlowSnapshot.role.in_(
+                    (FlowSnapshotRole.PUBLISHED.value, FlowSnapshotRole.DRAFT.value)
+                ),
             )
             .distinct()
             .all()
         )
-        valid_display = set(display_pairs)
+        valid_flow_ids = {row[0] for row in display_pairs}
         result = []
         for db_flow, execution_status in rows:
-            if (db_flow.id, db_flow.is_draft) not in valid_display:
+            if db_flow.id not in valid_flow_ids:
                 continue
             result.append(flow_to_dag_list_response(db_flow, execution_status))
         return result, len(result), filtered_count, total_count
@@ -461,8 +643,10 @@ class FlowDefinitionService:
         query = (self.meta_db.query(FlowSnapshot)
                  .filter(FlowSnapshot.flow_id == dag_id)
                  .order_by(desc(FlowSnapshot.version)))
-        current_flow = query.filter(FlowSnapshot.is_current == True).first()
-        draft_flow = query.filter(FlowSnapshot.is_draft == True).first()
+        current_flow = query.filter(
+            FlowSnapshot.role == FlowSnapshotRole.PUBLISHED.value
+        ).first()
+        draft_flow = query.filter(FlowSnapshot.role == FlowSnapshotRole.DRAFT.value).first()
         return flow_snapshot2api(current_flow), flow_snapshot2api(draft_flow)
 
     def get_snapshot_list(self, dag_id):
@@ -483,7 +667,13 @@ class FlowDefinitionService:
         payload = self._get_current_snapshot_payload(flow)
         payload["flow"]["is_deleted"] = True
         payload["flow"]["file_hash"] = None
-        self.save_flow_snapshot(flow, SnapshotOperation.DELETE, message="임시 삭제", payload=payload)
+        self.save_flow_snapshot(
+            flow,
+            SnapshotOperation.DELETE,
+            snapshot_target=SnapshotTarget.PUBLISHED,
+            message="임시 삭제",
+            payload=payload,
+        )
         self.meta_db.commit()
 
         delete_dag_file(flow)
@@ -494,7 +684,13 @@ class FlowDefinitionService:
         flow = self._get_flow(dag_id)
         payload = self._get_current_snapshot_payload(flow)
         payload["flow"]["is_deleted"] = True
-        self.save_flow_snapshot(flow, SnapshotOperation.DELETE, message="완전 삭제", payload=payload)
+        self.save_flow_snapshot(
+            flow,
+            SnapshotOperation.DELETE,
+            snapshot_target=SnapshotTarget.PUBLISHED,
+            message="완전 삭제",
+            payload=payload,
+        )
         self.meta_db.delete(flow)
         self.meta_db.commit()
 
@@ -512,7 +708,11 @@ class FlowDefinitionService:
         domain_flow = payload_to_domain_flow(payload)
         flow.file_hash = domain_flow.file_hash
         self.save_flow_snapshot(
-            flow, SnapshotOperation.RESTORE, message="임시 삭제 flow 복구", payload=payload
+            flow,
+            SnapshotOperation.RESTORE,
+            snapshot_target=SnapshotTarget.PUBLISHED,
+            message="임시 삭제 flow 복구",
+            payload=payload,
         )
         self.meta_db.commit()
         logger.info(f"♻️ Complete to restore DAG: {flow.name}")

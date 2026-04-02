@@ -1,10 +1,11 @@
 import uuid
 
 from sqlalchemy import Column, String, Text, DateTime, func, Boolean, Integer, ForeignKey, UniqueConstraint, JSON, \
-    CheckConstraint
+    CheckConstraint, Index, text
 from sqlalchemy.orm import relationship, validates
 
 from core.database import BaseDB
+from models.db.flow_snapshot_role import FlowSnapshotRole
 from utils.functions import make_flow_id_by_name
 
 
@@ -70,9 +71,7 @@ class FlowSnapshot(BaseDB):
     flow_id = Column(String, ForeignKey("flow.id", ondelete="CASCADE"), index=True, nullable=False)
     version = Column(Integer, nullable=False)  # unique with flow_id
 
-    # 현재/수정 버전 플래그
-    is_current = Column(Boolean, nullable=False, server_default="false")
-    is_draft = Column(Boolean, nullable=False, server_default="false")
+    role = Column(String(20), nullable=False, server_default=text("'archived'"))
 
     op = Column(String, nullable=False)  # create/update/delete/publish/restore
     message = Column(String, nullable=True)
@@ -82,11 +81,35 @@ class FlowSnapshot(BaseDB):
     created_at = Column(DateTime, default=func.now())
     __table_args__ = (
         UniqueConstraint("flow_id", "version", name="uq_flow_version"),
-        # (선택) 둘 다 true 금지
-        CheckConstraint("NOT (is_current AND is_draft)", name="ck_current_xor_draft")
+        CheckConstraint(
+            "role IN ('draft', 'published', 'archived')",
+            name="ck_flow_snapshot_role",
+        ),
+        Index(
+            "uq_flow_snapshot_one_draft",
+            "flow_id",
+            unique=True,
+            sqlite_where=text("role = 'draft'"),
+            postgresql_where=text("role = 'draft'"),
+        ),
+        Index(
+            "uq_flow_snapshot_one_published",
+            "flow_id",
+            unique=True,
+            sqlite_where=text("role = 'published'"),
+            postgresql_where=text("role = 'published'"),
+        ),
     )
 
     flow = relationship("Flow", back_populates="flow_snapshots")
+
+    @property
+    def is_current(self) -> bool:
+        return self.role == FlowSnapshotRole.PUBLISHED.value
+
+    @property
+    def is_draft(self) -> bool:
+        return self.role == FlowSnapshotRole.DRAFT.value
 
 # class FlowVersion(BaseDB):
 #     __tablename__ = "flow_version"

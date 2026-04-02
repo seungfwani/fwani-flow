@@ -14,6 +14,11 @@ class SnapshotOperation(Enum):
     RESTORE = "restore"
     PUBLISH = "publish"
 
+class SnapshotTarget(Enum):
+    """스냅샷 저장 슬롯: 공개(저장본) vs 드래프트. Flow.is_draft 와 혼동하지 않는다."""
+    PUBLISHED = "published"
+    DRAFT = "draft"
+
 
 def get_snapshot_payload_hash(payload: dict) -> tuple[dict, str]:
     flow = payload["flow"]

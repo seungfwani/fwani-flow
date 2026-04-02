@@ -16,6 +16,7 @@ from errors import WorkflowError
 from models.api.dag_model import ExecutionResponse
 from models.db.airflow_mapper import AirflowDagCode
 from models.db.flow import Flow as DBFlow
+from models.db.flow_snapshot_role import FlowSnapshotRole
 from models.db.flow_execution_queue import FlowExecutionQueue
 from models.domain.enums import FlowExecutionStatus
 from models.domain.task_instance import TaskInstance as DomainTaskInstance
@@ -48,10 +49,10 @@ class FlowExecutionService:
         if is_snapshot:
             # dag 수정 후 실행: flow가 draft면 draft 스냅샷, 아니면 current 스냅샷으로 실행
             for snap in flow.flow_snapshots:
-                if flow.is_draft and snap.is_draft:
+                if flow.is_draft and snap.role == FlowSnapshotRole.DRAFT.value:
                     flow_snapshot = snap
                     break
-                if not flow.is_draft and snap.is_current:
+                if not flow.is_draft and snap.role == FlowSnapshotRole.PUBLISHED.value:
                     flow_snapshot = snap
                     break
             if not flow_snapshot:
@@ -62,7 +63,7 @@ class FlowExecutionService:
             file_hash = flow_snapshot.payload["flow"]["file_hash"]
         else:
             for snap in flow.flow_snapshots:
-                if snap.is_current:
+                if snap.role == FlowSnapshotRole.PUBLISHED.value:
                     flow_snapshot = snap
                     break
             dag_id = flow.dag_id
