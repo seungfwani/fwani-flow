@@ -1,0 +1,40 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  labels:
+    pvname: pv-workflow4graphio
+  name: pv-workflow4graphio
+spec:
+  accessModes:
+    - ReadWriteMany
+  capacity:
+    storage: 1Gi
+  claimRef:
+    apiVersion: v1
+    kind: PersistentVolumeClaim
+    name: pvc-workflow4graphio
+    namespace: workflow4graphio
+  hostPath:
+    path: /DATA/workflow4graphio/
+    type: ""
+  persistentVolumeReclaimPolicy: Retain
+  volumeMode: Filesystem
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  labels:
+    pvcname: pvc-workflow4graphio
+  name: pvc-workflow4graphio
+  namespace: workflow4graphio
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 1Gi
+  selector:
+    matchLabels:
+      pvname: pv-workflow4graphio
+  volumeMode: Filesystem
+  volumeName: pv-workflow4graphio

@@ -175,5 +175,7 @@ cython_debug/
 
 .idea
 airflow
-server/data/
-server/*.db
+data/
+*.db
+
+.DS_Store

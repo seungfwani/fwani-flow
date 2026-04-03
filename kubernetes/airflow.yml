@@ -1,0 +1,406 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: airflow
+  name: airflow-web
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      app: airflow
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: airflow
+    spec:
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsUser: 0
+      containers:
+        - name: airflow-web
+          image: repo.iris.tools/graphio/workflow/airflow:2.10.4-python3.11-20250917.5
+          command:
+            - /webserver-entrypoint.sh
+          resources:
+            requests:
+              cpu: "300m"
+              memory: "512Mi"
+            limits:
+              cpu: "800m"
+              memory: "1536Mi"
+          env:
+            - name: AIRFLOW__CORE__EXECUTOR
+              value: "CeleryExecutor"
+            - name: DB_USERNAME
+              value: {{ .Values.connect.postgres.username }}
+            - name: DB_PASSWORD
+              value: {{ .Values.connect.postgres.password }}
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+              value: "postgresql+psycopg2://${DB_USERNAME}:${DB_PASSWORD}@postgresql-svc:5432/graphio?options=-csearch_path=airflow&application_name=airflow"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_SCHEMA
+              value: "airflow"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_SIZE
+              value: "5"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_MAX_OVERFLOW
+              value: "10"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_RECYCLE
+              value: "1800"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_PRE_PING
+              value: "True"
+            - name: AIRFLOW__CORE__DAGS_FOLDER
+              value: "/opt/airflow/dags"
+            - name: AIRFLOW__LOGGING__BASE_LOG_FOLDER
+              value: "/opt/airflow/logs"
+            - name: AIRFLOW__WORKFLOW__SHARED_FOLDER
+              value: "/app/shared"
+            - name: AIRFLOW__API__AUTH_BACKENDS
+              value: airflow.providers.fab.auth_manager.api.auth.backend.basic_auth
+            - name: AIRFLOW__CELERY__BROKER_URL
+              value: "redis://redis-svc:6379/0"
+            - name: AIRFLOW__CELERY__RESULT_BACKEND
+              value: "db+postgresql+psycopg2://${DB_USERNAME}:${DB_PASSWORD}@postgresql-svc:5432/graphio?options=-csearch_path=airflow_celery&application_name=airflow"
+            - name: AIRFLOW__WEBSERVER__WORKERS
+              value: "1"
+            - name: AIRFLOW__WEBSERVER__WEB_SERVER_WORKER_TIMEOUT
+              value: "300"
+            - name: AIRFLOW__WEBSERVER__WEB_SERVER_MASTER_TIMEOUT
+              value: "300"
+            - name: GUNICORN_CMD_ARGS
+              value: "--workers 1 --worker-class sync --timeout 300 --graceful-timeout 300 --max-requests 200 --max-requests-jitter 30 --keep-alive 5 --log-level info"
+          ports:
+            - containerPort: 8080
+              name: api-port
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /app/shared
+              name: ext-volume
+              subPath: airflow/shared
+            - mountPath: /app/builtin_functions
+              name: ext-volume
+              subPath: airflow/builtin_functions
+            - mountPath: /opt/airflow/logs
+              name: ext-volume
+              subPath: airflow/logs
+            - mountPath: /opt/airflow/dags
+              name: ext-volume
+              subPath: airflow/dags
+      volumes:
+        - name: ext-volume
+          persistentVolumeClaim:
+            claimName: pvc-graphio
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: airflow
+  name: airflow-scheduler
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      app: airflow
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: airflow
+    spec:
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsUser: 0
+      containers:
+        - name: airflow-scheduler
+          image: repo.iris.tools/graphio/workflow/airflow:2.10.4-python3.11-20250917.5
+          command:
+            - /scheduler-entrypoint.sh
+          resources:
+            requests:
+              cpu: "400m"
+              memory: "1Gi"
+            limits:
+              cpu: "800m"
+              memory: "2Gi"
+          env:
+            - name: AIRFLOW__CORE__EXECUTOR
+              value: "CeleryExecutor"
+            - name: DB_USERNAME
+              value: {{ .Values.connect.postgres.username }}
+            - name: DB_PASSWORD
+              value: {{ .Values.connect.postgres.password }}
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+              value: "postgresql+psycopg2://${DB_USERNAME}:${DB_PASSWORD}@postgresql-svc:5432/graphio?options=-csearch_path=airflow&application_name=airflow"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_SCHEMA
+              value: "airflow"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_SIZE
+              value: "5"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_MAX_OVERFLOW
+              value: "10"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_RECYCLE
+              value: "1800"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_PRE_PING
+              value: "True"
+            - name: AIRFLOW__CORE__DAGS_FOLDER
+              value: "/opt/airflow/dags"
+            - name: AIRFLOW__LOGGING__BASE_LOG_FOLDER
+              value: "/opt/airflow/logs"
+            - name: AIRFLOW__WORKFLOW__SHARED_FOLDER
+              value: "/app/shared"
+            - name: AIRFLOW__SCHEDULER__DAG_DIR_LIST_INTERVAL
+              value: "10"
+            - name: AIRFLOW__CELERY__BROKER_URL
+              value: "redis://redis-svc:6379/0"
+            - name: AIRFLOW__CELERY__RESULT_BACKEND
+              value: "db+postgresql+psycopg2://${DB_USERNAME}:${DB_PASSWORD}@postgresql-svc:5432/graphio?options=-csearch_path=airflow_celery&application_name=airflow"
+          volumeMounts:
+            - mountPath: /app/shared
+              name: ext-volume
+              subPath: airflow/shared
+            - mountPath: /app/builtin_functions
+              name: ext-volume
+              subPath: airflow/builtin_functions
+            - mountPath: /opt/airflow/logs
+              name: ext-volume
+              subPath: airflow/logs
+            - mountPath: /opt/airflow/dags
+              name: ext-volume
+              subPath: airflow/dags
+      volumes:
+        - name: ext-volume
+          persistentVolumeClaim:
+            claimName: pvc-graphio
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: airflow
+  name: airflow-triggerer
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      app: airflow
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: airflow
+    spec:
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsUser: 0
+      containers:
+        - name: airflow-triggerer
+          image: repo.iris.tools/graphio/workflow/airflow:2.10.4-python3.11-20250917.5
+          command:
+            - /triggerer-entrypoint.sh
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "256Mi"
+            limits:
+              cpu: "400m"
+              memory: "512Mi"
+          env:
+            - name: DB_USERNAME
+              value: {{ .Values.connect.postgres.username }}
+            - name: DB_PASSWORD
+              value: {{ .Values.connect.postgres.password }}
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+              value: "postgresql+psycopg2://${DB_USERNAME}:${DB_PASSWORD}@postgresql-svc:5432/graphio?options=-csearch_path=airflow&application_name=airflow"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_SCHEMA
+              value: "airflow"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_SIZE
+              value: "5"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_MAX_OVERFLOW
+              value: "10"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_RECYCLE
+              value: "1800"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_PRE_PING
+              value: "True"
+            - name: AIRFLOW__CORE__DAGS_FOLDER
+              value: "/opt/airflow/dags"
+            - name: AIRFLOW__LOGGING__BASE_LOG_FOLDER
+              value: "/opt/airflow/logs"
+            - name: AIRFLOW__WORKFLOW__SHARED_FOLDER
+              value: "/app/shared"
+            - name: AIRFLOW__CELERY__BROKER_URL
+              value: "redis://redis-svc:6379/0"
+            - name: AIRFLOW__CELERY__RESULT_BACKEND
+              value: "db+postgresql+psycopg2://${DB_USERNAME}:${DB_PASSWORD}@postgresql-svc:5432/graphio?options=-csearch_path=airflow_celery&application_name=airflow"
+          volumeMounts:
+            - mountPath: /app/shared
+              name: ext-volume
+              subPath: airflow/shared
+            - mountPath: /app/builtin_functions
+              name: ext-volume
+              subPath: airflow/builtin_functions
+            - mountPath: /opt/airflow/logs
+              name: ext-volume
+              subPath: airflow/logs
+            - mountPath: /opt/airflow/dags
+              name: ext-volume
+              subPath: airflow/dags
+      volumes:
+        - name: ext-volume
+          persistentVolumeClaim:
+            claimName: pvc-graphio
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: airflow
+  name: airflow-worker
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    matchLabels:
+      app: airflow
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: airflow
+    spec:
+      securityContext:
+        fsGroup: 1000
+        runAsGroup: 1000
+        runAsUser: 0
+      containers:
+        - name: airflow-worker
+          image: repo.iris.tools/graphio/workflow/airflow:2.10.4-python3.11-20250917.5
+          command:
+            - /worker-entrypoint.sh
+          resources:
+            requests:
+              cpu: "500m"
+              memory: "1Gi"
+            limits:
+              cpu: "1000m"
+              memory: "2Gi"
+          env:
+            - name: AIRFLOW__CORE__EXECUTOR
+              value: "CeleryExecutor"
+            - name: DB_USERNAME
+              value: {{ .Values.connect.postgres.username }}
+            - name: DB_PASSWORD
+              value: {{ .Values.connect.postgres.password }}
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+              value: "postgresql+psycopg2://${DB_USERNAME}:${DB_PASSWORD}@postgresql-svc:5432/graphio?options=-csearch_path=airflow&application_name=airflow"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_SCHEMA
+              value: "airflow"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_SIZE
+              value: "5"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_MAX_OVERFLOW
+              value: "10"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_RECYCLE
+              value: "1800"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_PRE_PING
+              value: "True"
+            - name: AIRFLOW__CORE__DAGS_FOLDER
+              value: "/opt/airflow/dags"
+            - name: AIRFLOW__LOGGING__BASE_LOG_FOLDER
+              value: "/opt/airflow/logs"
+            - name: AIRFLOW__WORKFLOW__SHARED_FOLDER
+              value: "/app/shared"
+            - name: AIRFLOW__CELERY__BROKER_URL
+              value: "redis://redis-svc:6379/0"
+            - name: AIRFLOW__CELERY__RESULT_BACKEND
+              value: "db+postgresql+psycopg2://${DB_USERNAME}:${DB_PASSWORD}@postgresql-svc:5432/graphio?options=-csearch_path=airflow_celery&application_name=airflow"
+            - name: AIRFLOW__CELERY__WORKER_CONCURRENCY
+              value: "4"
+            - name: AIRFLOW__CORE__PARALLELISM
+              value: "16"
+            - name: AIRFLOW__CORE__DAG_CONCURRENCY
+              value: "8"
+            - name: AIRFLOW__CORE__MAX_ACTIVE_RUNS_PER_DAG
+              value: "2"
+          volumeMounts:
+            - mountPath: /app/shared
+              name: ext-volume
+              subPath: airflow/shared
+            - mountPath: /app/builtin_functions
+              name: ext-volume
+              subPath: airflow/builtin_functions
+            - mountPath: /opt/airflow/logs
+              name: ext-volume
+              subPath: airflow/logs
+            - mountPath: /opt/airflow/dags
+              name: ext-volume
+              subPath: airflow/dags
+      volumes:
+        - name: ext-volume
+          persistentVolumeClaim:
+            claimName: pvc-graphio
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: airflow
+  name: airflow-svc
+  namespace: iris-graphio
+spec:
+  ports:
+    - name: api-port
+      port: 8080
+      nodePort: 30877
+      protocol: TCP
+      targetPort: api-port
+  selector:
+    app: airflow
+  type: NodePort
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: airflow-init
+  namespace: iris-graphio
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: airflow-init
+          image: repo.iris.tools/graphio/workflow/airflow:2.10.4-python3.11-20250917.5
+          command:
+            - /docker-init.sh
+          env:
+            - name: LOAD_EXAMPLES
+              value: "False"
+            - name: ROOT_USERNAME
+              value: {{ .Values.connect.postgres.username }}
+            - name: ROOT_PASSWORD
+              value: {{ .Values.connect.postgres.password }}
+            - name: DB_USERNAME
+              value: {{ .Values.connect.postgres.username }}
+            - name: DB_PASSWORD
+              value: {{ .Values.connect.postgres.password }}
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+              value: "postgresql+psycopg2://${DB_USERNAME}:${DB_PASSWORD}@postgresql-svc:5432/graphio?options=-csearch_path=airflow&application_name=airflow"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_SCHEMA
+              value: "airflow"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_SIZE
+              value: "5"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_MAX_OVERFLOW
+              value: "10"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_RECYCLE
+              value: "1800"
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_POOL_PRE_PING
+              value: "True"
+          volumeMounts:
+            - mountPath: /opt/airflow/logs
+              name: ext-volume
+              subPath: airflow/logs
+      volumes:
+        - name: ext-volume
+          persistentVolumeClaim:
+            claimName: pvc-graphio

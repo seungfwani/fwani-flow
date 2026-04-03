@@ -1,0 +1,82 @@
+id: "00000000-0000-4000-9000-000000000002"
+name: "저장 설정"
+description: "metatype 을 저장하는 함수"
+impl_namespace: "save_meta"
+impl_callable: "run"
+param_schema:
+  - type: string
+    name: host
+    required: true
+    value: http://ontology-svc:8080
+  - type: string
+    name: id
+    required: false
+  - type: string
+    name: saveType
+    required: true
+    value: new
+  - type: string
+    name: ownerId
+    required: true
+  - type: string
+    name: name
+    required: true
+  - type: string
+    name: description
+    required: false
+  - type: string
+    name: connectionInstanceId
+    required: true
+  - type: list
+    name: tagIds
+    required: false
+    value: []
+  - type: list
+    name: metaTypeIds
+    required: true
+    value:
+      - type: string
+        name: id
+        required: true
+      - type: string
+        name: name
+        required: true
+      - type: list
+        name: properties
+        required: true
+        value:
+        - type: string
+          name: id
+          required: true
+        - type: string
+          name: metaTypePropertyName
+          required: true
+  - type: list
+    name: properties
+    required: true
+    value:
+    - type: string
+      name: name
+      required: true
+    - type: string
+      name: description
+      required: false
+    - type: string
+      name: dataType
+      required: true
+    - type: list
+      name: metaTypeProperties
+      required: true
+      value:
+      - type: string
+        name: metaTypeId
+        required: true
+      - type: string
+        name: propertyId
+        required: true
+python_libraries:
+  - pandas==2.3.1
+  - requests==2.32.3
+is_deprecated: false
+kind: system
+ui_type: output

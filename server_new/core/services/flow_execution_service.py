@@ -1,0 +1,283 @@
+import datetime
+import logging
+import os
+import pickle
+import time
+
+import pandas
+from airflow.models import DagRun as AirflowDagRun
+from airflow.models import TaskInstance as AirflowTaskInstance
+from sqlalchemy import and_, desc
+from sqlalchemy.orm import Session
+
+from config import Config
+from core.airflow_client import AirflowClient
+from errors import WorkflowError
+from models.api.dag_model import ExecutionResponse
+from models.db.airflow_mapper import AirflowDagCode
+from models.db.flow import Flow as DBFlow
+from models.db.flow_snapshot_role import FlowSnapshotRole
+from models.db.flow_execution_queue import FlowExecutionQueue
+from models.domain.enums import FlowExecutionStatus
+from models.domain.task_instance import TaskInstance as DomainTaskInstance
+from utils.functions import get_hash
+
+logger = logging.getLogger()
+
+
+class FlowExecutionService:
+    def __init__(self, meta_db: Session, airflow_db: Session, airflow_client: AirflowClient):
+        self.meta_db = meta_db
+        self.airflow_db = airflow_db
+        self.airflow_client = airflow_client
+
+    def _get_flow(self, flow_id: str) -> DBFlow:
+        flow = self.meta_db.query(DBFlow).filter(DBFlow.id == flow_id).first()
+        if not flow:
+            raise WorkflowError(f"등록되지 않은 DAG ({flow_id}")
+        return flow
+
+    def _get_flow_execution(self, execution_id: str) -> DBFlow:
+        execution = self.meta_db.query(FlowExecutionQueue).filter_by(id=execution_id).first()
+        if not execution:
+            raise WorkflowError(f"없는 실행 {execution_id}")
+        return execution
+
+    def _register_execution(self, flow_id: str, is_snapshot: bool = False) -> FlowExecutionQueue:
+        flow = self._get_flow(flow_id)
+        flow_snapshot = None
+        if is_snapshot:
+            # dag 수정 후 실행: flow가 draft면 draft 스냅샷, 아니면 current 스냅샷으로 실행
+            for snap in flow.flow_snapshots:
+                if flow.is_draft and snap.role == FlowSnapshotRole.DRAFT.value:
+                    flow_snapshot = snap
+                    break
+                if not flow.is_draft and snap.role == FlowSnapshotRole.PUBLISHED.value:
+                    flow_snapshot = snap
+                    break
+            if not flow_snapshot:
+                raise WorkflowError(
+                    "Draft 스냅샷이 없습니다." if flow.is_draft else "Current 스냅샷이 없습니다."
+                )
+            dag_id = flow_snapshot.payload["flow"]["dag_id"]
+            file_hash = flow_snapshot.payload["flow"]["file_hash"]
+        else:
+            for snap in flow.flow_snapshots:
+                if snap.role == FlowSnapshotRole.PUBLISHED.value:
+                    flow_snapshot = snap
+                    break
+            dag_id = flow.dag_id
+            file_hash = flow.file_hash if flow_snapshot is None else flow_snapshot.payload["flow"]["file_hash"]
+        flow_execution = FlowExecutionQueue(
+            flow_id=flow.id,
+            flow_snapshot=flow_snapshot,
+            dag_id=dag_id,
+            status=FlowExecutionStatus.WAITING.value,
+            file_hash=file_hash,
+            scheduled_time=datetime.datetime.now(),
+            triggered_time=datetime.datetime.now(),
+            data={
+                "conf": {
+                    "source": "api",
+                },
+            },
+        )
+        self.meta_db.add(flow_execution)
+        self.meta_db.commit()
+
+        return flow_execution
+
+    def _request_airflow_dag_run(self, flow_execution: FlowExecutionQueue, is_snapshot: bool = False):
+        try:
+            if FlowExecutionStatus(flow_execution.status) == FlowExecutionStatus.WAITING:
+                if flow_execution.flow_snapshot is not None:
+                    file_hash = flow_execution.flow_snapshot.payload["flow"]["file_hash"]
+                else:
+                    file_hash = flow_execution.flow.file_hash
+                if file_hash != flow_execution.file_hash:
+                    flow_execution.status = FlowExecutionStatus.ERROR.value
+                else:
+                    # TODO: try count 를 추가해서 airflow 요청을 재시도 하는 로직 필요
+                    MAX_RETRIES = 10
+                    RETRY_INTERVAL = 1
+                    for i in range(MAX_RETRIES):
+                        logger.info(f"▶️ [{i + 1}/{MAX_RETRIES}] check airflow dag code for {flow_execution.dag_id}")
+
+                        airflow_dag_code = (
+                            self.airflow_db.query(AirflowDagCode)
+                            .filter(AirflowDagCode.fileloc.like(f"%/{flow_execution.dag_id}/%"))
+                            .order_by(desc(AirflowDagCode.last_updated))
+                            .first()
+                        )
+
+                        if airflow_dag_code:
+                            current_hash = get_hash(airflow_dag_code.source_code)
+                            if current_hash == flow_execution.file_hash:
+                                logger.info("✅ DAG code hash match with airflow hash!")
+                                break
+                            else:
+                                logger.info(
+                                    f"⚠️ Hash mismatch with airflow hash:"
+                                    f" expected={flow_execution.file_hash}, airflow hash={current_hash}")
+                        else:
+                            logger.debug(f"⚠️ No DAG code in airflow yet.")
+
+                        time.sleep(RETRY_INTERVAL)
+                    run_id = self.airflow_client.run_dag(flow_execution.dag_id, flow_execution.data, force=True)
+                    flow_execution.run_id = run_id
+                    flow_execution.status = FlowExecutionStatus.TRIGGERED.value
+                    flow_execution.triggered_time = datetime.datetime.now(datetime.timezone.utc)
+        except Exception as e:
+            flow_execution.status = FlowExecutionStatus.ERROR.value
+            raise WorkflowError(f"DAG 트리거 실패: {e}")
+        finally:
+            self.meta_db.commit()
+
+    def run_execution(self, flow_id: str, is_snapshot: bool = False):
+        flow_execution = self._register_execution(flow_id, is_snapshot)
+        # 즉시 실행일 경우 → 바로 실행
+        self._request_airflow_dag_run(flow_execution, is_snapshot)
+        return flow_execution.id
+
+    def register_executions(self, dag_ids: list[str]):
+        result = []
+        for dag_id in dag_ids:
+            result.append({
+                "dag_id": dag_id,
+                "execution_id": self._register_execution(dag_id).id
+            })
+        return result
+
+    def kill_execution(self, execution_id: str):
+        execution = self._get_flow_execution(execution_id)
+
+        status = self.airflow_client.kill(execution.dag_id, execution.run_id)
+        execution.status = FlowExecutionStatus.from_str(status).value
+        self.meta_db.commit()
+        return True
+
+    def cancel_execution(self, execution_id: str):
+        execution = self._get_flow_execution(execution_id)
+        if execution.status != FlowExecutionStatus.WAITING.value:
+            raise WorkflowError("취소할 수 없는 트리거")
+
+        execution.status = FlowExecutionStatus.CANCELED.value
+        self.meta_db.commit()
+        return True
+
+    def get_execution_list(self):
+        executions = self.meta_db.query(FlowExecutionQueue).all()
+        return [ExecutionResponse(
+            id=execution.id,
+            flow_id=execution.flow_id,
+            status=execution.status,
+            scheduled_time=execution.scheduled_time,
+            triggered_time=execution.triggered_time,
+        ) for execution in executions]
+
+    def get_execution_status(self, execution_id: str):
+        execution = self._get_flow_execution(execution_id)
+
+        if FlowExecutionStatus(execution.status) not in FlowExecutionStatus.get_terminal_states():
+            # 아직 대기중/진행중 이므로, 상태 체크 후 반환
+            airflow_dag_run = (self.airflow_db.query(AirflowDagRun)
+                               .filter(and_(AirflowDagRun.dag_id == execution.dag_id,
+                                            AirflowDagRun.run_id == execution.run_id))
+                               .first())
+            if airflow_dag_run:
+                execution.status = FlowExecutionStatus.from_str(airflow_dag_run.state).value
+                self.meta_db.commit()
+            return execution.status, False
+        return execution.status, True
+
+    def get_all_task_instance(self, execution_id: str, is_snapshot: bool = False):
+        execution = self._get_flow_execution(execution_id)
+        task_instances = (self.airflow_db.query(AirflowTaskInstance)
+                          .filter(and_(AirflowTaskInstance.dag_id == execution.dag_id,
+                                       AirflowTaskInstance.run_id == execution.run_id))
+                          .all())
+        if execution.flow_snapshot is None:
+            raise WorkflowError(
+                f"실행({execution_id})에 스냅샷이 연결되어 있지 않습니다. "
+                "태스크 목록을 조회할 수 없습니다."
+            )
+        task_dict = {t["variable_id"]: t["id"] for t in execution.flow_snapshot.payload["tasks"]}
+        return [DomainTaskInstance(
+            task_id=task_dict[ti.task_id],
+            execution_date=ti.execution_date,
+            start_date=ti.start_date,
+            end_date=ti.end_date,
+            duration=ti.duration,
+            operator=ti.operator,
+            queued_when=ti.queued_dttm,
+            status=FlowExecutionStatus.from_str(ti.state),
+            try_number=ti.try_number,
+        ) for ti in task_instances]
+
+    def _get_task_variable_id(self, execution: FlowExecutionQueue, task_id: str, is_snapshot: bool = False):
+        task_variable_id = None
+        if execution.flow_snapshot is None:
+            raise WorkflowError(
+                f"실행({execution.id})에 스냅샷이 연결되어 있지 않습니다. "
+                "태스크 매핑을 조회할 수 없습니다."
+            )
+        for t in execution.flow_snapshot.payload["tasks"]:
+            if t["id"] == task_id:
+                task_variable_id = t["variable_id"]
+                break
+        if task_variable_id is None:
+            raise WorkflowError(f"execution({execution.id}) 에 해당하는 task({task_id})를 찾을 수 없습니다.")
+        return task_variable_id
+
+    def get_task_log(self, execution_id: str, task_id: str, try_number: int = None, is_snapshot: bool = False):
+        result = {
+            "status": None,
+            "log": None,
+        }
+        execution = self._get_flow_execution(execution_id)
+        try:
+            task_variable_id = self._get_task_variable_id(execution, task_id, is_snapshot)
+        except WorkflowError:
+            return result
+        task_instance = (self.airflow_db.query(AirflowTaskInstance)
+                         .filter(and_(AirflowTaskInstance.dag_id == execution.dag_id,
+                                      AirflowTaskInstance.run_id == execution.run_id,
+                                      AirflowTaskInstance.task_id == task_variable_id))
+                         .first())
+        if task_instance is None:
+            return result
+
+        request_try_number = try_number if try_number is not None else task_instance.try_number
+        status, log = self.airflow_client.get_task_log(execution.dag_id, execution.run_id, task_instance.task_id,
+                                                       request_try_number)
+        result["try_number"] = request_try_number
+        result["status"] = FlowExecutionStatus.from_str(status).value
+        result["log"] = log
+        return result
+
+    def get_task_result_data(self, execution_id: str, task_id: str, is_snapshot: bool = False):
+        execution = self._get_flow_execution(execution_id)
+        task_variable_id = self._get_task_variable_id(execution, task_id, is_snapshot)
+
+        pkl_path = os.path.join(Config.SHARED_DIR,
+                                f"dag_id={execution.dag_id}",
+                                f"run_id={execution.run_id}",
+                                f"task_id={task_variable_id}",
+                                "result.pkl")
+        if os.path.exists(pkl_path):
+            try:
+                logger.info(f"▶️ load pickle file: {pkl_path}")
+                with open(pkl_path, "rb") as f:
+                    result = pickle.load(f)
+                if isinstance(result, pandas.DataFrame):
+                    return {"result": result.to_dict(orient='records'), "type": "rows"}
+                else:
+                    return {"result": result, "type": "dict"}
+            except Exception as e:
+                raise WorkflowError("Failed to load pickle result")
+        else:
+            raise WorkflowError("결과 파일이 존재하지 않습니다.")
+
+
+if __name__ == "__main__":
+    print(FlowExecutionStatus("waiting"))

@@ -1,0 +1,26 @@
+id: "00000000-0000-4000-9000-000000000001"
+name: "Load MetaTypeData"
+description: "metatype 테이블 로드 함수"
+impl_namespace: "load_meta"
+impl_callable: "run"
+param_schema:
+  - type: string
+    name: host
+    required: true
+    value: http://ontology-svc:8080
+  - type: string
+    name: metaId
+    required: true
+  - type: dict
+    name: headers
+    required: true
+    value: {}
+  - type: integer
+    name: timeout_sec
+    required: false
+python_libraries:
+  - pandas==2.3.1
+  - requests==2.32.3
+is_deprecated: false
+kind: meta
+ui_type: input
