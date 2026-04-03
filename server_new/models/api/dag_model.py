@@ -191,8 +191,11 @@ class DAGResponse(BaseModel):
     max_retries: Optional[int] = Field(0, description="DAG max retries. default 0")
     updated_at: Optional[datetime] = Field(None, description="DAG Updated at", examples=["2020-10-18 00:00:00"])
     active_status: bool = Field(False, description="DAG Active", examples=[True, False])
-    execution_status: Optional[str] = Field(None, description="DAG Last Execution Status",
-                                            examples=["waiting", "success", "failed"])
+    execution_status: Optional[str] = Field(
+        None,
+        description="최근 실행 상태(압축): success, failed, running. 미연결·없음은 null",
+        examples=["success", "failed", "running"],
+    )
 
 
 class ExecutionResponse(BaseModel):

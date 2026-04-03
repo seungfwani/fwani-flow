@@ -6,6 +6,7 @@ from errors import WorkflowError
 from models.api.dag_model import DAGRequest, DAGNode, DAGEdge, DAGResponse
 from models.db.airflow_mapper import AirflowDag
 from models.db.flow import Flow as DBFlow, FlowSnapshot
+from models.domain.execution_status_presenter import get_execution_status_presenter
 from models.domain.flow import Flow as DomainFlow, Edge as DomainEdge, Task as DomainTask
 
 
@@ -125,7 +126,7 @@ def flow_domain2api(flow: DomainFlow):
         schedule_options=flow.schedule_options,
         updated_at=flow.updated_at,
         active_status=flow.active_status,
-        execution_status=flow.execution_status,
+        execution_status=get_execution_status_presenter().present(flow.execution_status),
         is_draft=flow.is_draft,
         max_retries=flow.max_retries,
     )
@@ -267,7 +268,7 @@ def flow_to_dag_list_response(db_flow: DBFlow, execution_status: str | None) -> 
         max_retries=db_flow.max_retries or 0,
         updated_at=db_flow.updated_at,
         active_status=db_flow.active_status,
-        execution_status=execution_status,
+        execution_status=get_execution_status_presenter().present(execution_status),
     )
 
 

@@ -641,7 +641,7 @@ async def get_dag_list(
                                                              to_bool)),
         execution_status: set[str] = Depends(parse_comma_query(None,
                                                                "execution_status",
-                                                               "execution status filter (ex. success,failed)",
+                                                               "execution status filter (ex. success,failed,running)",
                                                                str)),
         owner: set[str] = Depends(parse_comma_query(None, "owner", "owner id filter (ex. owner_id, ...)", str)),
         name: str = Query(None, description="dag name filter"),

@@ -23,6 +23,7 @@ from models.db.flow import Flow as DBFlow, FlowSnapshot
 from models.db.flow_snapshot_role import FlowSnapshotRole
 from models.db.flow_execution_queue import FlowExecutionQueue
 from models.db.keycloak_mapper import KeycloakUserEntity
+from models.domain.execution_status_presenter import get_execution_status_presenter
 from models.domain.mapper import (
     flow_api2domain,
     flow_snapshot2api,
@@ -561,7 +562,11 @@ class FlowDefinitionService:
                                        FEQ2.updated_at == subquery.c.updated_at)))
         query = query.filter(~DBFlow.flow_snapshots.any(FlowSnapshot.op == "DUMMY"))
         if execution_status:
-            query = query.filter(FEQ2.status.in_(execution_status))
+            expanded = get_execution_status_presenter().expand_filter_values(execution_status)
+            if expanded:
+                query = query.filter(FEQ2.status.in_(expanded))
+            else:
+                query = query.filter(literal(False))
         if active_status:
             query = query.filter(or_(*[DBFlow.active_status == i for i in active_status]))
         if owner:
