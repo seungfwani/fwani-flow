@@ -10,14 +10,14 @@ USER root
 #    rm -rf /var/lib/apt/lists/*
 
 COPY ./requirements.txt ./requirements.txt
+COPY ./requirements-graphio.txt ./requirements-graphio.txt
 
 RUN apt update && apt install -y build-essential \
     git
 
 RUN pip3 install --upgrade pip \
     && pip3 install --no-cache-dir -r ./requirements.txt \
-    && pip3 install --no-cache-dir --prefix=/usr/local \
-      "git+https://github.com/iris-graphio/graphio-ontology-sdk.git"
+    && pip3 install --no-cache-dir --prefix=/usr/local -r ./requirements-graphio.txt
 
 USER airflow
 WORKDIR /app
