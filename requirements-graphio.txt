@@ -1,0 +1,3 @@
+pika==1.3.2
+pydantic>=2.0.0
+git+https://github.com/iris-graphio/graphio-ontology-sdk.git
