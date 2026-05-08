@@ -29,6 +29,7 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
     name = params.get("name")
     description = params.get("description")
     connection_instance_id = params.get("connectionInstanceId")
+    workflow_id = params.get("workflowId")
     schema_name = params.get("schemaName")
     tag_ids = params.get("tagIds", [])
     meta_type_ids = params.get("metaTypeIds", [])
@@ -72,6 +73,7 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
     url = f"{host.rstrip('/')}/{endpoint.lstrip('/')}"
     payload = {
         "id": metatype_id,
+        "workflowId": workflow_id,
         "ownerId": owner_id,
         "connectionInstanceId": connection_instance_id,
         "metaTypeSchemaName": schema_name,
