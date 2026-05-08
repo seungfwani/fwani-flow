@@ -230,6 +230,7 @@ class Flow:
             else:
                 default_inputs = {col.get('name'): col.get('value') for col in task.system_function.param_schema}
                 default_inputs.update(task.inputs)
+                default_inputs['workflowId'] = self.id
                 default_inputs['is_test'] = self.is_draft
                 file_contents = render_task_code_script(
                     task_code=task.code,
