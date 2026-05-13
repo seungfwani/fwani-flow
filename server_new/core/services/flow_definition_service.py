@@ -4,6 +4,7 @@ import logging
 import shutil
 from pathlib import Path
 
+import requests
 from sqlalchemy import or_, and_, func, asc, desc, inspect, literal
 from sqlalchemy.orm import Session, aliased
 from sqlalchemy.sql.operators import like_op
@@ -370,6 +371,43 @@ class FlowDefinitionService:
         self.meta_db.commit()
         return payload_to_domain_flow(snap.payload)
 
+    def _notify_metatype_dag_schema(self, flow_id: str, payload: dict) -> None:
+        tasks = payload.get("tasks", [])
+        meta_tasks = [t for t in tasks if t.get("kind") == "meta"]
+        if not meta_tasks:
+            return
+
+        nodes = []
+        host = None
+        for task in meta_tasks:
+            inputs_list = task.get("inputs", [])
+            params = {item["key"]: item["value"] for item in inputs_list}
+            if host is None:
+                host = params.get("host")
+            nodes.append({
+                "nodeId": task["id"],
+                "params": params,
+            })
+
+        if not host:
+            logger.warning("⚠️ No host found in meta node params, skip metatype dag schema notification")
+            return
+
+        url = f"{host.rstrip('/')}/graphio/v1/meta-type/workflow-dag/save"
+        body = {
+            "workflowId": flow_id,
+            "nodes": nodes,
+        }
+
+        try:
+            resp = requests.post(url, json=body, timeout=10)
+            if resp.ok:
+                logger.info(f"✅ Metatype dag schema saved: {resp.status_code}")
+            else:
+                logger.warning(f"⚠️ Metatype dag schema save failed: {resp.status_code} {resp.text}")
+        except Exception as e:
+            logger.warning(f"⚠️ Metatype dag schema save request failed: {e}")
+
     def save_dag(self, dag: DAGRequest):
         existing = self.find_existing_flow(dag.name)
         if existing:
@@ -403,6 +441,8 @@ class FlowDefinitionService:
             domain_for_file.write_file()
             db_flow.file_hash = domain_for_file.file_hash
         self.meta_db.commit()
+        # dag를 저장한 뒤 ontology에 메타타입과 메타매핑을 저장
+        self._notify_metatype_dag_schema(flow_id, payload)
         snap = (
             self.meta_db.query(FlowSnapshot)
             .filter_by(flow_id=db_flow.id)
@@ -422,18 +462,20 @@ class FlowDefinitionService:
         new_flow = flow_api2domain(new_dag, origin_dag_id)
         if new_flow.is_draft:  # 수정중
             # snapshot 만 저장
+            draft_payload = build_flow_snapshot_by_domain(new_flow, origin_dag_id)
             snap, is_snap_changed = self.save_flow_snapshot(
                 origin_flow,
                 SnapshotOperation.UPDATE,
                 snapshot_target=SnapshotTarget.DRAFT,
                 message="draft=True",
-                payload=build_flow_snapshot_by_domain(new_flow, origin_dag_id)
+                payload=draft_payload,
             )
             if not is_snap_changed and snap.op == SnapshotOperation.DUMMY.name:
                 if not snap.payload.get("tasks", []):
                     logger.warning("🧹 Delete unchanged Dummy Flow")
                     self.meta_db.delete(origin_flow)
             self.meta_db.commit()
+            self._notify_metatype_dag_schema(origin_dag_id, draft_payload)
             return new_flow
         # 저장시(is_draft=False) 이름이 바뀐 경우 → 중복 확인 및 갱신
         if new_flow.name != origin_flow.name:
@@ -460,6 +502,7 @@ class FlowDefinitionService:
                 domain_for_file.write_file()
                 origin_flow.file_hash = domain_for_file.file_hash
             self.meta_db.commit()
+            self._notify_metatype_dag_schema(origin_dag_id, payload)
             return payload_to_domain_flow(snap.payload)
         except Exception as e:
             self.meta_db.rollback()
