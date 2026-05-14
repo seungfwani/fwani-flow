@@ -371,6 +371,35 @@ class FlowDefinitionService:
         self.meta_db.commit()
         return payload_to_domain_flow(snap.payload)
 
+    @staticmethod
+    def _build_workflow_dag_save_node(task: dict) -> dict:
+        """meta-type/workflow-dag/save 요청용 노드 한 건 (params / metaTypeIds 분리)."""
+        raw = {item["key"]: item["value"] for item in task.get("inputs", [])}
+        meta_type_ids = raw.get("metaTypeIds") or []
+        properties_raw = raw.get("properties") or []
+        params = {
+            "id": raw.get("id"),
+            "name": raw.get("name"),
+            "description": raw.get("description"),
+            "ownerId": raw.get("ownerId"),
+            "connectionInstanceId": raw.get("connectionInstanceId"),
+            "schemaName": raw.get("schemaName") or raw.get("metaTypeSchemaName"),
+            "tagIds": raw.get("tagIds") or [],
+            "properties": [
+                {
+                    "metaTypePropertyName": p.get("name"),
+                    "description": p.get("description"),
+                    "dataType": p.get("dataType"),
+                }
+                for p in properties_raw
+            ],
+        }
+        return {
+            "nodeId": task["id"],
+            "params": params,
+            "metaTypeIds": copy.deepcopy(meta_type_ids),
+        }
+
     def _notify_metatype_dag_schema(self, flow_id: str, payload: dict) -> None:
         tasks = payload.get("tasks", [])
         meta_tasks = [t for t in tasks if t.get("kind") == "meta"]
@@ -380,14 +409,10 @@ class FlowDefinitionService:
         nodes = []
         host = None
         for task in meta_tasks:
-            inputs_list = task.get("inputs", [])
-            params = {item["key"]: item["value"] for item in inputs_list}
+            raw = {item["key"]: item["value"] for item in task.get("inputs", [])}
             if host is None:
-                host = params.get("host")
-            nodes.append({
-                "nodeId": task["id"],
-                "params": params,
-            })
+                host = raw.get("host")
+            nodes.append(self._build_workflow_dag_save_node(task))
 
         if not host:
             logger.warning("⚠️ No host found in meta node params, skip metatype dag schema notification")

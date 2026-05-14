@@ -1,3 +1,4 @@
+import json
 import logging
 from typing import Any, Dict, Optional
 
@@ -13,25 +14,24 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
     params 예시:
     {
       "host": "http://192.168.100.170:30842",
-      "endpoint": "/graphio/v1/meta-type/workflow/create",
-      "meta_type_id": "abcd-1234",
+      "id": "metatype-uuid",
+      "metaTypeIds": [...],
+      "properties": [...],
+      "before_task_ids": [...],
       "headers": {"Authorization": "Bearer ..."},
-      "timeout_sec": 20
+      "timeout_sec": 20,
+      "is_test": false
     }
+
+    실행 시 Graphio API: POST {host}/graphio/v1/meta-type/workflow-dag/run,
+    body: {"id": metatype_id, "dataFrame": [...]}  (dataFrame은 rows, orient=records)
     """
     if not params:
         raise ValueError("params is required")
 
     host = params.get("host")
-    endpoint = "/graphio/v1/meta-type/workflow/create"
+    endpoint = "/graphio/v1/meta-type/workflow-dag/run"
     metatype_id = params.get("id")
-    owner_id = params.get("ownerId")
-    name = params.get("name")
-    description = params.get("description")
-    connection_instance_id = params.get("connectionInstanceId")
-    workflow_id = params.get("workflowId")
-    schema_name = params.get("schemaName")
-    tag_ids = params.get("tagIds", [])
     meta_type_ids = params.get("metaTypeIds", [])
     property_mapper = params.get("properties", [])
     before_task_ids = params.get("before_task_ids", [])
@@ -39,7 +39,6 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
     if not host:
         raise ValueError("host is required in params")
 
-    properties = []
     before_task_index = {bti: i for i, (bti, _) in enumerate(before_task_ids)}
     origin_property_mapper = {
         mti['id']: {
@@ -49,11 +48,6 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
     # 이전 태스크 결과 df 별 컬럼 매핑 생성
     new_series_list = []
     for p in property_mapper:
-        properties.append({
-            "rawDataPropertyName": p.get('name'),
-            "description": p.get("description"),
-            "dataType": p.get('dataType'),
-        })
         if metaTypeProperties := p.get('metaTypeProperties', []):
             origin_node_id = metaTypeProperties[0].get("metaTypeId")
             origin_property_id = metaTypeProperties[0].get("metaTypePropertyId")
@@ -68,21 +62,15 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
     new_df = new_df.replace({np.nan: None})
 
     if _ := params.get("is_test", True):
-        print("⚠️ This is test. So do not request Save API")
+        print("⚠️ This is test. So do not request Run API")
         return new_df
+    if not metatype_id:
+        raise ValueError("id (metatype id) is required in params when calling workflow-dag/run")
+
     url = f"{host.rstrip('/')}/{endpoint.lstrip('/')}"
-    payload = {
-        "id": metatype_id,
-        "workflowId": workflow_id,
-        "ownerId": owner_id,
-        "connectionInstanceId": connection_instance_id,
-        "metaTypeSchemaName": schema_name,
-        "name": name,
-        "description": description,
-        "tagIds": tag_ids,
-        "properties": properties,
-        "dataFrame": new_df.to_dict(orient='records'),
-    }  # body 데이터 (dict 형태)
+    # numpy 등 비-JSON 타입을 피하기 위해 to_json → loads 사용
+    data_frame = json.loads(new_df.to_json(orient="records", date_format="iso"))
+    payload = {"id": metatype_id, "dataFrame": data_frame}
     headers = {"Content-Type": "application/json"}  # JSON 형식 요청
     response = requests.post(url, json=payload, headers=headers)
 
@@ -105,7 +93,6 @@ if __name__ == "__main__":
     df_B = pd.DataFrame([["가", "나", "다"], ["라", "마", "바"], ['사', '아', '자']], columns=["A", "B", "C"])
     df = run(df_A, df_B, params={
         "host": "http://192.168.109.254:30820",
-        "endpoint": "/graphio/v1/meta-type/workflow/create",
         "id": "00000000-0000-4000-9000-000000000003",
         "saveType": "new",
         "ownerId": None,
