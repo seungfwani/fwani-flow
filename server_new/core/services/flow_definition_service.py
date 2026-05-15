@@ -387,7 +387,7 @@ class FlowDefinitionService:
             "description": raw.get("description"),
             "ownerId": raw.get("ownerId"),
             "connectionInstanceId": raw.get("connectionInstanceId"),
-            "schemaName": raw.get("schemaName") or raw.get("metaTypeSchemaName"),
+            "schemaName": raw.get("schemaName"),
             "tagIds": raw.get("tagIds") or [],
             "properties": [
                 {
