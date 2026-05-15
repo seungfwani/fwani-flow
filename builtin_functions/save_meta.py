@@ -1,6 +1,5 @@
 import json
 import logging
-import os
 from typing import Any, Dict, Optional
 
 import numpy as np
@@ -8,15 +7,6 @@ import pandas as pd
 import requests
 
 logger = logging.getLogger(__name__)
-
-_META_TYPE_API_PREFIX = "/graphio/v1/meta-type/"
-
-
-def _get_workflow_dag_run_url() -> str:
-    host = os.getenv("ONTOLOGY_HOST", "ontology-svc")
-    port = os.getenv("ONTOLOGY_PORT", "8080")
-    endpoint = os.getenv("ENDPOINT_DAG_RUN", "workflow-dag/run").lstrip("/")
-    return f"http://{host}:{port}{_META_TYPE_API_PREFIX}{endpoint}"
 
 
 def run(*dfs, params: Optional[Dict[str, Any]] = None):
@@ -33,16 +23,21 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
       "is_test": false
     }
 
-    실행 시 Graphio API: POST {ONTOLOGY_HOST}:{ONTOLOGY_PORT}/graphio/v1/meta-type/{ENDPOINT_DAG_RUN},
+    실행 시 Graphio API: POST {host}/graphio/v1/meta-type/workflow-dag/run,
     body: {"metaTypeId": metatype_id, "dataFrame": [...]}  (dataFrame은 rows, orient=records)
     """
     if not params:
         raise ValueError("params is required")
 
+    host = params.get("host")
+    endpoint = "/graphio/v1/meta-type/workflow-dag/run"
     metatype_id = params.get("id")
     meta_type_ids = params.get("metaTypeIds", [])
     property_mapper = params.get("properties", [])
     before_task_ids = params.get("before_task_ids", [])
+
+    if not host:
+        raise ValueError("host is required in params")
 
     before_task_index = {bti: i for i, (bti, _) in enumerate(before_task_ids)}
     origin_property_mapper = {
@@ -72,7 +67,7 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
     if not metatype_id:
         raise ValueError("id (metatype id) is required in params when calling workflow-dag/run")
 
-    url = _get_workflow_dag_run_url()
+    url = f"{host.rstrip('/')}/{endpoint.lstrip('/')}"
     # numpy 등 비-JSON 타입을 피하기 위해 to_json → loads 사용
     data_frame = json.loads(new_df.to_json(orient="records", date_format="iso"))
     payload = {
