@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import copy
 import datetime
+import json
 import logging
 import shutil
 from pathlib import Path
@@ -373,11 +376,11 @@ class FlowDefinitionService:
 
     @staticmethod
     def _build_workflow_dag_save_node(task: dict) -> dict:
-        """meta-type/workflow-dag/save 요청용 노드 한 건 (params / metaTypeIds 분리)."""
+        """meta-type/workflow-dag/save 요청용 노드 한 건 (param / metaTypeIds)."""
         raw = {item["key"]: item["value"] for item in task.get("inputs", [])}
         meta_type_ids = raw.get("metaTypeIds") or []
         properties_raw = raw.get("properties") or []
-        params = {
+        param = {
             "id": raw.get("id"),
             "name": raw.get("name"),
             "description": raw.get("description"),
@@ -396,7 +399,7 @@ class FlowDefinitionService:
         }
         return {
             "nodeId": task["id"],
-            "params": params,
+            "param": param,
             "metaTypeIds": copy.deepcopy(meta_type_ids),
         }
 
@@ -404,6 +407,10 @@ class FlowDefinitionService:
         tasks = payload.get("tasks", [])
         meta_tasks = [t for t in tasks if t.get("kind") == "meta"]
         if not meta_tasks:
+            logger.info(
+                "⏭️ Skip metatype dag schema notification: no meta tasks in payload "
+                f"(workflowId={flow_id})"
+            )
             return
 
         nodes = []
@@ -415,16 +422,32 @@ class FlowDefinitionService:
             nodes.append(self._build_workflow_dag_save_node(task))
 
         if not host:
-            logger.warning("⚠️ No host found in meta node params, skip metatype dag schema notification")
+            logger.warning(
+                "⚠️ Skip metatype dag schema notification: no Graphio base URL "
+                "(meta task host missing after param_schema merge). workflowId=%s",
+                flow_id,
+            )
             return
 
-        url = f"{host.rstrip('/')}/graphio/v1/meta-type/workflow-dag/save"
+        endpoint = "/graphio/v1/meta-type/workflow-dag/save"
+        url = f"{host.rstrip('/')}/{endpoint.lstrip('/')}"
         body = {
             "workflowId": flow_id,
             "nodes": nodes,
         }
 
         try:
+            logger.info(
+                "▶️ Metatype dag schema POST %s (nodes=%s, base=%s)",
+                url,
+                len(nodes),
+                "merged-host",
+            )
+            logger.debug(
+                "workflow-dag/save POST %s body=%s",
+                url,
+                json.dumps(body, ensure_ascii=False, default=str),
+            )
             resp = requests.post(url, json=body, timeout=10)
             if resp.ok:
                 logger.info(f"✅ Metatype dag schema saved: {resp.status_code}")

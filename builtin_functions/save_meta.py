@@ -70,8 +70,16 @@ def run(*dfs, params: Optional[Dict[str, Any]] = None):
     url = f"{host.rstrip('/')}/{endpoint.lstrip('/')}"
     # numpy 등 비-JSON 타입을 피하기 위해 to_json → loads 사용
     data_frame = json.loads(new_df.to_json(orient="records", date_format="iso"))
-    payload = {"id": metatype_id, "dataFrame": data_frame}
+    payload = {
+        "metaTypeId": metatype_id,
+        "dataFrame": data_frame,
+    }
     headers = {"Content-Type": "application/json"}  # JSON 형식 요청
+    logger.debug(
+        "workflow-dag/run POST %s body=%s",
+        url,
+        json.dumps(payload, ensure_ascii=False, default=str),
+    )
     response = requests.post(url, json=payload, headers=headers)
 
     if response.ok:
