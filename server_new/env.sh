@@ -10,5 +10,5 @@ if [ -d "$BASE_DIR/.venv" ]; then
 fi
 
 # ✅ Python Path 설정
-export PYTHONPATH=$BASE_DIR:$PYTHONPATH
+export PYTHONPATH="${BASE_DIR}${PYTHONPATH:+:${PYTHONPATH}}"
 echo "🚀 PYTHONPATH 설정됨: $PYTHONPATH"
