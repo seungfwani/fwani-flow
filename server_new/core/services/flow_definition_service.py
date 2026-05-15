@@ -35,6 +35,7 @@ from models.domain.mapper import (
     payload_to_domain_flow,
 )
 from utils.functions import make_flow_id_by_name, to_snake
+from utils.ontology_api import get_workflow_dag_save_url
 
 logger = logging.getLogger()
 
@@ -414,23 +415,10 @@ class FlowDefinitionService:
             return
 
         nodes = []
-        host = None
         for task in meta_tasks:
-            raw = {item["key"]: item["value"] for item in task.get("inputs", [])}
-            if host is None:
-                host = raw.get("host")
             nodes.append(self._build_workflow_dag_save_node(task))
 
-        if not host:
-            logger.warning(
-                "⚠️ Skip metatype dag schema notification: no Graphio base URL "
-                "(meta task host missing after param_schema merge). workflowId=%s",
-                flow_id,
-            )
-            return
-
-        endpoint = "/graphio/v1/meta-type/workflow-dag/save"
-        url = f"{host.rstrip('/')}/{endpoint.lstrip('/')}"
+        url = get_workflow_dag_save_url()
         body = {
             "workflowId": flow_id,
             "nodes": nodes,
@@ -441,7 +429,7 @@ class FlowDefinitionService:
                 "▶️ Metatype dag schema POST %s (nodes=%s, base=%s)",
                 url,
                 len(nodes),
-                "merged-host",
+                "ontology-config",
             )
             logger.debug(
                 "workflow-dag/save POST %s body=%s",

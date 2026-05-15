@@ -41,3 +41,9 @@ class Config:
     AIRFLOW_PORT = os.getenv("AIRFLOW_PORT", "8080")
     AIRFLOW_USER = os.getenv("AIRFLOW_USER", "admin")
     AIRFLOW_PASSWORD = os.getenv("AIRFLOW_PASSWORD", "<PASSWORD>")
+
+    # ontology
+    ONTOLOGY_HOST = os.getenv("ONTOLOGY_HOST", "ontology-svc")
+    ONTOLOGY_PORT = os.getenv("ONTOLOGY_PORT", "8080")
+    ENDPOINT_DAG_SAVE = os.getenv("ENDPOINT_DAG_SAVE", "workflow-dag/save")
+    ENDPOINT_DAG_RUN = os.getenv("ENDPOINT_DAG_RUN", "workflow-dag/run")
