@@ -1,0 +1,30 @@
+[project]
+name = "fwani-flow-server"
+version = "0.1.0"
+description = "Workflow API server (FastAPI)"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "argon2-cffi==23.1.0",
+    "apscheduler==3.10.4",
+    "fastapi==0.115.6",
+    "starlette==0.41.3",
+    "uvicorn==0.34.0",
+    "docker==7.1.0",
+    "requests==2.32.3",
+    "PyJWT==2.10.1",
+    "pandas==2.3.1",
+    "pydantic[email]==2.10.6",
+    "python-multipart==0.0.20",
+    "SQLAlchemy==1.4.54",
+    "alembic==1.14.1",
+    "Jinja2==3.1.4",
+    "psycopg2==2.9.10",
+    "websockets==15.0.1",
+    "apache-airflow==2.10.5",
+]
+
+[tool.uv]
+package = false
+
+[dependency-groups]
+dev = []

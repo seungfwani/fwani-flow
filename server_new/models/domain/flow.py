@@ -58,7 +58,7 @@ class Task:
         self.id = id_
         self.variable_id = variable_id
         self.kind = kind
-        # server_new/requirements.txt 와 동일한 버전으로 고정 (pickle 호환 등)
+        # server_new/pyproject.toml 과 동일한 버전으로 고정 (pickle 호환 등)
         DEFAULT_PYTHON_LIBS = ['pandas==2.3.1', 'requests==2.32.3']
         if kind == 'code':
             base = [lib for lib in python_libraries if lib.split('==')[0] not in ('pandas', 'requests')]
