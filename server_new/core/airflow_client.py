@@ -15,7 +15,7 @@ logger = logging.getLogger()
 
 class AirflowClient:
     def __init__(self, host: str, port: int, username: str, password: str, pool_maxsize=50, retries=3):
-        self.base_url = f"http://{host}:{port}/graphio/airflow/"
+        self.base_url = f"http://{host}:{port}/graphio/airflow/api/v1/"
         self.username = username
         self.password = password
         self.pool_maxsize = pool_maxsize
