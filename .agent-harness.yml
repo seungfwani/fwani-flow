@@ -1,0 +1,68 @@
+version: "1"
+project:
+  name: fwani-flow
+  type: python
+  owner: vertical-ai-platform
+  description: 메타타입 워크플로우 서비스임
+harness:
+  version: "0.3.0"
+  profile: python
+  maturity_target: 2
+  non_destructive: true
+  require_dry_run_before_write: false
+commands:
+  install: uv sync
+  run: "python -m {{module}}"
+  test: pytest
+  lint: ruff check .
+  typecheck: mypy .
+  build: python -m build
+  verify: scripts/agent-verify
+docs:
+  root: docs
+  required:
+    - AGENTS.md
+    - ARCHITECTURE.md
+    - docs/TESTING.md
+    - docs/SECURITY.md
+    - docs/OBSERVABILITY.md
+    - docs/DOC_GARDENING.md
+architecture:
+  layers: []
+  forbidden_imports: []
+  dependency_direction: []
+security:
+  secret_patterns:
+    - .env
+    - "*.pem"
+    - "*.key"
+  sensitive_log_terms:
+    - password
+    - token
+    - secret
+    - authorization
+  destructive_commands:
+    - git\s+reset\s+--hard
+    - git\s+checkout\s+(--\s+)?\.
+    - git\s+checkout\s+--\s
+    - "git\\s+clean\\s+-[a-zA-Z]*f"
+    - "git\\s+push\\s+.*(--force(?!-with-lease)|-f)\\b"
+    - git\s+branch\s+-D\b
+    - "rm\\s+-rf\\s+(/|~|\\$HOME)"
+agent:
+  working_loop_required: true
+  require_tests_for_code_changes: true
+  require_docs_for_behavior_changes: true
+  no_guessing: true
+  minimal_change_scope: true
+  reuse_before_create: true
+  concise_output: true
+  require_doc_spec_sync: true
+  prohibit_destructive_commands_without_confirm: true
+  require_human_escalation_for:
+    - data deletion
+    - auth changes
+    - permission changes
+    - production migration
+    - customer-facing api changes
+    - large infrastructure cost

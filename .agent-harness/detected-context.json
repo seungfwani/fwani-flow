@@ -1,0 +1,61 @@
+{
+  "generated_at": "2026-06-15T08:55:04.873Z",
+  "harness_version": "0.3.0",
+  "primary_profile": "python",
+  "profiles_matched": [
+    "python"
+  ],
+  "monorepo": false,
+  "language": "Python",
+  "framework": null,
+  "package_manager": "pip",
+  "source_directories": [
+    "server",
+    "frontend"
+  ],
+  "entrypoints": [],
+  "docker": false,
+  "ci": false,
+  "makefile": false,
+  "docs_dir": true,
+  "env_file_patterns": [],
+  "existing_agent_docs": [],
+  "commands": {
+    "install": {
+      "value": "uv sync",
+      "confidence": "suggested",
+      "source": "python profile candidate"
+    },
+    "run": {
+      "value": "python -m {{module}}",
+      "confidence": "suggested",
+      "source": "python profile candidate"
+    },
+    "test": {
+      "value": "pytest",
+      "confidence": "suggested",
+      "source": "python profile candidate"
+    },
+    "lint": {
+      "value": "ruff check .",
+      "confidence": "suggested",
+      "source": "python profile candidate"
+    },
+    "typecheck": {
+      "value": "mypy .",
+      "confidence": "suggested",
+      "source": "python profile candidate"
+    },
+    "build": {
+      "value": "python -m build",
+      "confidence": "suggested",
+      "source": "python profile candidate"
+    }
+  },
+  "additional_docs": [
+    "docs/PYTHON.md"
+  ],
+  "additional_scripts": [
+    "scripts/agent-python-check"
+  ]
+}
